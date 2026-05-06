@@ -133,7 +133,9 @@ export async function createOpenAiRealtimeClientSecret(instructions: string) {
               type: "near_field"
             },
             transcription: {
-              model: "gpt-4o-mini-transcribe"
+              model: "gpt-4o-mini-transcribe",
+              language: "id",
+              prompt: "Audio interview kerja berbahasa Indonesia. Istilah teknis bisa bercampur Inggris, seperti AI, machine learning, forecasting, model, data, product, business, dan nama domain role."
             },
             turn_detection: {
               type: "server_vad",

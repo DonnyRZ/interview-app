@@ -50,6 +50,8 @@ export function InterviewOverlay() {
   const activeRequestRef = useRef(0);
   const runtimeKeywordRequestRef = useRef("");
   const streamingResponseRef = useRef("");
+  const realtimeSocketRef = useRef<WebSocket | null>(null);
+  const realtimeStatusRef = useRef("");
 
   function applyContext(payload: unknown) {
     if (!payload || typeof payload !== "object") return;
@@ -105,6 +107,7 @@ export function InterviewOverlay() {
 
   useEffect(() => {
     void window.interviewDesktop?.getOverlayContext?.().then(applyContext);
+    void window.interviewDesktop?.reportRealtimeClientEvent?.({ type: "ready" });
     return window.interviewDesktop?.onOverlayContextUpdated?.(applyContext);
   }, []);
 
@@ -113,6 +116,7 @@ export function InterviewOverlay() {
       if (event.type === "status") {
         const nextStatus = typeof event.status === "string" ? event.status : "";
         const nextMessage = typeof event.message === "string" ? event.message : "";
+        realtimeStatusRef.current = nextStatus;
         setContext((current) => {
           const nextContext = {
             ...current,
@@ -122,6 +126,37 @@ export function InterviewOverlay() {
           contextRef.current = nextContext;
           return nextContext;
         });
+        return;
+      }
+
+      if (event.type === "connect") {
+        connectRealtimeClient(event);
+        return;
+      }
+
+      if (event.type === "disconnect") {
+        closeRealtimeClient();
+        return;
+      }
+
+      if (event.type === "input_audio_buffer.append") {
+        const audio = typeof event.audio === "string" ? event.audio : "";
+        if (audio) {
+          sendRealtimeClientEvent({
+            type: "input_audio_buffer.append",
+            audio
+          });
+        }
+        return;
+      }
+
+      if (event.type === "client_action") {
+        const payload = event.payload && typeof event.payload === "object"
+          ? event.payload as RealtimeOverlayAction
+          : null;
+        if (payload) {
+          void sendRealtimeActionToSocket(payload);
+        }
         return;
       }
 
@@ -177,6 +212,10 @@ export function InterviewOverlay() {
         setMode("response");
       }
     });
+  }, []);
+
+  useEffect(() => {
+    return () => closeRealtimeClient(false);
   }, []);
 
   useEffect(() => {
@@ -287,6 +326,246 @@ export function InterviewOverlay() {
     return activeRequestRef.current === requestId;
   }
 
+  function updateRealtimeStatus(status: string, message: string) {
+    realtimeStatusRef.current = status;
+    setContext((current) => {
+      const nextContext = {
+        ...current,
+        realtimeStatus: status,
+        realtimeMessage: message
+      };
+      contextRef.current = nextContext;
+      return nextContext;
+    });
+  }
+
+  function connectRealtimeClient(event: Record<string, unknown>) {
+    const model = typeof event.model === "string" ? event.model : "";
+    const clientSecret = typeof event.clientSecret === "string" ? event.clientSecret : "";
+    if (model !== "gpt-realtime-mini" || !clientSecret) {
+      updateRealtimeStatus("error", "Realtime client secret invalid atau bukan gpt-realtime-mini.");
+      void window.interviewDesktop?.reportRealtimeClientEvent?.({
+        type: "error",
+        message: "Realtime client secret invalid atau bukan gpt-realtime-mini."
+      });
+      return;
+    }
+
+    closeRealtimeClient(false);
+    updateRealtimeStatus("connecting", "Menghubungkan WebSocket Realtime...");
+
+    const socket = new WebSocket(
+      `wss://api.openai.com/v1/realtime?model=${encodeURIComponent(model)}`,
+      [
+        "realtime",
+        `openai-insecure-api-key.${clientSecret}`
+      ]
+    );
+    realtimeSocketRef.current = socket;
+
+    socket.addEventListener("open", () => {
+      if (realtimeSocketRef.current !== socket) return;
+      updateRealtimeStatus("listening", "Realtime listening via system audio.");
+      void window.interviewDesktop?.reportRealtimeClientEvent?.({ type: "open" });
+    });
+
+    socket.addEventListener("message", (messageEvent) => {
+      if (realtimeSocketRef.current !== socket) return;
+      handleRealtimeServerEvent(messageEvent.data);
+    });
+
+    socket.addEventListener("error", () => {
+      if (realtimeSocketRef.current !== socket) return;
+      updateRealtimeStatus("error", "Realtime WebSocket gagal tersambung.");
+      setActiveResponse(buildRealtimeUnavailableResponse("Realtime WebSocket gagal tersambung."));
+      setMode("response");
+      void window.interviewDesktop?.reportRealtimeClientEvent?.({
+        type: "error",
+        message: "Realtime WebSocket gagal tersambung."
+      });
+    });
+
+    socket.addEventListener("close", () => {
+      if (realtimeSocketRef.current !== socket) return;
+      realtimeSocketRef.current = null;
+      if (realtimeStatusRef.current !== "error") {
+        updateRealtimeStatus("closed", "Realtime session tertutup.");
+        void window.interviewDesktop?.reportRealtimeClientEvent?.({ type: "closed" });
+      }
+    });
+  }
+
+  function closeRealtimeClient(reportClose = true) {
+    const socket = realtimeSocketRef.current;
+    realtimeSocketRef.current = null;
+    if (socket) {
+      try {
+        socket.close();
+      } catch {
+        // Browser WebSocket close is best-effort during overlay shutdown.
+      }
+    }
+
+    if (reportClose) {
+      streamingResponseRef.current = "";
+    }
+  }
+
+  function handleRealtimeServerEvent(data: unknown) {
+    const text = typeof data === "string" ? data : "";
+    if (!text) {
+      return;
+    }
+
+    let event: Record<string, unknown>;
+    try {
+      event = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      return;
+    }
+
+    const type = typeof event.type === "string" ? event.type : "";
+    if (type === "conversation.item.input_audio_transcription.delta") {
+      const delta = typeof event.delta === "string" ? event.delta : "";
+      if (delta) {
+        void window.interviewDesktop?.updateOverlayContext?.({
+          realtimeTranscriptDelta: delta
+        });
+      }
+      return;
+    }
+
+    if (type === "conversation.item.input_audio_transcription.completed") {
+      const transcriptText = typeof event.transcript === "string" ? event.transcript.trim() : "";
+      if (transcriptText) {
+        const detectedQuestion = deriveQuestionFromTranscriptText(transcriptText, contextRef.current);
+        const transcriptEvent: OverlayTranscriptEvent = {
+          transcriptText,
+          detectedQuestion,
+          speaker: "interviewer",
+          isFinal: true,
+          capturedAt: new Date().toISOString()
+        };
+        void window.interviewDesktop?.updateOverlayContext?.({
+          latestTranscriptEvent: transcriptEvent
+        });
+        if (detectedQuestion) {
+          setLatestQuestion(detectedQuestion);
+        }
+      }
+      return;
+    }
+
+    if (type === "response.output_text.delta") {
+      const delta = typeof event.delta === "string" ? event.delta : "";
+      if (!delta) return;
+
+      streamingResponseRef.current += delta;
+      const points = formatRealtimeResponsePoints(streamingResponseRef.current);
+      setActiveResponse((current) => current
+        ? { ...current, points: points.length ? points : ["Menyiapkan bantuan realtime..."] }
+        : current);
+      setMode("response");
+      return;
+    }
+
+    if (type === "response.output_text.done") {
+      const textDone = typeof event.text === "string" ? event.text.trim() : "";
+      if (textDone && !streamingResponseRef.current.trim()) {
+        streamingResponseRef.current = textDone;
+      }
+      return;
+    }
+
+    if (type === "response.done") {
+      const finalText = extractRealtimeResponseText(event) || streamingResponseRef.current.trim();
+      setActiveResponse((current) => current
+        ? { ...current, points: formatRealtimeResponsePoints(finalText) }
+        : {
+          title: "AI Help",
+          kind: "help",
+          points: formatRealtimeResponsePoints(finalText)
+        });
+      streamingResponseRef.current = "";
+      updateRealtimeStatus("listening", "Realtime listening via system audio.");
+      void window.interviewDesktop?.reportRealtimeClientEvent?.({
+        type: "listening",
+        message: "Realtime listening via system audio."
+      });
+      setMode("response");
+      return;
+    }
+
+    if (type === "error") {
+      const error = event.error && typeof event.error === "object" ? event.error as Record<string, unknown> : {};
+      const message = typeof error.message === "string" ? error.message : "Realtime API error.";
+      updateRealtimeStatus("error", message);
+      setActiveResponse(buildRealtimeUnavailableResponse(message));
+      setMode("response");
+      void window.interviewDesktop?.reportRealtimeClientEvent?.({
+        type: "error",
+        message
+      });
+    }
+  }
+
+  function sendRealtimeClientEvent(event: Record<string, unknown>) {
+    const socket = realtimeSocketRef.current;
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      return false;
+    }
+
+    socket.send(JSON.stringify(event));
+    return true;
+  }
+
+  async function sendRealtimeActionToSocket(payload: RealtimeOverlayAction) {
+    if (realtimeStatusRef.current === "responding") {
+      sendRealtimeClientEvent({ type: "response.cancel" });
+    }
+
+    streamingResponseRef.current = "";
+    updateRealtimeStatus("responding", "Realtime sedang membuat bantuan...");
+    void window.interviewDesktop?.reportRealtimeClientEvent?.({
+      type: "responding",
+      message: "Realtime sedang membuat bantuan..."
+    });
+    setActiveResponse({
+      title: getRealtimeActionTitle(payload),
+      kind: "help",
+      points: ["Menyiapkan bantuan realtime..."]
+    });
+    setMode("response");
+
+    const itemSent = sendRealtimeClientEvent({
+      type: "conversation.item.create",
+      item: {
+        type: "message",
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: buildRealtimeActionPrompt(payload)
+          }
+        ]
+      }
+    });
+    const responseSent = sendRealtimeClientEvent({
+      type: "response.create",
+      response: {
+        output_modalities: ["text"],
+        max_output_tokens: 500
+      }
+    });
+
+    if (!itemSent || !responseSent) {
+      updateRealtimeStatus("error", "Realtime session belum aktif.");
+      return false;
+    }
+
+    return true;
+  }
+
   async function requestHelp(type: string, triggerText?: string) {
     if (activeResponse?.kind === "help") {
       setRecentHelp((items) => [activeResponse, ...items].slice(0, 5));
@@ -320,16 +599,16 @@ export function InterviewOverlay() {
       return;
     }
 
-    const response = await window.interviewDesktop?.sendRealtimeAction?.({
+    const response = await sendRealtimeActionToSocket({
       requestId,
       action: type as RealtimeOverlayAction["action"],
       latestQuestion,
       triggerText
     });
 
-    if (!response?.ok) {
+    if (!response) {
       if (!isCurrentRequest(requestId)) return;
-      setActiveResponse(buildRealtimeUnavailableResponse(response?.message || context.realtimeMessage));
+      setActiveResponse(buildRealtimeUnavailableResponse(context.realtimeMessage));
       setMode("response");
     }
   }
@@ -564,6 +843,51 @@ function formatRealtimeResponsePoints(text: string) {
     .map((line) => line.replace(/^\s*[-*•]\s*/, "").trim())
     .filter(Boolean)
     .slice(0, 6);
+}
+
+function buildRealtimeActionPrompt(payload: RealtimeOverlayAction) {
+  const trigger = getRealtimeTriggerName(payload.action);
+  return [
+    `TRIGGER: ${trigger}`,
+    payload.latestQuestion ? `Pertanyaan interviewer terbaru: ${payload.latestQuestion}` : "",
+    payload.triggerText ? `Input user/keyword: ${payload.triggerText}` : "",
+    "Jawab text saja, ringkas, actionable, dan siap dipakai kandidat."
+  ].filter(Boolean).join("\n");
+}
+
+function getRealtimeTriggerName(action: RealtimeOverlayAction["action"]) {
+  if (action === "answer") return "BANTU_JAWAB";
+  if (action === "followup") return "BANTU_FOLLOWUP";
+  if (action === "explain") return "JELASKAN_MAKSUDNYA";
+  if (action === "keyword") return "EXPLAIN_KEYWORD";
+  return "ASK";
+}
+
+function getRealtimeActionTitle(payload: RealtimeOverlayAction) {
+  if (payload.action === "answer") return "Bantu Jawab";
+  if (payload.action === "followup") return "Bantu Follow-up";
+  if (payload.action === "explain") return "Jelaskan Maksudnya";
+  if (payload.action === "keyword") return `Keyword: ${payload.triggerText || "Keyword"}`;
+  return "Ask";
+}
+
+function extractRealtimeResponseText(event: Record<string, unknown>) {
+  const response = event.response && typeof event.response === "object" ? event.response as Record<string, unknown> : {};
+  const output = Array.isArray(response.output) ? response.output : [];
+  return output.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const content = Array.isArray((item as Record<string, unknown>).content) ? (item as Record<string, unknown>).content as unknown[] : [];
+    return content.flatMap((part) => {
+      if (!part || typeof part !== "object") return [];
+      const record = part as Record<string, unknown>;
+      const text = typeof record.text === "string"
+        ? record.text
+        : typeof record.transcript === "string"
+          ? record.transcript
+          : "";
+      return text ? [text] : [];
+    });
+  }).join("").trim();
 }
 
 function buildDummyResponse(type: string, triggerText: string | undefined, context: OverlayContext): HelpResponse {
@@ -820,7 +1144,7 @@ function deriveQuestionFromTranscriptEvent(
   }
 
   const explicitQuestion = event.detectedQuestion?.trim();
-  if (explicitQuestion) {
+  if (explicitQuestion && isRelevantTranscriptText(explicitQuestion, context)) {
     return explicitQuestion;
   }
 
@@ -836,15 +1160,90 @@ function deriveQuestionFromTranscriptEvent(
 
   for (let index = segments.length - 1; index >= 0; index -= 1) {
     const segment = segments[index];
-    if (segment && looksLikeInterviewerQuestion(segment)) {
+    if (segment && looksLikeInterviewerQuestion(segment) && isRelevantTranscriptText(segment, context)) {
       return segment;
     }
   }
 
   const trailingSegment = segments.at(-1) || transcriptText;
-  if (isDomainRelatedText(trailingSegment, context) && trailingSegment.length >= 24) {
+  if (isRelevantTranscriptText(trailingSegment, context) && trailingSegment.length >= 24) {
     return trailingSegment;
   }
 
   return "";
+}
+
+function deriveQuestionFromTranscriptText(transcriptText: string, context: OverlayContext) {
+  const segments = transcriptText
+    .split(/[\n\r]+|(?<=[?.!])\s+/)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+
+  for (let index = segments.length - 1; index >= 0; index -= 1) {
+    const segment = segments[index];
+    if (segment && looksLikeInterviewerQuestion(segment) && isRelevantTranscriptText(segment, context)) {
+      return segment;
+    }
+  }
+
+  const trailingSegment = segments.at(-1) || transcriptText;
+  if (isRelevantTranscriptText(trailingSegment, context) && trailingSegment.length >= 24) {
+    return trailingSegment;
+  }
+
+  return undefined;
+}
+
+function isRelevantTranscriptText(text: string, context: OverlayContext) {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  const adSignals = [
+    "sponsored",
+    "apply now",
+    "start building",
+    "save you",
+    "look.",
+    "budgeting app",
+    "base44",
+    "promo",
+    "iklan"
+  ];
+  if (adSignals.some((signal) => normalized.includes(signal))) {
+    return false;
+  }
+
+  if (isDomainRelatedText(text, context)) {
+    return true;
+  }
+
+  const interviewSignals = [
+    "ai",
+    "artificial intelligence",
+    "kecerdasan buatan",
+    "machine learning",
+    "deep learning",
+    "neural",
+    "model",
+    "data",
+    "training",
+    "prediksi",
+    "forecast",
+    "forecasting",
+    "bisnis",
+    "market",
+    "harga",
+    "role",
+    "pengalaman",
+    "project",
+    "jelaskan",
+    "ceritakan",
+    "bagaimana",
+    "kenapa",
+    "mengapa"
+  ];
+
+  return interviewSignals.some((signal) => normalized.includes(signal));
 }

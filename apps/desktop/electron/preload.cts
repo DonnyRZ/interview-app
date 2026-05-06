@@ -41,6 +41,7 @@ contextBridge.exposeInMainWorld("interviewDesktop", {
   updateOverlayContext: (context: unknown) => ipcRenderer.invoke("overlay:update-context", context),
   pushOverlayTranscript: (event: unknown) => ipcRenderer.invoke("overlay:push-transcript", event),
   sendRealtimeAction: (payload: unknown) => ipcRenderer.invoke("overlay:send-realtime-action", payload),
+  reportRealtimeClientEvent: (payload: unknown) => ipcRenderer.invoke("overlay:realtime-client-event", payload),
   closeOverlay: () => ipcRenderer.invoke("overlay:close"),
   getOverlayContext: () => ipcRenderer.invoke("overlay:get-context"),
   resizeOverlay: (mode: "mini" | "expanded" | "response") => ipcRenderer.invoke("overlay:resize", mode),

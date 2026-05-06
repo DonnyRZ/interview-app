@@ -59,6 +59,7 @@ interface Window {
     updateOverlayContext?: (context: unknown) => Promise<unknown>;
     pushOverlayTranscript?: (event: OverlayTranscriptEvent) => Promise<unknown>;
     sendRealtimeAction?: (payload: RealtimeOverlayAction) => Promise<{ ok: boolean; message?: string }>;
+    reportRealtimeClientEvent?: (payload: unknown) => Promise<{ ok: boolean; message?: string }>;
     closeOverlay?: () => Promise<unknown>;
     getOverlayContext?: () => Promise<unknown>;
     resizeOverlay?: (mode: "mini" | "expanded" | "response") => Promise<unknown>;
