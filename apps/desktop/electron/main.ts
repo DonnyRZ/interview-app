@@ -17,28 +17,12 @@ const overlaySizes = {
 
 type RealtimeStatus = "idle" | "connecting" | "listening" | "responding" | "error" | "closed";
 
-type RuntimeWebSocketEvent = {
-  data?: unknown;
-  message?: string;
-};
-
-type RuntimeWebSocket = {
-  readyState: number;
-  send: (data: string) => void;
-  close: () => void;
-  addEventListener: (type: string, listener: (event: RuntimeWebSocketEvent) => void) => void;
-};
-
-type RuntimeWebSocketConstructor = new (url: string, protocols?: string[]) => RuntimeWebSocket;
-
 type RealtimeActionPayload = {
   requestId?: number;
   action?: "answer" | "followup" | "explain" | "keyword" | "ask";
   latestQuestion?: string;
   triggerText?: string;
 };
-
-const websocketOpenState = 1;
 
 let mainWindow: BrowserWindow | null = null;
 let overlayWindow: BrowserWindow | null = null;
@@ -49,12 +33,10 @@ let currentOverlaySize = overlaySizes.mini;
 let overlayCloseHandled = false;
 let systemAudioProbeProcess: ChildProcessWithoutNullStreams | null = null;
 let systemAudioProbeBuffer = "";
-let realtimeSocket: RuntimeWebSocket | null = null;
 let realtimeAudioProcess: ChildProcessWithoutNullStreams | null = null;
 let realtimeAudioBuffer = "";
 let realtimeStatus: RealtimeStatus = "idle";
-let realtimeResponseText = "";
-let realtimeResponseRequestId = 0;
+let realtimeConnectPayload: { model: string; clientSecret: string; expiresAt: number } | null = null;
 
 function sanitizeTranscriptEvent(event: unknown) {
   if (!event || typeof event !== "object") {
@@ -125,46 +107,8 @@ async function startRealtimeSession(context: unknown) {
 
   try {
     const token = await fetchRealtimeClientSecret(realtimeContext);
-    const WebSocketConstructor = (globalThis as unknown as { WebSocket?: RuntimeWebSocketConstructor }).WebSocket;
-    if (!WebSocketConstructor) {
-      throw new Error("Runtime WebSocket tidak tersedia di Electron main process.");
-    }
-
-    const socket = new WebSocketConstructor(
-      `wss://api.openai.com/v1/realtime?model=${encodeURIComponent(token.model)}`,
-      [
-        "realtime",
-        `openai-insecure-api-key.${token.clientSecret}`
-      ]
-    );
-
-    realtimeSocket = socket;
-    socket.addEventListener("open", () => {
-      if (realtimeSocket !== socket) return;
-      setRealtimeStatus("listening", "Realtime listening via system audio.");
-      startRealtimeAudioStream();
-    });
-    socket.addEventListener("message", (event) => {
-      if (realtimeSocket !== socket) return;
-      handleRealtimeServerMessage(event.data);
-    });
-    socket.addEventListener("error", () => {
-      if (realtimeSocket !== socket) return;
-      stopRealtimeAudioStream();
-      setRealtimeStatus("error", "Realtime session gagal. gpt-realtime-mini tidak tersambung.");
-      emitRealtimeOverlayEvent({
-        type: "error",
-        message: "Realtime session gagal. gpt-realtime-mini tidak tersambung."
-      });
-    });
-    socket.addEventListener("close", () => {
-      if (realtimeSocket !== socket) return;
-      realtimeSocket = null;
-      stopRealtimeAudioStream();
-      if (realtimeStatus !== "error") {
-        setRealtimeStatus("closed", "Realtime session tertutup.");
-      }
-    });
+    realtimeConnectPayload = token;
+    emitRealtimeConnectPayload();
   } catch (error) {
     const message = error instanceof Error ? error.message : "Realtime session gagal dibuat.";
     stopRealtimeSession(false);
@@ -178,23 +122,26 @@ async function startRealtimeSession(context: unknown) {
 
 function stopRealtimeSession(emitClosed = true) {
   stopRealtimeAudioStream();
-  const socket = realtimeSocket;
-  realtimeSocket = null;
-  if (socket) {
-    try {
-      socket.close();
-    } catch {
-      // Closing is best-effort during app/window shutdown.
-    }
-  }
-
-  realtimeResponseText = "";
-  realtimeResponseRequestId = 0;
+  realtimeConnectPayload = null;
+  emitRealtimeOverlayEvent({ type: "disconnect" });
   if (emitClosed) {
     setRealtimeStatus("closed", "Realtime session tertutup.");
   } else {
     realtimeStatus = "idle";
   }
+}
+
+function emitRealtimeConnectPayload() {
+  if (!realtimeConnectPayload) {
+    return;
+  }
+
+  emitRealtimeOverlayEvent({
+    type: "connect",
+    model: realtimeConnectPayload.model,
+    clientSecret: realtimeConnectPayload.clientSecret,
+    expiresAt: realtimeConnectPayload.expiresAt
+  });
 }
 
 async function fetchRealtimeClientSecret(realtimeContext: Record<string, unknown>) {
@@ -299,7 +246,7 @@ function handleRealtimeAudioLine(line: string) {
   try {
     const event = JSON.parse(trimmed) as { type?: string; audio?: string; message?: string };
     if (event.type === "audio_chunk" && event.audio) {
-      sendRealtimeClientEvent({
+      emitRealtimeOverlayEvent({
         type: "input_audio_buffer.append",
         audio: event.audio
       });
@@ -317,132 +264,13 @@ function handleRealtimeAudioLine(line: string) {
   }
 }
 
-function handleRealtimeServerMessage(data: unknown) {
-  const text = typeof data === "string"
-    ? data
-    : data instanceof Buffer
-      ? data.toString("utf8")
-      : "";
-
-  if (!text) {
-    return;
-  }
-
-  let event: Record<string, unknown>;
-  try {
-    event = JSON.parse(text) as Record<string, unknown>;
-  } catch {
-    return;
-  }
-
-  const type = typeof event.type === "string" ? event.type : "";
-  if (type === "input_audio_buffer.speech_started") {
-    emitRealtimeOverlayEvent({ type: "speech_started" });
-    return;
-  }
-
-  if (type === "input_audio_buffer.speech_stopped") {
-    emitRealtimeOverlayEvent({ type: "speech_stopped" });
-    return;
-  }
-
-  if (type === "conversation.item.input_audio_transcription.delta") {
-    const delta = typeof event.delta === "string" ? event.delta : "";
-    if (delta) {
-      emitRealtimeOverlayEvent({
-        type: "transcript_delta",
-        transcriptText: delta
-      });
-    }
-    return;
-  }
-
-  if (type === "conversation.item.input_audio_transcription.completed") {
-    const transcriptText = typeof event.transcript === "string" ? event.transcript.trim() : "";
-    if (transcriptText) {
-      const detectedQuestion = looksLikeQuestion(transcriptText) ? transcriptText : undefined;
-      const transcriptEvent = {
-        transcriptText,
-        detectedQuestion,
-        speaker: "interviewer",
-        isFinal: true,
-        capturedAt: new Date().toISOString()
-      };
-      mergeOverlayContext({
-        latestTranscriptEvent: transcriptEvent
-      });
-      overlayWindow?.webContents.send("overlay:context-updated", overlayContext);
-      emitRealtimeOverlayEvent({
-        type: "transcript_completed",
-        transcriptText,
-        detectedQuestion
-      });
-    }
-    return;
-  }
-
-  if (type === "response.output_text.delta") {
-    const delta = typeof event.delta === "string" ? event.delta : "";
-    if (delta) {
-      realtimeResponseText += delta;
-      emitRealtimeOverlayEvent({
-        type: "response_delta",
-        requestId: realtimeResponseRequestId,
-        delta
-      });
-    }
-    return;
-  }
-
-  if (type === "response.output_text.done") {
-    const textDone = typeof event.text === "string" ? event.text.trim() : "";
-    if (textDone && !realtimeResponseText.trim()) {
-      realtimeResponseText = textDone;
-    }
-    return;
-  }
-
-  if (type === "response.done") {
-    const textDone = extractRealtimeResponseText(event) || realtimeResponseText.trim();
-    emitRealtimeOverlayEvent({
-      type: "response_done",
-      requestId: realtimeResponseRequestId,
-      text: textDone
-    });
-    realtimeResponseText = "";
-    realtimeResponseRequestId = 0;
-    setRealtimeStatus("listening", "Realtime listening via system audio.");
-    return;
-  }
-
-  if (type === "error") {
-    const error = event.error && typeof event.error === "object" ? event.error as Record<string, unknown> : {};
-    const message = typeof error.message === "string" ? error.message : "Realtime API error.";
-    setRealtimeStatus("error", message);
-    emitRealtimeOverlayEvent({
-      type: "error",
-      requestId: realtimeResponseRequestId || undefined,
-      message
-    });
-  }
-}
-
-function sendRealtimeClientEvent(event: Record<string, unknown>) {
-  if (!realtimeSocket || realtimeSocket.readyState !== websocketOpenState) {
-    return false;
-  }
-
-  realtimeSocket.send(JSON.stringify(event));
-  return true;
-}
-
 function sendRealtimeAction(payload: unknown) {
   const actionPayload = sanitizeRealtimeActionPayload(payload);
   if (!actionPayload) {
     return { ok: false, message: "Invalid realtime action payload." };
   }
 
-  if (!realtimeSocket || realtimeSocket.readyState !== websocketOpenState) {
+  if (realtimeStatus !== "listening" && realtimeStatus !== "responding") {
     const message = "Realtime session belum aktif.";
     emitRealtimeOverlayEvent({
       type: "error",
@@ -452,38 +280,9 @@ function sendRealtimeAction(payload: unknown) {
     return { ok: false, message };
   }
 
-  if (realtimeStatus === "responding") {
-    sendRealtimeClientEvent({ type: "response.cancel" });
-  }
-
-  realtimeResponseRequestId = actionPayload.requestId || Date.now();
-  realtimeResponseText = "";
-  setRealtimeStatus("responding", "Realtime sedang membuat bantuan...");
   emitRealtimeOverlayEvent({
-    type: "response_started",
-    requestId: realtimeResponseRequestId,
-    title: getRealtimeActionTitle(actionPayload)
-  });
-
-  sendRealtimeClientEvent({
-    type: "conversation.item.create",
-    item: {
-      type: "message",
-      role: "user",
-      content: [
-        {
-          type: "input_text",
-          text: buildRealtimeActionPrompt(actionPayload)
-        }
-      ]
-    }
-  });
-  sendRealtimeClientEvent({
-    type: "response.create",
-    response: {
-      output_modalities: ["text"],
-      max_output_tokens: 500
-    }
+    type: "client_action",
+    payload: actionPayload
   });
 
   return { ok: true };
@@ -506,52 +305,6 @@ function sanitizeRealtimeActionPayload(payload: unknown): Required<Pick<Realtime
     latestQuestion: typeof candidate.latestQuestion === "string" ? candidate.latestQuestion.trim() : "",
     triggerText: typeof candidate.triggerText === "string" ? candidate.triggerText.trim() : ""
   };
-}
-
-function buildRealtimeActionPrompt(payload: RealtimeActionPayload) {
-  const trigger = getRealtimeTriggerName(payload.action);
-  return [
-    `TRIGGER: ${trigger}`,
-    payload.latestQuestion ? `Pertanyaan interviewer terbaru: ${payload.latestQuestion}` : "",
-    payload.triggerText ? `Input user/keyword: ${payload.triggerText}` : "",
-    "Berikan output text saja, ringkas, actionable, dan siap dipakai kandidat.",
-    "Jangan membuat seolah-olah kandidat punya pengalaman yang tidak ada di context."
-  ].filter(Boolean).join("\n");
-}
-
-function getRealtimeTriggerName(action: RealtimeActionPayload["action"]) {
-  if (action === "answer") return "BANTU_JAWAB";
-  if (action === "followup") return "BANTU_FOLLOWUP";
-  if (action === "explain") return "JELASKAN_MAKSUDNYA";
-  if (action === "keyword") return "EXPLAIN_KEYWORD";
-  return "ASK";
-}
-
-function getRealtimeActionTitle(payload: RealtimeActionPayload) {
-  if (payload.action === "answer") return "Bantu Jawab";
-  if (payload.action === "followup") return "Bantu Follow-up";
-  if (payload.action === "explain") return "Jelaskan Maksudnya";
-  if (payload.action === "keyword") return `Keyword: ${payload.triggerText || "Keyword"}`;
-  return "Ask";
-}
-
-function extractRealtimeResponseText(event: Record<string, unknown>) {
-  const response = event.response && typeof event.response === "object" ? event.response as Record<string, unknown> : {};
-  const output = Array.isArray(response.output) ? response.output : [];
-  return output.flatMap((item) => {
-    if (!item || typeof item !== "object") return [];
-    const content = Array.isArray((item as Record<string, unknown>).content) ? (item as Record<string, unknown>).content as unknown[] : [];
-    return content.flatMap((part) => {
-      if (!part || typeof part !== "object") return [];
-      const record = part as Record<string, unknown>;
-      const text = typeof record.text === "string"
-        ? record.text
-        : typeof record.transcript === "string"
-          ? record.transcript
-          : "";
-      return text ? [text] : [];
-    });
-  }).join("").trim();
 }
 
 function readRealtimeContext(source: unknown) {
@@ -719,6 +472,49 @@ function registerOverlayIpc() {
   });
 
   ipcMain.handle("overlay:send-realtime-action", (_event, payload: unknown) => sendRealtimeAction(payload));
+
+  ipcMain.handle("overlay:realtime-client-event", (_event, payload: unknown) => {
+    const event = payload && typeof payload === "object" ? payload as Record<string, unknown> : {};
+    const type = typeof event.type === "string" ? event.type : "";
+    const message = typeof event.message === "string" ? event.message : "";
+
+    if (type === "ready") {
+      emitRealtimeConnectPayload();
+      return { ok: true };
+    }
+
+    if (type === "open") {
+      setRealtimeStatus("listening", "Realtime listening via system audio.");
+      startRealtimeAudioStream();
+      return { ok: true };
+    }
+
+    if (type === "responding") {
+      setRealtimeStatus("responding", message || "Realtime sedang membuat bantuan...");
+      return { ok: true };
+    }
+
+    if (type === "listening") {
+      setRealtimeStatus("listening", message || "Realtime listening via system audio.");
+      return { ok: true };
+    }
+
+    if (type === "error") {
+      stopRealtimeAudioStream();
+      setRealtimeStatus("error", message || "Realtime session gagal. gpt-realtime-mini tidak tersambung.");
+      return { ok: true };
+    }
+
+    if (type === "closed") {
+      stopRealtimeAudioStream();
+      if (realtimeStatus !== "error") {
+        setRealtimeStatus("closed", message || "Realtime session tertutup.");
+      }
+      return { ok: true };
+    }
+
+    return { ok: false, message: "Unknown realtime client event." };
+  });
 
   ipcMain.handle("overlay:close", () => {
     stopRealtimeSession();
