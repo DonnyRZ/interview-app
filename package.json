@@ -1,0 +1,24 @@
+{
+  "name": "interview-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api": "npm --workspace @interview-app/api run dev",
+    "dev:desktop": "npm --workspace @interview-app/desktop run dev",
+    "build": "npm --workspace @interview-app/shared run build && npm --workspace @interview-app/api run build && npm --workspace @interview-app/desktop run build",
+    "typecheck": "npm --workspace @interview-app/shared run build && npm --workspace @interview-app/api run typecheck && npm --workspace @interview-app/desktop run typecheck",
+    "db:migrate": "npm --workspace @interview-app/api run db:migrate",
+    "db:seed:dev": "npm --workspace @interview-app/api run db:seed:dev"
+  },
+  "packageManager": "npm@11.11.0",
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

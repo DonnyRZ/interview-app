@@ -1,0 +1,1924 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Interactive MVP Mockup</title>
+  <style>
+    :root {
+      --ink: #15171c;
+      --muted: #667085;
+      --line: #d9dde7;
+      --soft-line: #eceff5;
+      --paper: #fbfcfe;
+      --surface: #ffffff;
+      --charcoal: #111318;
+      --green: #16a34a;
+      --amber: #d97706;
+      --red: #dc2626;
+      --blue: #2563eb;
+      --shadow: 0 22px 55px rgba(21, 23, 28, 0.10);
+      --overlay: rgba(17, 19, 24, 0.78);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #f4f6fa;
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+
+    button,
+    input,
+    textarea,
+    select {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    .app-shell {
+      min-height: 100vh;
+    }
+
+    .workspace {
+      width: min(1120px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 28px 0 56px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 26px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 850;
+    }
+
+    .brand-mark {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: var(--charcoal);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-weight: 900;
+    }
+
+    .profile-pill {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .avatar {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #dbeafe, #d1fae5);
+    }
+
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 20px;
+      margin-bottom: 18px;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: 38px;
+      line-height: 1.05;
+      font-weight: 900;
+    }
+
+    h2 {
+      font-size: 24px;
+      line-height: 1.15;
+      font-weight: 900;
+    }
+
+    h3 {
+      font-size: 16px;
+      line-height: 1.3;
+      font-weight: 850;
+    }
+
+    .subcopy {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+      margin-top: 8px;
+      max-width: 680px;
+    }
+
+    .primary-btn,
+    .secondary-btn,
+    .ghost-btn,
+    .danger-btn,
+    .icon-btn {
+      border: 0;
+      border-radius: 8px;
+      min-height: 40px;
+      padding: 0 14px;
+      font-weight: 800;
+      color: var(--ink);
+      background: #fff;
+      border: 1px solid var(--line);
+    }
+
+    .primary-btn {
+      color: #fff;
+      background: var(--charcoal);
+      border-color: var(--charcoal);
+      box-shadow: 0 12px 22px rgba(17, 19, 24, 0.18);
+    }
+
+    .secondary-btn {
+      background: #f7f8fb;
+    }
+
+    .ghost-btn {
+      background: transparent;
+    }
+
+    .danger-btn {
+      color: #fff;
+      background: var(--red);
+      border-color: var(--red);
+    }
+
+    .icon-btn {
+      min-width: 36px;
+      width: 36px;
+      padding: 0;
+      display: inline-grid;
+      place-items: center;
+    }
+
+    .grid {
+      display: grid;
+      gap: 16px;
+    }
+
+    .grid.two {
+      grid-template-columns: minmax(0, 1fr) 390px;
+      align-items: start;
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      padding: 22px;
+    }
+
+    .application-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .application-row {
+      width: 100%;
+      text-align: left;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18px;
+      align-items: center;
+      padding: 18px;
+      border: 1px solid var(--soft-line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--ink);
+      transition: 0.16s ease;
+    }
+
+    .application-row:hover {
+      border-color: #b9c0cf;
+      transform: translateY(-1px);
+    }
+
+    .meta-line {
+      margin-top: 7px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 28px;
+      padding: 0 10px;
+      border-radius: 999px;
+      background: #f2f4f7;
+      color: #344054;
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .pill.good {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .pill.warn {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .pill.danger {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .status-card {
+      display: grid;
+      gap: 10px;
+      padding: 14px;
+      border: 1px solid var(--soft-line);
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .status-card.processing {
+      border-color: #bfdbfe;
+      background: #eff6ff;
+    }
+
+    .status-card.ready {
+      border-color: #bbf7d0;
+      background: #f0fdf4;
+    }
+
+    .status-card.failed {
+      border-color: #fecaca;
+      background: #fef2f2;
+    }
+
+    .progress-track {
+      height: 8px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(37, 99, 235, 0.14);
+    }
+
+    .progress-fill {
+      width: 42%;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #93c5fd, #2563eb, #93c5fd);
+      animation: progressSlide 1.1s infinite ease-in-out;
+    }
+
+    @keyframes progressSlide {
+      0% { transform: translateX(-110%); }
+      100% { transform: translateX(250%); }
+    }
+
+    .field-stack {
+      display: grid;
+      gap: 16px;
+    }
+
+    .field {
+      display: grid;
+      gap: 8px;
+    }
+
+    .field label {
+      font-size: 13px;
+      font-weight: 850;
+    }
+
+    .field input,
+    .field textarea,
+    .field select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--ink);
+      padding: 12px 13px;
+      outline: none;
+    }
+
+    .field textarea {
+      min-height: 150px;
+      resize: vertical;
+      line-height: 1.5;
+    }
+
+    .field input:focus,
+    .field textarea:focus,
+    .field select:focus {
+      border-color: var(--charcoal);
+      box-shadow: 0 0 0 3px rgba(17, 19, 24, 0.08);
+    }
+
+    .actions-row {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .summary-box {
+      display: grid;
+      gap: 12px;
+    }
+
+    .summary-item {
+      padding: 14px;
+      border: 1px solid var(--soft-line);
+      border-radius: 8px;
+      background: #fafbfe;
+    }
+
+    .upload-box {
+      display: grid;
+      gap: 10px;
+      padding: 16px;
+      border: 1px dashed #b9c0cf;
+      border-radius: 8px;
+      background: #fafbfe;
+    }
+
+    .upload-box input {
+      width: 100%;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .upload-box input::file-selector-button {
+      min-height: 34px;
+      margin-right: 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--ink);
+      font-weight: 800;
+      padding: 0 12px;
+      cursor: pointer;
+    }
+
+    .summary-label {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      margin-bottom: 7px;
+    }
+
+    .keywords {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .stage-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .stage-btn {
+      min-height: 66px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 5px;
+      color: var(--ink);
+      font-size: 15px;
+      font-weight: 900;
+      padding: 12px;
+      text-align: left;
+    }
+
+    .stage-btn span {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .stage-btn.wide {
+      grid-column: 1 / -1;
+    }
+
+    .stage-btn.active {
+      color: #fff;
+      background: var(--charcoal);
+      border-color: var(--charcoal);
+    }
+
+    .stage-btn.active span {
+      color: rgba(255, 255, 255, 0.72);
+    }
+
+    .primary-btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.42;
+      box-shadow: none;
+    }
+
+    .secondary-btn:disabled,
+    .ghost-btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.48;
+    }
+
+    .meeting-screen {
+      min-height: 100vh;
+      background:
+        linear-gradient(rgba(17, 20, 23, 0.10), rgba(17, 20, 23, 0.18)),
+        radial-gradient(circle at 24% 14%, rgba(255, 255, 255, 0.34), transparent 20%),
+        linear-gradient(135deg, #7684a3 0%, #c8a1a8 48%, #2f3140 100%);
+      color: #fff;
+      position: relative;
+      overflow: hidden;
+      padding: 58px 24px 28px;
+    }
+
+    .zoom-window {
+      width: min(960px, calc(100vw - 48px));
+      margin: 0 auto;
+      height: min(700px, calc(100vh - 92px));
+      border-radius: 8px;
+      overflow: hidden;
+      background: #111318;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: 0 28px 80px rgba(0, 0, 0, 0.40);
+      position: relative;
+    }
+
+    .zoom-titlebar {
+      height: 34px;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 12px;
+      padding: 0 10px;
+      color: rgba(255, 255, 255, 0.70);
+      font-size: 11px;
+      background: #0c0d10;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .window-dots {
+      display: flex;
+      gap: 6px;
+    }
+
+    .window-dots span {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+    }
+
+    .zoom-view {
+      padding: 8px 8px 72px;
+      height: calc(100% - 34px);
+      position: relative;
+    }
+
+    .meeting-grid {
+      height: 100%;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 5px;
+    }
+
+    .video-tile {
+      position: relative;
+      min-height: 0;
+      border-radius: 4px;
+      overflow: hidden;
+      background: #20242b;
+    }
+
+    .video-tile.active-speaker {
+      border: 2px solid #22c55e;
+    }
+
+    .video-photo {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: cover;
+      object-position: center;
+      filter: saturate(0.98) contrast(1.02);
+    }
+
+    .video-tile::after {
+      content: "";
+      position: absolute;
+      inset: auto 0 0;
+      height: 42%;
+      background: linear-gradient(transparent, rgba(0, 0, 0, 0.34));
+      pointer-events: none;
+    }
+
+    .video-name {
+      position: absolute;
+      left: 12px;
+      bottom: 12px;
+      padding: 5px 8px;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.54);
+      font-size: 12px;
+      font-weight: 800;
+      z-index: 1;
+    }
+
+    .meeting-controls {
+      position: absolute;
+      left: 50%;
+      bottom: 10px;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: calc(100% - 20px);
+      gap: 8px;
+      padding: 8px 10px;
+      background: #0b0d10;
+      border-radius: 0;
+    }
+
+    .meeting-dot {
+      width: auto;
+      min-width: 54px;
+      height: 34px;
+      border-radius: 6px;
+      border: 0;
+      background: transparent;
+      color: rgba(255, 255, 255, 0.78);
+      display: grid;
+      place-items: center;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .meeting-dot.share {
+      color: #22c55e;
+    }
+
+    .meeting-dot.leave {
+      color: #fff;
+      background: #dc2626;
+      min-width: 58px;
+    }
+
+    .floating-assistant {
+      position: absolute;
+      top: 42px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 7;
+      will-change: transform;
+    }
+
+    .floating-assistant.is-dragging .assistant-bar,
+    .floating-assistant.is-dragging .overlay-panel {
+      backdrop-filter: none;
+    }
+
+    .assistant-bar {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 40px;
+      padding: 6px 8px;
+      border-radius: 999px;
+      color: #fff;
+      background: rgba(10, 12, 16, 0.78);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: 0 18px 44px rgba(0, 0, 0, 0.30);
+      backdrop-filter: blur(18px);
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .assistant-bar:active,
+    .overlay-top:active {
+      cursor: grabbing;
+    }
+
+    .demo-controls {
+      position: absolute;
+      right: 18px;
+      bottom: 18px;
+      z-index: 5;
+      display: grid;
+      gap: 8px;
+      padding: 6px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.82);
+      border: 1px solid rgba(17, 19, 24, 0.12);
+      box-shadow: 0 14px 34px rgba(0, 0, 0, 0.18);
+      backdrop-filter: blur(18px);
+    }
+
+    .demo-controls button {
+      min-height: 30px;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      padding: 0 10px;
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .assistant-bar button,
+    .overlay-panel button,
+    .response-shell button {
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+      border-radius: 999px;
+      min-height: 30px;
+      padding: 0 10px;
+      font-weight: 850;
+      cursor: pointer;
+    }
+
+    .assistant-bar .end-btn {
+      background: rgba(220, 38, 38, 0.9);
+      border-color: rgba(255, 255, 255, 0.18);
+      width: 32px;
+      min-width: 32px;
+      padding: 0;
+      display: grid;
+      place-items: center;
+    }
+
+    .assistant-bar .end-btn::before {
+      content: "";
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      background: #fff;
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18);
+    }
+
+    .assistant-chip {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 0 10px;
+      min-height: 30px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      font-size: 12px;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    .pulse {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 0 0 5px rgba(34, 197, 94, 0.16);
+    }
+
+    .overlay-panel {
+      position: relative;
+      width: min(560px, calc(100vw - 32px));
+      max-height: calc(100vh - 126px);
+      overflow-y: auto;
+      padding: 16px;
+      border-radius: 8px;
+      color: #fff;
+      background: var(--overlay);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: 0 26px 72px rgba(0, 0, 0, 0.36);
+      backdrop-filter: blur(22px);
+    }
+
+    .overlay-panel.left-dock {
+      width: min(440px, calc(50vw - 34px));
+    }
+
+    .overlay-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .overlay-title {
+      font-size: 13px;
+      font-weight: 900;
+      color: rgba(255, 255, 255, 0.72);
+      margin-bottom: 5px;
+    }
+
+    .question-card,
+    .history-card,
+    .error-card {
+      padding: 12px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      margin-bottom: 12px;
+    }
+
+    .history-card {
+      margin-top: 16px;
+      margin-bottom: 0;
+      border-color: rgba(255, 255, 255, 0.16);
+      background: rgba(255, 255, 255, 0.07);
+    }
+
+    .history-card strong {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .history-count {
+      color: rgba(255, 255, 255, 0.58);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .compact-when-response .question-card,
+    .compact-when-response .action-grid,
+    .compact-when-response .keyword-row,
+    .compact-when-response .keyword-title {
+      display: none;
+    }
+
+    .compact-when-response .ask-row {
+      margin-top: 0;
+      padding-top: 0;
+      border-top: 0;
+    }
+
+    .compact-when-response .history-card {
+      margin-top: 12px;
+    }
+
+    .question-card strong {
+      display: block;
+      margin-bottom: 7px;
+    }
+
+    .action-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin: 12px 0;
+    }
+
+    .action-grid button {
+      border-radius: 8px;
+      min-height: 48px;
+      white-space: normal;
+      line-height: 1.2;
+    }
+
+    .keyword-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin: 10px 0 12px;
+    }
+
+    .keyword-row button {
+      min-height: 28px;
+      font-size: 12px;
+    }
+
+    .ask-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255, 255, 255, 0.10);
+    }
+
+    .ask-row input {
+      min-height: 38px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: rgba(255, 255, 255, 0.09);
+      color: #fff;
+      padding: 0 13px;
+      outline: none;
+    }
+
+    .ask-row input::placeholder {
+      color: rgba(255, 255, 255, 0.48);
+    }
+
+    .response-shell {
+      position: absolute;
+      top: 122px;
+      right: max(38px, calc((100vw - 960px) / 2 + 22px));
+      z-index: 6;
+      width: min(430px, calc(100vw - 48px));
+      padding: 16px;
+      border-radius: 8px;
+      color: #fff;
+      background: rgba(16, 18, 22, 0.84);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
+      backdrop-filter: blur(22px);
+    }
+
+    .floating-assistant .response-shell {
+      position: relative;
+      top: auto;
+      right: auto;
+      width: min(430px, calc(100vw - 32px));
+      margin-top: 10px;
+    }
+
+    .response-shell h3 {
+      margin-bottom: 10px;
+    }
+
+    .response-shell ul {
+      margin: 0;
+      padding-left: 18px;
+      display: grid;
+      gap: 8px;
+      line-height: 1.48;
+    }
+
+    .loading-lines {
+      display: grid;
+      gap: 8px;
+    }
+
+    .loading-lines span {
+      height: 10px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0.12));
+      animation: shimmer 1s infinite linear;
+    }
+
+    .loading-lines span:nth-child(2) {
+      width: 82%;
+    }
+
+    .loading-lines span:nth-child(3) {
+      width: 62%;
+    }
+
+    @keyframes shimmer {
+      0% { opacity: 0.5; }
+      50% { opacity: 1; }
+      100% { opacity: 0.5; }
+    }
+
+    .transcript-strip {
+      position: absolute;
+      left: max(38px, calc((100vw - 960px) / 2 + 18px));
+      bottom: 106px;
+      z-index: 3;
+      width: min(390px, calc(100vw - 48px));
+      padding: 12px;
+      border-radius: 8px;
+      background: rgba(8, 10, 13, 0.68);
+      color: rgba(255, 255, 255, 0.78);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      backdrop-filter: blur(14px);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .history-list {
+      display: grid;
+      gap: 7px;
+      margin-top: 8px;
+      max-height: 132px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .history-list::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .history-list::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.24);
+      border-radius: 999px;
+    }
+
+    .history-item {
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.72);
+      padding: 7px 8px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.07);
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 16px;
+      align-items: start;
+    }
+
+    .simple-list {
+      margin: 0;
+      padding-left: 18px;
+      line-height: 1.65;
+      color: #344054;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    @media (max-width: 860px) {
+      .grid.two,
+      .summary-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .section-head {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .stage-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .assistant-bar {
+        width: calc(100vw - 24px);
+        justify-content: center;
+        flex-wrap: wrap;
+        border-radius: 14px;
+      }
+
+      .demo-controls {
+        top: auto;
+        right: 12px;
+        bottom: 12px;
+      }
+
+      .assistant-chip {
+        flex: 0 0 auto;
+      }
+
+      .action-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .response-shell {
+        top: auto;
+        right: 12px;
+        left: 12px;
+        bottom: 76px;
+        width: auto;
+      }
+
+      .overlay-panel,
+      .overlay-panel.left-dock {
+        width: auto;
+        max-height: calc(100vh - 244px);
+      }
+
+      .transcript-strip {
+        display: none;
+      }
+
+      .meeting-screen {
+        padding-left: 12px;
+        padding-right: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app" class="app-shell"></div>
+
+  <script>
+    const defaultApplication = {
+      id: 1,
+      company: "Tokopedia",
+      role: "Marketing Associate",
+      cv: "Siti_CV_Mei.pdf",
+      jd: "Membuat campaign, menganalisis performa konten, memahami funnel marketing, dan bekerja sama dengan tim sales untuk meningkatkan conversion.",
+      summary: "Role marketing yang fokus pada campaign execution, content performance, funnel, dan conversion.",
+      keywords: ["Conversion", "Funnel", "CTR", "Campaign", "Retention"],
+      rounds: [
+        { stage: "HR", status: "Summary siap", date: "1 Mei 2026" }
+      ]
+    };
+
+    const state = {
+      view: "dashboard",
+      applications: [defaultApplication],
+      activeApplication: defaultApplication,
+      selectedStage: "",
+      overlayState: "MINI",
+      detectedKeywords: [],
+      latestQuestion: "Kenapa kamu tertarik dengan role Marketing Associate ini?",
+      activeResponse: null,
+      recentHelp: [],
+      transcriptLines: [],
+      activeCv: "Siti_CV_Mei.pdf",
+      cvProcessingStatus: "ready",
+      cvProcessingMessage: "CV sudah diproses AI dan siap dipakai untuk application.",
+      cvCandidateSummary: "Fresh graduate marketing dengan pengalaman campaign kampus, content performance, dan koordinasi event.",
+      cvVersions: ["Siti_CV_Mei.pdf"],
+      pendingApplication: null,
+      seconds: 0,
+      timer: null,
+      keywordSimulated: false,
+      errorMessage: "",
+      askText: "",
+      overlayPosition: null,
+      activeDrag: null
+    };
+
+    const transcriptScript = [
+      "Interviewer: Bisa ceritakan alasan kamu tertarik dengan posisi ini?",
+      "Interviewer: Di role ini kamu akan banyak melihat campaign dan funnel.",
+      "Interviewer: Bagaimana kamu mengukur conversion dari sebuah campaign?",
+      "Siti: Saya bisa mulai dari target audience dan metric yang ingin dicapai."
+    ];
+
+    const app = document.getElementById("app");
+
+    function setView(view) {
+      state.view = view;
+      render();
+    }
+
+    function startTimer() {
+      stopTimer();
+      state.seconds = 0;
+      state.transcriptLines = [transcriptScript[0]];
+      state.keywordSimulated = false;
+      state.detectedKeywords = [];
+      state.overlayState = "MINI";
+      state.activeResponse = null;
+      state.recentHelp = [];
+      state.errorMessage = "";
+      state.timer = window.setInterval(() => {
+        state.seconds += 1;
+        const nextLine = transcriptScript[state.seconds % transcriptScript.length];
+        if (!state.transcriptLines.includes(nextLine)) {
+          state.transcriptLines.push(nextLine);
+        }
+        if (state.activeDrag) return;
+        if (state.seconds === 5 && !state.keywordSimulated) {
+          simulateKeyword();
+        } else {
+          render();
+        }
+      }, 1800);
+    }
+
+    function stopTimer() {
+      if (state.timer) {
+        window.clearInterval(state.timer);
+        state.timer = null;
+      }
+    }
+
+    function formatTime(totalSeconds) {
+      const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
+      const seconds = String(totalSeconds % 60).padStart(2, "0");
+      return `${minutes}:${seconds}`;
+    }
+
+    function createApplication(event) {
+      event.preventDefault();
+      if (!isCvReady() || state.pendingApplication) return;
+      const form = event.currentTarget;
+      const formData = new FormData(form);
+      const company = String(formData.get("company") || "Untitled Company").trim();
+      const role = String(formData.get("role") || "Untitled Role").trim();
+      const jd = String(formData.get("jd") || "").trim();
+      const keywords = extractKeywords(jd);
+      state.pendingApplication = { company, role, jd, keywords };
+      render();
+      window.setTimeout(() => {
+        const pending = state.pendingApplication;
+        if (!pending) return;
+        const newApplication = {
+          id: Date.now(),
+          company: pending.company,
+          role: pending.role,
+          cv: state.activeCv,
+          jd: pending.jd,
+          summary: `Application context untuk ${pending.role} di ${pending.company}, dengan fokus pada ${pending.keywords.slice(0, 3).join(", ")}.`,
+          keywords: pending.keywords,
+          rounds: []
+        };
+        state.applications.unshift(newApplication);
+        state.activeApplication = newApplication;
+        state.selectedStage = "";
+        state.pendingApplication = null;
+        setView("applicationDetail");
+      }, 1200);
+    }
+
+    function isCvReady() {
+      return state.cvProcessingStatus === "ready";
+    }
+
+    function cvStatusLabel() {
+      const labels = {
+        uploaded: "Uploaded",
+        processing: "AI Processing",
+        ready: "AI Ready",
+        failed: "AI Failed"
+      };
+      return labels[state.cvProcessingStatus] || "Unknown";
+    }
+
+    function cvStatusPillClass() {
+      if (state.cvProcessingStatus === "ready") return "good";
+      if (state.cvProcessingStatus === "failed") return "danger";
+      return "warn";
+    }
+
+    function startCvProcessing(fileName, options = {}) {
+      state.activeCv = fileName;
+      state.cvProcessingStatus = "processing";
+      state.cvProcessingMessage = "AI sedang membaca CV, mengekstrak skill, pengalaman, dan interview-ready context.";
+      state.cvCandidateSummary = "";
+      if (!state.cvVersions.includes(fileName)) {
+        state.cvVersions.unshift(fileName);
+      }
+      render();
+      window.setTimeout(() => {
+        if (options.fail) {
+          state.cvProcessingStatus = "failed";
+          state.cvProcessingMessage = "AI gagal memproses CV dummy. User perlu retry sebelum membuat application.";
+          state.cvCandidateSummary = "";
+        } else {
+          state.cvProcessingStatus = "ready";
+          state.cvProcessingMessage = "CV sudah diproses AI dan siap dipakai untuk application.";
+          state.cvCandidateSummary = `AI summary dari ${fileName}: kandidat punya konteks yang siap dipakai untuk tailoring interview.`;
+        }
+        render();
+      }, 1800);
+    }
+
+    function retryCvProcessing() {
+      startCvProcessing(state.activeCv || "Retry_CV.pdf");
+    }
+
+    function simulateCvProcessingFailure() {
+      startCvProcessing("Broken_CV_Test.pdf", { fail: true });
+    }
+
+    function renderCvProcessingStatus(options = {}) {
+      const className = state.cvProcessingStatus === "ready"
+        ? "ready"
+        : state.cvProcessingStatus === "failed"
+          ? "failed"
+          : "processing";
+      return `
+        <div class="status-card ${className}">
+          <div class="meta-line" style="justify-content:space-between">
+            <strong>${escapeHtml(cvStatusLabel())}</strong>
+            <span class="pill ${cvStatusPillClass()}">${escapeHtml(state.cvProcessingStatus)}</span>
+          </div>
+          <p class="subcopy" style="margin:0">${escapeHtml(state.cvProcessingMessage)}</p>
+          ${state.cvProcessingStatus === "processing" ? `<div class="progress-track" aria-hidden="true"><div class="progress-fill"></div></div>` : ""}
+          ${state.cvProcessingStatus === "failed" ? `
+            <div class="actions-row" style="margin-top:0">
+              <button class="secondary-btn" type="button" onclick="retryCvProcessing()">Retry AI Processing</button>
+            </div>
+          ` : ""}
+          ${!options.compact && state.cvProcessingStatus !== "ready" ? `<p class="subcopy" style="margin:0">New Application dikunci sampai CV status menjadi AI Ready.</p>` : ""}
+        </div>
+      `;
+    }
+
+    function extractKeywords(text) {
+      const source = text.toLowerCase();
+      const candidates = ["Conversion", "Funnel", "CTR", "Campaign", "Retention", "CAC", "LTV", "Market Research"];
+      const found = candidates.filter((keyword) => source.includes(keyword.toLowerCase()));
+      return found.length ? found : ["Conversion", "Funnel", "Campaign", "Retention"];
+    }
+
+    function openApplication(id) {
+      state.activeApplication = state.applications.find((item) => item.id === id) || state.applications[0];
+      state.selectedStage = "HR";
+      setView("applicationDetail");
+    }
+
+    function selectStage(stage) {
+      state.selectedStage = stage;
+      render();
+    }
+
+    function uploadDummyCv(event) {
+      const file = event.currentTarget.files && event.currentTarget.files[0];
+      if (!file) return;
+      event.currentTarget.value = "";
+      startCvProcessing(file.name);
+    }
+
+    function startInterview() {
+      if (!state.selectedStage) return;
+      state.view = "interview";
+      startTimer();
+      render();
+    }
+
+    function toggleOverlay() {
+      state.overlayState = state.overlayState === "MINI" ? "EXPANDED" : "MINI";
+      state.errorMessage = "";
+      render();
+    }
+
+    function simulateKeyword() {
+      state.keywordSimulated = true;
+      state.detectedKeywords = state.activeApplication.keywords.slice(0, 5);
+      state.latestQuestion = "Bagaimana kamu mengukur conversion dari sebuah campaign?";
+      state.overlayState = "EXPANDED";
+      if (!state.transcriptLines.includes(transcriptScript[2])) {
+        state.transcriptLines.push(transcriptScript[2]);
+      }
+      render();
+    }
+
+    function requestHelp(type, triggerText) {
+      if (state.activeResponse) {
+        state.recentHelp.unshift({
+          title: state.activeResponse.title,
+          summary: state.activeResponse.points[0]
+        });
+      }
+      state.errorMessage = "";
+      state.overlayState = "LOADING_RESPONSE";
+      render();
+      window.setTimeout(() => {
+        state.activeResponse = buildDummyResponse(type, triggerText);
+        state.overlayState = "SHOWING_RESPONSE";
+        render();
+      }, 850);
+    }
+
+    function buildDummyResponse(type, triggerText) {
+      const titleMap = {
+        answer: "Bantu Jawab",
+        followup: "Bantu Follow-up",
+        explain: "Jelaskan Maksudnya",
+        keyword: `Keyword: ${triggerText}`,
+        free: "Free Text Ask"
+      };
+      const pointsMap = {
+        answer: [
+          "Saya akan mulai dari memahami target audience dan tujuan campaign-nya.",
+          "Setelah itu saya tentukan funnel dari awareness, consideration, sampai conversion.",
+          "Untuk mengukur hasil, saya lihat CTR, conversion rate, dan cost per result agar keputusan berikutnya berbasis data."
+        ],
+        followup: [
+          "Boleh saya tahu metric utama yang paling diprioritaskan untuk role ini?",
+          "Apakah campaign biasanya lebih fokus ke acquisition, retention, atau conversion?",
+          "Tim ini biasanya mengevaluasi performa campaign dalam timeframe mingguan atau bulanan?"
+        ],
+        explain: [
+          "Interviewer ingin melihat apakah kamu paham cara menghubungkan aktivitas marketing dengan hasil bisnis.",
+          "Jawaban yang kuat sebaiknya menyebut audience, funnel, metric, dan contoh cara evaluasi.",
+          "Hindari jawaban terlalu umum seperti 'membuat campaign yang menarik' tanpa ukuran keberhasilan."
+        ],
+        keyword: [
+          `${triggerText} biasanya dipakai untuk melihat seberapa efektif campaign mendorong user ke aksi yang diinginkan.`,
+          "Angle jawaban yang aman: jelaskan funnel, metric utama, lalu cara optimasi.",
+          "Hubungkan dengan pengalaman sederhana agar terdengar natural dan tidak textbook."
+        ],
+        free: [
+          `Untuk pertanyaan "${triggerText}", jawab dengan struktur singkat: konteks, tindakan, hasil.`,
+          "Pilih satu contoh paling relevan dari pengalaman CV.",
+          "Tutup dengan metric atau pembelajaran supaya terdengar meyakinkan."
+        ]
+      };
+      return {
+        title: titleMap[type],
+        points: pointsMap[type],
+        createdAt: formatTime(state.seconds)
+      };
+    }
+
+    function submitFreeAsk(event) {
+      event.preventDefault();
+      const input = event.currentTarget.querySelector("input");
+      const value = input.value.trim();
+      if (!value) return;
+      state.askText = "";
+      requestHelp("free", value);
+    }
+
+    function simulateError() {
+      state.overlayState = "ERROR";
+      state.errorMessage = "Koneksi Live sempat terputus. UI tetap menyimpan transcript dan siap reconnect.";
+      render();
+    }
+
+    function closeResponse() {
+      state.activeResponse = null;
+      state.overlayState = "EXPANDED";
+      render();
+    }
+
+    function endInterview() {
+      stopTimer();
+      const round = {
+        stage: state.selectedStage,
+        status: "Summary siap",
+        date: "2 Mei 2026"
+      };
+      state.activeApplication.rounds.unshift(round);
+      state.view = "summary";
+      state.overlayState = "MINI";
+      render();
+    }
+
+    function floatingAssistantStyle() {
+      if (!state.overlayPosition) return "";
+      const margin = 8;
+      const width = state.overlayState === "MINI"
+        ? 260
+        : Math.min(state.overlayState === "SHOWING_RESPONSE" ? 440 : 560, window.innerWidth - 32);
+      const height = state.overlayState === "MINI" ? 58 : Math.min(520, window.innerHeight - 126);
+      const x = Math.min(Math.max(margin, state.overlayPosition.x), Math.max(margin, window.innerWidth - width - margin));
+      const y = Math.min(Math.max(margin, state.overlayPosition.y), Math.max(margin, window.innerHeight - height - margin));
+      state.overlayPosition = { x, y };
+      return `left:0; top:0; transform:translate3d(${x}px, ${y}px, 0);`;
+    }
+
+    function startDrag(event) {
+      if (event.target.closest("button, input, textarea, select, a")) return;
+      const element = event.currentTarget.closest(".floating-assistant");
+      if (!element) return;
+      const rect = element.getBoundingClientRect();
+      const parentRect = element.offsetParent?.getBoundingClientRect() || { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+      const originX = state.overlayPosition ? state.overlayPosition.x : rect.left - parentRect.left;
+      const originY = state.overlayPosition ? state.overlayPosition.y : rect.top - parentRect.top;
+      state.overlayPosition = { x: originX, y: originY };
+      state.activeDrag = {
+        element,
+        parentRect,
+        width: rect.width,
+        height: rect.height,
+        startX: event.clientX,
+        startY: event.clientY,
+        originX,
+        originY,
+        pendingX: originX,
+        pendingY: originY,
+        frame: null
+      };
+      element.classList.add("is-dragging");
+      element.style.left = "0";
+      element.style.top = "0";
+      element.style.transform = `translate3d(${originX}px, ${originY}px, 0)`;
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      window.addEventListener("pointermove", moveDrag);
+      window.addEventListener("pointerup", endDrag);
+      window.addEventListener("pointercancel", endDrag);
+      event.preventDefault();
+    }
+
+    function moveDrag(event) {
+      if (!state.activeDrag) return;
+      const drag = state.activeDrag;
+      const margin = 8;
+      const maxX = drag.parentRect.width - drag.width - margin;
+      const maxY = drag.parentRect.height - drag.height - margin;
+      drag.pendingX = Math.min(Math.max(margin, drag.originX + event.clientX - drag.startX), Math.max(margin, maxX));
+      drag.pendingY = Math.min(Math.max(margin, drag.originY + event.clientY - drag.startY), Math.max(margin, maxY));
+      if (!drag.frame) {
+        drag.frame = window.requestAnimationFrame(applyDragFrame);
+      }
+    }
+
+    function applyDragFrame() {
+      if (!state.activeDrag) return;
+      const drag = state.activeDrag;
+      drag.frame = null;
+      state.overlayPosition = {
+        x: Math.round(drag.pendingX),
+        y: Math.round(drag.pendingY)
+      };
+      drag.element.style.transform = `translate3d(${state.overlayPosition.x}px, ${state.overlayPosition.y}px, 0)`;
+    }
+
+    function endDrag() {
+      if (state.activeDrag?.frame) {
+        window.cancelAnimationFrame(state.activeDrag.frame);
+        applyDragFrame();
+      }
+      state.activeDrag?.element.classList.remove("is-dragging");
+      state.activeDrag = null;
+      window.removeEventListener("pointermove", moveDrag);
+      window.removeEventListener("pointerup", endDrag);
+      window.removeEventListener("pointercancel", endDrag);
+    }
+
+    function shell(content) {
+      return `
+        <main class="workspace">
+          <nav class="topbar">
+            <div class="brand">
+              <div class="brand-mark">I</div>
+              <div>
+                <strong>Interview Assistant</strong>
+                <p class="subcopy" style="margin-top:2px">Prototype MVP dummy</p>
+              </div>
+            </div>
+            <div class="profile-pill">
+              <span>CV aktif: ${escapeHtml(state.activeCv)}</span>
+              <span class="avatar" aria-hidden="true"></span>
+            </div>
+          </nav>
+          ${content}
+        </main>
+      `;
+    }
+
+    function renderDashboard() {
+      return shell(`
+        <section class="section-head">
+          <div>
+            <h1>Applications</h1>
+            <p class="subcopy">Buat context per company dan role, lalu mulai interview round dari application yang sama.</p>
+          </div>
+          <button class="primary-btn" onclick="setView('createApplication')" ${isCvReady() ? "" : "disabled"}>+ New Application</button>
+        </section>
+
+        <section class="grid two">
+          <div class="panel">
+            <div class="application-list">
+              ${state.applications.map((item) => `
+                <button class="application-row" onclick="openApplication(${item.id})">
+                  <div>
+                    <h3>${escapeHtml(item.company)} - ${escapeHtml(item.role)}</h3>
+                    <div class="meta-line">
+                      <span>CV: ${escapeHtml(item.cv)}</span>
+                      <span>Context ready</span>
+                      <span>${item.rounds.length || 0} interview round</span>
+                    </div>
+                  </div>
+                  <span class="pill good">Application</span>
+                </button>
+              `).join("")}
+            </div>
+          </div>
+
+          <aside class="panel">
+            <h2>Profile Context</h2>
+            <p class="subcopy">CV diproses sekali di profile level dan dipakai ulang untuk semua application.</p>
+            <div class="summary-box" style="margin-top:16px">
+              <div class="summary-item">
+                <p class="summary-label">Active CV</p>
+                <strong>${escapeHtml(state.activeCv)}</strong>
+              </div>
+              ${renderCvProcessingStatus()}
+              <div class="summary-item">
+                <p class="summary-label">Candidate summary</p>
+                <p class="subcopy" style="margin:0">${escapeHtml(state.cvCandidateSummary || "Candidate summary akan muncul setelah AI processing selesai.")}</p>
+              </div>
+              <label class="upload-box">
+                <strong>Upload CV dummy</strong>
+                <input type="file" accept=".pdf,.doc,.docx" onchange="uploadDummyCv(event)" />
+                <p class="subcopy" style="margin:0">Setelah upload, CV masuk proses AI dulu sebelum bisa dipakai membuat application.</p>
+              </label>
+              <button class="secondary-btn" type="button" onclick="simulateCvProcessingFailure()">Demo failed processing</button>
+            </div>
+          </aside>
+        </section>
+      `);
+    }
+
+    function renderCreateApplication() {
+      return shell(`
+        <section class="section-head">
+          <div>
+            <h1>Create Application</h1>
+            <p class="subcopy">Application menyimpan company, role, JD, CV aktif, dan domain keywords untuk semua interview round berikutnya.</p>
+          </div>
+          <button class="secondary-btn" onclick="setView('dashboard')">Back</button>
+        </section>
+
+        <section class="grid two">
+          <form class="panel field-stack" onsubmit="createApplication(event)">
+            ${!isCvReady() ? `
+              <div class="status-card processing">
+                <strong>CV belum siap</strong>
+                <p class="subcopy" style="margin:0">Tunggu AI processing CV selesai sebelum membuat application baru.</p>
+              </div>
+            ` : ""}
+            <div class="field">
+              <label for="company">Company</label>
+              <input id="company" name="company" value="Tokopedia" />
+            </div>
+            <div class="field">
+              <label for="role">Role</label>
+              <input id="role" name="role" value="Marketing Associate" />
+            </div>
+            <div class="field">
+              <label for="jd">Job Description</label>
+              <textarea id="jd" name="jd">Membuat campaign, menganalisis performa konten, memahami funnel marketing, CTR, retention, dan bekerja sama dengan tim sales untuk meningkatkan conversion.</textarea>
+            </div>
+            <div class="summary-item">
+              <p class="summary-label">Active CV</p>
+              <strong>${escapeHtml(state.activeCv)}</strong>
+              <p class="subcopy">CV aktif dari profile, bukan upload ulang per interview.</p>
+            </div>
+            ${renderCvProcessingStatus({ compact: true })}
+            <label class="upload-box">
+              <strong>Update active CV dummy</strong>
+              <input type="file" accept=".pdf,.doc,.docx" onchange="uploadDummyCv(event)" />
+            </label>
+            <div class="actions-row">
+              <button class="primary-btn" type="submit" ${isCvReady() && !state.pendingApplication ? "" : "disabled"}>
+                ${state.pendingApplication ? "Analyzing JD..." : "Save Application"}
+              </button>
+              <button class="ghost-btn" type="button" onclick="setView('dashboard')">Cancel</button>
+            </div>
+          </form>
+
+          <aside class="panel">
+            <h2>AI Processing</h2>
+            <p class="subcopy">Application baru hanya dibuat setelah CV ready. Saat submit, prototype menampilkan proses analisis JD + matching dengan CV.</p>
+            ${state.pendingApplication ? `
+              <div class="status-card processing" style="margin-top:16px">
+                <strong>Analyzing JD and CV context</strong>
+                <p class="subcopy" style="margin:0">AI sedang membuat JD summary, domain keywords, dan interview themes.</p>
+                <div class="progress-track" aria-hidden="true"><div class="progress-fill"></div></div>
+              </div>
+            ` : ""}
+            <div class="keywords" style="margin-top:16px">
+              <span class="pill">Conversion</span>
+              <span class="pill">Funnel</span>
+              <span class="pill">CTR</span>
+              <span class="pill">Campaign</span>
+            </div>
+          </aside>
+        </section>
+      `);
+    }
+
+    function renderApplicationDetail() {
+      const item = state.activeApplication;
+      return shell(`
+        <section class="section-head">
+          <div>
+            <h1>${escapeHtml(item.company)}</h1>
+            <p class="subcopy">${escapeHtml(item.role)} - CV aktif: ${escapeHtml(item.cv)}</p>
+          </div>
+          <button class="secondary-btn" onclick="setView('dashboard')">Back to Dashboard</button>
+        </section>
+
+        <section class="grid two">
+          <div class="panel">
+            <h2>Application Context</h2>
+            <div class="summary-box" style="margin-top:16px">
+              <div class="summary-item">
+                <p class="summary-label">JD Summary</p>
+                <p>${escapeHtml(item.summary)}</p>
+              </div>
+              <div class="summary-item">
+                <p class="summary-label">Domain Keywords</p>
+                <div class="keywords">${item.keywords.map((keyword) => `<span class="pill">${escapeHtml(keyword)}</span>`).join("")}</div>
+              </div>
+              <div class="summary-item">
+                <p class="summary-label">Previous Rounds</p>
+                ${item.rounds.length ? item.rounds.map((round) => `<p class="subcopy" style="margin:0">${escapeHtml(round.date)} - ${escapeHtml(round.stage)} - ${escapeHtml(round.status)}</p>`).join("") : `<p class="subcopy" style="margin:0">Belum ada interview round.</p>`}
+              </div>
+            </div>
+          </div>
+
+          <aside class="panel">
+            <h2>Start New Interview Round</h2>
+            <p class="subcopy">Pilih stage sebelum session live dimulai.</p>
+            <div class="stage-grid">
+              ${["HR", "Technical", "User", "Final", "Other"].map((stage) => `
+                <button class="stage-btn ${stage === "Other" ? "wide" : ""} ${state.selectedStage === stage ? "active" : ""}" onclick="selectStage('${stage}')">
+                  ${stage}
+                  <span>${stage === "HR" ? "culture" : stage === "User" ? "workflow" : stage === "Technical" ? "skill" : stage === "Final" ? "closing" : "custom"}</span>
+                </button>
+              `).join("")}
+            </div>
+            <div class="actions-row">
+              <button class="primary-btn" ${state.selectedStage ? "" : "disabled"} onclick="startInterview()">Start Interview</button>
+              ${state.selectedStage ? `<span class="pill good">${escapeHtml(state.selectedStage)} selected</span>` : `<span class="pill warn">Select stage first</span>`}
+            </div>
+          </aside>
+        </section>
+      `);
+    }
+
+    function renderInterview() {
+      return `
+        <main class="meeting-screen">
+          ${renderFloatingAssistant()}
+          ${renderDemoControls()}
+          <section class="zoom-window" aria-label="Simulated Zoom meeting">
+            <div class="zoom-titlebar">
+              <div class="window-dots"><span></span><span></span><span></span></div>
+              <span style="text-align:center">Zoom Meeting</span>
+              <span>View</span>
+            </div>
+            <div class="zoom-view">
+              <section class="meeting-grid">
+                <div class="video-tile active-speaker">
+                  <img
+                    class="video-photo"
+                    src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=1200&q=80"
+                    alt="Interviewer video"
+                  />
+                  <span class="video-name">Interviewer</span>
+                </div>
+                <div class="video-tile">
+                  <img
+                    class="video-photo"
+                    src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=1200&q=80"
+                    alt="Candidate video"
+                  />
+                  <span class="video-name">Siti</span>
+                </div>
+              </section>
+              <div class="meeting-controls" aria-hidden="true">
+                <span class="meeting-dot">Mute</span>
+                <span class="meeting-dot">Video</span>
+                <span class="meeting-dot">Security</span>
+                <span class="meeting-dot">People</span>
+                <span class="meeting-dot share">Share</span>
+                <span class="meeting-dot">Chat</span>
+                <span class="meeting-dot">Record</span>
+                <span class="meeting-dot leave">Leave</span>
+              </div>
+            </div>
+          </section>
+          <aside class="transcript-strip">
+            <strong>Live transcript</strong>
+            <p style="margin-top:6px">${escapeHtml(state.transcriptLines.slice(-2).join(" "))}</p>
+          </aside>
+        </main>
+      `;
+    }
+
+    function renderFloatingAssistant() {
+      return `
+        <div class="floating-assistant" style="${floatingAssistantStyle()}">
+          ${state.overlayState === "MINI" ? renderAssistantBar() : renderOverlayPanel()}
+          ${["LOADING_RESPONSE", "SHOWING_RESPONSE"].includes(state.overlayState) ? renderResponseShell() : ""}
+        </div>
+      `;
+    }
+
+    function renderAssistantBar() {
+      return `
+        <div class="assistant-bar" onpointerdown="startDrag(event)">
+          <span class="assistant-chip"><span class="pulse"></span>${state.overlayState === "ERROR" ? "Reconnect needed" : "Listening"} ${formatTime(state.seconds)}</span>
+          <button onclick="toggleOverlay()">${state.overlayState === "MINI" ? "Ask &#10024;" : "Hide"}</button>
+          <button class="end-btn" onclick="endInterview()" aria-label="End interview"></button>
+        </div>
+      `;
+    }
+
+    function renderDemoControls() {
+      return `
+        <div class="demo-controls" aria-label="Prototype controls">
+          <button onclick="simulateKeyword()">Demo: Keyword</button>
+          <button onclick="simulateError()">Demo: Error</button>
+        </div>
+      `;
+    }
+
+    function renderOverlayPanel() {
+      const dockClass = state.overlayState === "SHOWING_RESPONSE" ? "left-dock" : "";
+      return `
+        <aside
+          class="overlay-panel ${dockClass} ${state.overlayState === "SHOWING_RESPONSE" ? "compact-when-response" : ""}"
+        >
+          <div class="overlay-top" onpointerdown="startDrag(event)">
+            <div>
+              <p class="overlay-title">${state.overlayState}</p>
+              <h3>Interview Assistant</h3>
+            </div>
+            <button onclick="toggleOverlay()">Hide</button>
+          </div>
+          ${state.overlayState === "ERROR" ? renderErrorPanel() : renderExpandedContent()}
+        </aside>
+      `;
+    }
+
+    function renderExpandedContent() {
+      return `
+        <div class="question-card">
+          <strong>Latest detected question</strong>
+          <p>${escapeHtml(state.latestQuestion)}</p>
+        </div>
+        <div class="action-grid">
+          <button onclick="requestHelp('answer')">Bantu Jawab</button>
+          <button onclick="requestHelp('followup')">Bantu Follow-up</button>
+          <button onclick="requestHelp('explain')">Jelaskan Maksudnya</button>
+        </div>
+        <p class="overlay-title keyword-title">Keyword chips</p>
+        <div class="keyword-row">
+          ${(state.detectedKeywords.length ? state.detectedKeywords : state.activeApplication.keywords).map((keyword) => `
+            <button onclick="requestHelp('keyword', '${escapeAttribute(keyword)}')">${escapeHtml(keyword)}</button>
+          `).join("")}
+        </div>
+        <form class="ask-row" onsubmit="submitFreeAsk(event)">
+          <input name="ask" placeholder="Tulis bantuan spesifik..." />
+          <button type="submit">Ask</button>
+        </form>
+        ${state.recentHelp.length ? `
+          <div class="history-card">
+            <strong>Recent Help <span class="history-count">${state.recentHelp.length} saved</span></strong>
+            <div class="history-list">
+              ${state.recentHelp.map((item) => `<div class="history-item">${escapeHtml(item.title)} - ${escapeHtml(item.summary)}</div>`).join("")}
+            </div>
+          </div>
+        ` : ""}
+      `;
+    }
+
+    function renderErrorPanel() {
+      return `
+        <div class="error-card">
+          <strong>Session issue</strong>
+          <p style="margin-top:7px">${escapeHtml(state.errorMessage)}</p>
+        </div>
+        <div class="actions-row" style="margin-top:0">
+          <button onclick="state.overlayState='EXPANDED'; render()">Retry UI</button>
+          <button onclick="toggleOverlay()">Hide</button>
+        </div>
+      `;
+    }
+
+    function renderResponseShell() {
+      if (state.overlayState === "LOADING_RESPONSE") {
+        return `
+          <aside class="response-shell">
+            <h3>Generating answer...</h3>
+            <div class="loading-lines">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          </aside>
+        `;
+      }
+
+      return `
+        <aside class="response-shell">
+          <div class="overlay-top" style="margin-bottom:10px" onpointerdown="startDrag(event)">
+            <div>
+              <p class="overlay-title">${escapeHtml(state.activeResponse.createdAt)}</p>
+              <h3>${escapeHtml(state.activeResponse.title)}</h3>
+            </div>
+            <button onclick="closeResponse()">Close</button>
+          </div>
+          <ul>
+            ${state.activeResponse.points.map((point) => `<li>${escapeHtml(point)}</li>`).join("")}
+          </ul>
+        </aside>
+      `;
+    }
+
+    function renderSummary() {
+      const appItem = state.activeApplication;
+      const helpItems = [state.activeResponse, ...state.recentHelp].filter(Boolean);
+      return shell(`
+        <section class="section-head">
+          <div>
+            <h1>Post-Interview Summary</h1>
+            <p class="subcopy">${escapeHtml(appItem.company)} - ${escapeHtml(appItem.role)} - Stage: ${escapeHtml(state.selectedStage)}</p>
+          </div>
+          <button class="primary-btn" onclick="setView('applicationDetail')">Back to Application Detail</button>
+        </section>
+
+        <section class="summary-grid">
+          <div class="panel">
+            <h2>Questions & Topics</h2>
+            <ul class="simple-list" style="margin-top:14px">
+              <li>Motivasi melamar role ${escapeHtml(appItem.role)}.</li>
+              <li>Campaign, funnel, conversion, dan cara mengukur performa.</li>
+              <li>Follow-up tentang metric prioritas dan workflow tim.</li>
+            </ul>
+
+            <div class="summary-item" style="margin-top:18px">
+              <p class="summary-label">Transcript Preview</p>
+              <p class="subcopy" style="margin:0">${escapeHtml(state.transcriptLines.join(" "))}</p>
+            </div>
+          </div>
+
+          <aside class="panel">
+            <h2>Help History</h2>
+            <div class="summary-box" style="margin-top:14px">
+              ${helpItems.length ? helpItems.map((item) => `
+                <div class="summary-item">
+                  <p class="summary-label">${escapeHtml(item.title || "Recent Help")}</p>
+                  <p>${escapeHtml(item.points ? item.points[0] : item.summary)}</p>
+                </div>
+              `).join("") : `
+                <div class="summary-item">
+                  <p class="summary-label">No help requested</p>
+                  <p>Belum ada response yang diminta selama dummy session.</p>
+                </div>
+              `}
+              <div class="summary-item">
+                <p class="summary-label">Application Context</p>
+                <p>${escapeHtml(appItem.summary)}</p>
+              </div>
+            </div>
+          </aside>
+        </section>
+      `);
+    }
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function escapeAttribute(value) {
+      return escapeHtml(value).replaceAll("`", "&#096;");
+    }
+
+    function render() {
+      if (state.view !== "interview") {
+        stopTimer();
+      }
+
+      const views = {
+        dashboard: renderDashboard,
+        createApplication: renderCreateApplication,
+        applicationDetail: renderApplicationDetail,
+        interview: renderInterview,
+        summary: renderSummary
+      };
+      app.innerHTML = views[state.view]();
+    }
+
+    render();
+  </script>
+</body>
+</html>

@@ -1,0 +1,79 @@
+import type { ActionSpec } from "../action-types.js";
+
+export type SurfaceRealtimeKeywordsInput = {
+  companyName: string;
+  roleTitle: string;
+  stageType: string;
+  transcriptSegment: string;
+  domainProfile: {
+    primaryDomain?: string;
+    nicheDescription?: string;
+    inScopeConcepts?: string[];
+    outOfScopeConcepts?: string[];
+    seedConcepts?: string[];
+    relevanceGuidance?: string;
+  };
+};
+
+export const surfaceRealtimeKeywordsSpec: ActionSpec<SurfaceRealtimeKeywordsInput> = {
+  actionId: "surface_realtime_keywords",
+  version: "2026-05-06.v2",
+  goal: "Memilih keyword interview yang paling membantu dari ucapan interviewer dengan relevansi berlapis terhadap CV + JD.",
+  role: "Kamu adalah classifier keyword realtime untuk overlay interview.",
+  task: [
+    "Baca domainProfile application dan potongan transcript interviewer terbaru.",
+    "Nilai relevansi transcript secara berlapis, bukan hanya irisan niche yang paling sempit.",
+    "Layer yang boleh dianggap relevan: core role/domain, skill domain, business domain, adjacent knowledge yang wajar untuk interview, dan macro/contextual factor yang memengaruhi domain.",
+    "Jika transcript masuk salah satu layer relevansi tersebut, pilih maksimal 3 keyword spesifik yang membantu kandidat terdengar luas tetapi tetap nyambung.",
+    "Jika transcript benar-benar tidak terkait dengan role, JD, candidate context, business domain, atau adjacent knowledge yang wajar, kembalikan keywords kosong dan shouldExpandOverlay false."
+  ].join("\n"),
+  policyRules: [
+    "Jangan menampilkan keyword hanya karena istilah itu terdengar penting secara umum; harus ada alasan relevansi terhadap CV + JD atau role.",
+    "Keyword boleh berasal dari core niche, skill utama role, konsep umum bidang kerja, business process, domain industry, atau faktor eksternal yang logis memengaruhi role.",
+    "Pertanyaan generic tidak otomatis out-of-scope jika generic itu masih menguji kompetensi role atau bidang kerja kandidat.",
+    "Seed concepts hanya referensi domain, bukan daftar wajib match.",
+    "Out-of-scope berarti topik yang tidak punya hubungan wajar dengan role, JD, kandidat, business domain, atau adjacent professional knowledge.",
+    "Jika transcript membahas konsep true out-of-scope, return keywords kosong.",
+    "Keyword harus pendek, spesifik, dan bisa dijelaskan cepat saat user klik.",
+    "Keyword term maksimal 2-4 kata dan harus terdengar natural sebagai chip UI.",
+    "Hindari keyword yang terdengar seperti frasa mentah atau terjemahan kaku; pilih istilah domain yang umum dipakai.",
+    "Jangan tampilkan keyword terlalu generik seperti pengalaman, motivasi, project, komunikasi, atau nama company.",
+    "Jika transcript bertanya soal pengetahuan dasar bidang yang relevan, pilih keyword konsep yang konkret, bukan label luas seperti AI, teknologi, atau bisnis.",
+    "Gunakan bahasa keyword sesuai istilah yang paling natural di domain tersebut.",
+    "Semua field yang dicontohkan sebagai array wajib dikembalikan sebagai array JSON, walaupun kosong.",
+    "Field warnings, missingInputs, dan evidence wajib tetap ada. Jika tidak ada isinya, kembalikan array kosong []."
+  ],
+  outputSchemaDescription: `Balas hanya dengan JSON valid:
+{
+  "status": "success | partial | insufficient_input | needs_human_review | failed_policy",
+  "result": {
+    "shouldExpandOverlay": true,
+    "keywords": [
+      {
+        "term": "string",
+        "whyRelevant": "string",
+        "explanationHint": "string"
+      }
+    ]
+  },
+  "warnings": ["string"],
+  "missingInputs": ["string"],
+  "confidence": "low | medium | high",
+  "evidence": [{ "field": "string", "source": "string", "quote": "string" }]
+}`,
+  buildContext: (input) => `Runtime payload:
+- companyName: ${input.companyName}
+- roleTitle: ${input.roleTitle}
+- stageType: ${input.stageType}
+
+- domainProfile:
+  - primaryDomain: ${input.domainProfile.primaryDomain || "unknown"}
+  - nicheDescription: ${input.domainProfile.nicheDescription || "unknown"}
+  - inScopeConcepts: ${(input.domainProfile.inScopeConcepts || []).join(", ") || "none"}
+  - outOfScopeConcepts: ${(input.domainProfile.outOfScopeConcepts || []).join(", ") || "none"}
+  - seedConcepts: ${(input.domainProfile.seedConcepts || []).join(", ") || "none"}
+  - relevanceGuidance: ${input.domainProfile.relevanceGuidance || "unknown"}
+
+- latestInterviewerTranscriptSegment:
+${input.transcriptSegment.trim() || "unknown"}`
+};
