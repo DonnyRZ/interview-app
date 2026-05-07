@@ -19,12 +19,16 @@ type SystemAudioProbeEvent = {
   status: string;
   level: number;
   peak?: number;
+  deviceId?: string;
+  deviceLabel?: string;
   message: string;
 };
 
 type OverlayTranscriptEvent = {
   transcriptText: string;
   detectedQuestion?: string;
+  itemId?: string;
+  previousItemId?: string;
   speaker?: "interviewer" | "candidate" | "system";
   isFinal?: boolean;
   capturedAt?: string;
@@ -34,6 +38,7 @@ type RealtimeOverlayAction = {
   requestId: number;
   action: "answer" | "followup" | "explain" | "keyword" | "ask";
   latestQuestion?: string;
+  recentTranscript?: string;
   triggerText?: string;
 };
 
