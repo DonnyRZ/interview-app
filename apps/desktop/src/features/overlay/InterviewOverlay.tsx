@@ -52,6 +52,7 @@ export function InterviewOverlay() {
   const streamingResponseRef = useRef("");
   const realtimeSocketRef = useRef<WebSocket | null>(null);
   const realtimeStatusRef = useRef("");
+  const recentTranscriptRef = useRef<string[]>([]);
 
   function applyContext(payload: unknown) {
     if (!payload || typeof payload !== "object") return;
@@ -88,6 +89,7 @@ export function InterviewOverlay() {
     if (isNewRound) {
       activeRequestRef.current += 1;
       runtimeKeywordRequestRef.current = "";
+      recentTranscriptRef.current = [];
       setActiveResponse(null);
       setRecentHelp([]);
       setSeconds(0);
@@ -438,7 +440,8 @@ export function InterviewOverlay() {
     if (type === "conversation.item.input_audio_transcription.completed") {
       const transcriptText = typeof event.transcript === "string" ? event.transcript.trim() : "";
       if (transcriptText) {
-        const detectedQuestion = deriveQuestionFromTranscriptText(transcriptText, contextRef.current);
+        const recentTranscript = appendRecentTranscript(transcriptText);
+        const detectedQuestion = deriveContextFromTranscriptWindow(recentTranscript, transcriptText, contextRef.current);
         const transcriptEvent: OverlayTranscriptEvent = {
           transcriptText,
           detectedQuestion,
@@ -517,6 +520,30 @@ export function InterviewOverlay() {
 
     socket.send(JSON.stringify(event));
     return true;
+  }
+
+  function appendRecentTranscript(transcriptText: string) {
+    const normalized = transcriptText.replace(/\s+/g, " ").trim();
+    if (!normalized || isLikelyTranscriptNoise(normalized)) {
+      return getRecentTranscriptText();
+    }
+
+    const lastItem = recentTranscriptRef.current.at(-1);
+    if (lastItem !== normalized) {
+      recentTranscriptRef.current = [...recentTranscriptRef.current, normalized].slice(-8);
+    }
+
+    return getRecentTranscriptText();
+  }
+
+  function getRecentTranscriptText() {
+    const maxLength = 1400;
+    const joined = recentTranscriptRef.current.join("\n").trim();
+    if (joined.length <= maxLength) {
+      return joined;
+    }
+
+    return joined.slice(joined.length - maxLength).trim();
   }
 
   async function sendRealtimeActionToSocket(payload: RealtimeOverlayAction) {
@@ -603,6 +630,7 @@ export function InterviewOverlay() {
       requestId,
       action: type as RealtimeOverlayAction["action"],
       latestQuestion,
+      recentTranscript: getRecentTranscriptText(),
       triggerText
     });
 
@@ -838,21 +866,96 @@ function formatRealtimeResponsePoints(text: string) {
     return [];
   }
 
-  return cleaned
+  const linePoints = cleaned
     .split(/\n+/)
     .map((line) => line.replace(/^\s*[-*•]\s*/, "").trim())
+    .map((line) => line.replace(/^BANTU_[A-Z_]+:\s*/i, "").trim())
     .filter(Boolean)
     .slice(0, 6);
+
+  if (linePoints.length > 1 || cleaned.length < 160) {
+    return linePoints;
+  }
+
+  return splitLongRealtimeParagraph(linePoints[0] || cleaned);
+}
+
+function splitLongRealtimeParagraph(text: string) {
+  const normalized = text
+    .replace(/\s+(\d+[.)])\s+/g, "\n$1 ")
+    .replace(/\s+[-*â€¢]\s+/g, "\n")
+    .trim();
+
+  const numberedPoints = normalized
+    .split(/\n+|(?=\b\d+[.)]\s+)/)
+    .map((line) => line.replace(/^\s*\d+[.)]\s*/, "").trim())
+    .filter(Boolean);
+
+  if (numberedPoints.length > 1) {
+    return numberedPoints.slice(0, 6);
+  }
+
+  return normalized
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean)
+    .slice(0, 5);
 }
 
 function buildRealtimeActionPrompt(payload: RealtimeOverlayAction) {
   const trigger = getRealtimeTriggerName(payload.action);
+  const actionInstruction = buildRealtimeActionInstruction(payload);
   return [
     `TRIGGER: ${trigger}`,
-    payload.latestQuestion ? `Pertanyaan interviewer terbaru: ${payload.latestQuestion}` : "",
+    payload.recentTranscript ? `Konteks transcript interviewer terbaru:\n${payload.recentTranscript}` : "",
+    payload.latestQuestion ? `Pertanyaan atau fokus terbaru:\n${payload.latestQuestion}` : "",
     payload.triggerText ? `Input user/keyword: ${payload.triggerText}` : "",
-    "Jawab text saja, ringkas, actionable, dan siap dipakai kandidat."
+    "Jawab berdasarkan konteks transcript lengkap, bukan hanya potongan kalimat terakhir.",
+    actionInstruction
   ].filter(Boolean).join("\n");
+}
+
+function buildRealtimeActionInstruction(payload: RealtimeOverlayAction) {
+  if (payload.action === "answer") {
+    return [
+      "Output untuk BANTU_JAWAB wajib berupa jawaban kandidat yang siap dibaca langsung.",
+      "Format wajib 3-5 bullet, satu bullet per baris, maksimal satu kalimat per bullet.",
+      "Tulis dengan sudut pandang saya/kandidat, bukan saran untuk menjawab.",
+      "Jangan tulis label BANTU_JAWAB.",
+      "Jangan pakai kalimat instruksi seperti jelaskan, tekankan, sampaikan, sebutkan, atau kamu bisa."
+    ].join("\n");
+  }
+
+  if (payload.action === "followup") {
+    return [
+      "Output untuk BANTU_FOLLOWUP wajib berupa 2-3 pertanyaan follow-up yang siap diucapkan kandidat.",
+      "Format wajib satu pertanyaan per baris.",
+      "Tulis langsung sebagai kalimat tanya.",
+      "Jangan pakai instruksi seperti tanyakan, minta, atau kamu bisa bertanya."
+    ].join("\n");
+  }
+
+  if (payload.action === "explain") {
+    return [
+      "Output untuk JELASKAN_MAKSUDNYA berisi maksud interviewer secara singkat dan angle jawaban terbaik.",
+      "Format 2-3 bullet pendek.",
+      "Boleh berupa penjelasan, tapi tetap ringkas dan langsung membantu kandidat menjawab."
+    ].join("\n");
+  }
+
+  if (payload.action === "keyword") {
+    return [
+      "Output untuk EXPLAIN_KEYWORD berisi arti keyword singkat dan satu kalimat siap pakai untuk jawaban interview.",
+      "Format 2 bullet: arti singkat, lalu kalimat siap pakai.",
+      "Jangan melebar menjadi jawaban penuh kecuali keyword memang membutuhkan konteks."
+    ].join("\n");
+  }
+
+  return [
+    "Ikuti permintaan user.",
+    "Kalau user meminta jawaban, tulis jawaban siap dibaca.",
+    "Kalau user meminta penjelasan, jelaskan singkat dan actionable."
+  ].join("\n");
 }
 
 function getRealtimeTriggerName(action: RealtimeOverlayAction["action"]) {
@@ -1192,6 +1295,48 @@ function deriveQuestionFromTranscriptText(transcriptText: string, context: Overl
   }
 
   return undefined;
+}
+
+function deriveContextFromTranscriptWindow(recentTranscript: string, latestSegment: string, context: OverlayContext) {
+  const directQuestion = deriveQuestionFromTranscriptText(latestSegment, context);
+  if (directQuestion && directQuestion.length >= 48) {
+    return directQuestion;
+  }
+
+  const windowText = recentTranscript.trim();
+  if (!windowText) {
+    return directQuestion;
+  }
+
+  const segments = windowText
+    .split(/[\n\r]+|(?<=[?.!])\s+/)
+    .map((segment) => segment.trim())
+    .filter((segment) => segment && isRelevantTranscriptText(segment, context));
+  const focusedWindow = segments.slice(-4).join(" ").trim();
+
+  if (directQuestion && focusedWindow && !focusedWindow.includes(directQuestion)) {
+    return `${focusedWindow} ${directQuestion}`.trim();
+  }
+
+  return focusedWindow || directQuestion;
+}
+
+function isLikelyTranscriptNoise(text: string) {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) {
+    return true;
+  }
+
+  const noiseSignals = [
+    "sponsored",
+    "apply now",
+    "base44",
+    "budgeting app",
+    "skip ad",
+    "lewati iklan"
+  ];
+
+  return noiseSignals.some((signal) => normalized.includes(signal));
 }
 
 function isRelevantTranscriptText(text: string, context: OverlayContext) {

@@ -21,6 +21,7 @@ type RealtimeActionPayload = {
   requestId?: number;
   action?: "answer" | "followup" | "explain" | "keyword" | "ask";
   latestQuestion?: string;
+  recentTranscript?: string;
   triggerText?: string;
 };
 
@@ -303,6 +304,7 @@ function sanitizeRealtimeActionPayload(payload: unknown): Required<Pick<Realtime
     requestId: typeof candidate.requestId === "number" ? candidate.requestId : Date.now(),
     action: candidate.action,
     latestQuestion: typeof candidate.latestQuestion === "string" ? candidate.latestQuestion.trim() : "",
+    recentTranscript: typeof candidate.recentTranscript === "string" ? candidate.recentTranscript.trim() : "",
     triggerText: typeof candidate.triggerText === "string" ? candidate.triggerText.trim() : ""
   };
 }

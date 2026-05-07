@@ -34,6 +34,7 @@ type RealtimeOverlayAction = {
   requestId: number;
   action: "answer" | "followup" | "explain" | "keyword" | "ask";
   latestQuestion?: string;
+  recentTranscript?: string;
   triggerText?: string;
 };
 
