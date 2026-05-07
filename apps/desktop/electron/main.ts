@@ -8,14 +8,16 @@ const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const rendererDevUrl = process.env.VITE_DEV_SERVER_URL;
 const apiBaseUrl = process.env.VITE_API_BASE_URL || "http://127.0.0.1:4000";
 const preloadPath = path.join(currentDir, "preload.cjs");
-const loopbackProbePath = path.join(currentDir, "../native/windows-loopback/bin/WasapiLoopbackProbe.exe");
+const devLoopbackProbePath = path.join(currentDir, "../native/windows-loopback/bin/WasapiLoopbackProbe.exe");
+const packagedLoopbackProbePath = path.join(process.resourcesPath, "native", "windows-loopback", "WasapiLoopbackProbe.exe");
+const loopbackProbePath = app.isPackaged ? packagedLoopbackProbePath : devLoopbackProbePath;
 const overlaySizes = {
   mini: { width: 430, height: 72 },
   expanded: { width: 560, height: 440 },
   response: { width: 900, height: 440 }
 };
 
-type RealtimeStatus = "idle" | "connecting" | "audio_waiting" | "listening" | "responding" | "error" | "closed";
+type RealtimeStatus = "idle" | "connecting" | "connected" | "audio_waiting" | "listening" | "responding" | "error" | "closed";
 
 type RealtimeActionPayload = {
   requestId?: number;
@@ -36,6 +38,7 @@ let systemAudioProbeProcess: ChildProcessWithoutNullStreams | null = null;
 let systemAudioProbeBuffer = "";
 let realtimeAudioProcess: ChildProcessWithoutNullStreams | null = null;
 let realtimeAudioBuffer = "";
+let realtimeAudioHadHelperError = false;
 let realtimeStatus: RealtimeStatus = "idle";
 let realtimeConnectPayload: { model: string; clientSecret: string; expiresAt: number } | null = null;
 
@@ -51,6 +54,8 @@ function sanitizeTranscriptEvent(event: unknown) {
     ? payload.speaker
     : "interviewer";
   const isFinal = typeof payload.isFinal === "boolean" ? payload.isFinal : true;
+  const itemId = typeof payload.itemId === "string" && payload.itemId.trim() ? payload.itemId.trim() : undefined;
+  const previousItemId = typeof payload.previousItemId === "string" && payload.previousItemId.trim() ? payload.previousItemId.trim() : undefined;
   const capturedAt = typeof payload.capturedAt === "string" && payload.capturedAt.trim()
     ? payload.capturedAt.trim()
     : new Date().toISOString();
@@ -62,6 +67,8 @@ function sanitizeTranscriptEvent(event: unknown) {
   return {
     transcriptText,
     detectedQuestion,
+    itemId,
+    previousItemId,
     speaker,
     isFinal,
     capturedAt
@@ -93,6 +100,29 @@ function setRealtimeStatus(status: RealtimeStatus, message: string) {
     status,
     message
   });
+}
+
+function setAudioCaptureStatus(status: string, message: string, deviceLabel?: string) {
+  mergeOverlayContext({
+    audioStatus: status,
+    audioDeviceLabel: deviceLabel,
+    audioSourceKind: "system-loopback",
+    realtimeMessage: message
+  });
+  overlayWindow?.webContents.send("overlay:context-updated", overlayContext);
+  emitRealtimeOverlayEvent({
+    type: "audio_status",
+    status,
+    message,
+    deviceLabel
+  });
+}
+
+function isRealtimeActionTransportReady() {
+  return realtimeStatus === "connected"
+    || realtimeStatus === "audio_waiting"
+    || realtimeStatus === "listening"
+    || realtimeStatus === "responding";
 }
 
 async function startRealtimeSession(context: unknown) {
@@ -194,6 +224,8 @@ function startRealtimeAudioStream() {
 
   stopSystemAudioProbe();
   realtimeAudioBuffer = "";
+  realtimeAudioHadHelperError = false;
+  setAudioCaptureStatus("waiting", "Mencari audio interview dari active system output...");
   realtimeAudioProcess = spawn(loopbackProbePath, ["stream", "--chunk-ms", "40"], {
     windowsHide: true
   });
@@ -217,7 +249,7 @@ function startRealtimeAudioStream() {
   realtimeAudioProcess.on("error", (error) => {
     realtimeAudioProcess = null;
     realtimeAudioBuffer = "";
-    setRealtimeStatus("error", error.message);
+    setRealtimeStatus("error", getLoopbackHelperErrorMessage(error));
   });
 
   realtimeAudioProcess.on("exit", (code) => {
@@ -226,10 +258,23 @@ function startRealtimeAudioStream() {
     }
     realtimeAudioProcess = null;
     realtimeAudioBuffer = "";
-    if (code !== 0 && realtimeStatus !== "closed" && realtimeStatus !== "idle") {
+    if (code !== 0 && !realtimeAudioHadHelperError && realtimeStatus !== "closed" && realtimeStatus !== "idle") {
       setRealtimeStatus("error", `WASAPI audio stream exited with code ${code ?? "unknown"}.`);
     }
   });
+}
+
+function getLoopbackHelperErrorMessage(error: NodeJS.ErrnoException) {
+  const rawMessage = error.message || "";
+  const blockedByPolicy = error.code === "EPERM"
+    || rawMessage.toLowerCase().includes("blocked")
+    || rawMessage.toLowerCase().includes("application control");
+
+  if (blockedByPolicy) {
+    return "System audio helper diblokir Windows Security. Untuk beta, trust certificate app dulu lalu jalankan packaged app yang sudah signed.";
+  }
+
+  return rawMessage || "System audio helper gagal dijalankan.";
 }
 
 function stopRealtimeAudioStream() {
@@ -238,6 +283,7 @@ function stopRealtimeAudioStream() {
     realtimeAudioProcess = null;
   }
   realtimeAudioBuffer = "";
+  realtimeAudioHadHelperError = false;
 }
 
 function handleRealtimeAudioLine(line: string) {
@@ -245,11 +291,26 @@ function handleRealtimeAudioLine(line: string) {
   if (!trimmed) return;
 
   try {
-    const event = JSON.parse(trimmed) as { type?: string; status?: string; audio?: string; message?: string; deviceLabel?: string; deviceId?: string };
+    const event = JSON.parse(trimmed) as {
+      type?: string;
+      status?: string;
+      audio?: string;
+      message?: string;
+      deviceLabel?: string;
+      deviceId?: string;
+      sequence?: number;
+      capturedAt?: string;
+      streamState?: string;
+    };
     if (event.type === "audio_chunk" && event.audio) {
       emitRealtimeOverlayEvent({
         type: "input_audio_buffer.append",
-        audio: event.audio
+        audio: event.audio,
+        sequence: event.sequence,
+        capturedAt: event.capturedAt,
+        deviceId: event.deviceId,
+        deviceLabel: event.deviceLabel,
+        streamState: event.streamState
       });
       return;
     }
@@ -258,33 +319,54 @@ function handleRealtimeAudioLine(line: string) {
       const deviceLabel = typeof event.deviceLabel === "string" && event.deviceLabel.trim()
         ? event.deviceLabel.trim()
         : "active system output";
-      mergeOverlayContext({
-        audioStatus: "ready",
-        audioDeviceLabel: deviceLabel,
-        audioSourceKind: "system-loopback"
-      });
+      setAudioCaptureStatus("ready", `Listening via ${deviceLabel}`, deviceLabel);
       setRealtimeStatus("listening", `Listening via ${deviceLabel}`);
       return;
     }
 
     if (event.type === "status" && event.status === "waiting_for_audio") {
-      if (realtimeStatus !== "audio_waiting") {
-        setRealtimeStatus("audio_waiting", event.message || "Mencari audio interview dari active system output...");
+      const message = event.message || "Mencari audio interview dari active system output...";
+      setAudioCaptureStatus("waiting", message);
+      if (realtimeStatus !== "closed" && realtimeStatus !== "idle" && realtimeStatus !== "error") {
+        setRealtimeStatus("connected", message);
       }
       return;
     }
 
     if (event.type === "level") {
-      if (event.status === "ok" && realtimeStatus === "audio_waiting") {
-        const deviceLabel = typeof event.deviceLabel === "string" && event.deviceLabel.trim()
-          ? event.deviceLabel.trim()
-          : "active system output";
+      const deviceLabel = typeof event.deviceLabel === "string" && event.deviceLabel.trim()
+        ? event.deviceLabel.trim()
+        : "active system output";
+      if (event.status === "ok") {
+        setAudioCaptureStatus("ready", `Listening via ${deviceLabel}`, deviceLabel);
         setRealtimeStatus("listening", `Listening via ${deviceLabel}`);
+      } else if (event.status === "silent") {
+        const message = `Audio system sedang silent via ${deviceLabel}`;
+        setAudioCaptureStatus("silent", message, deviceLabel);
+        if (realtimeStatus === "listening") {
+          setRealtimeStatus("connected", message);
+        }
+      } else if (event.status === "checking") {
+        const message = `Mengecek audio system via ${deviceLabel}`;
+        setAudioCaptureStatus("checking", message, deviceLabel);
+        if (realtimeStatus === "listening") {
+          setRealtimeStatus("connected", message);
+        }
+      }
+      return;
+    }
+
+    if (event.type === "result" && event.status === "silent") {
+      const message = event.message || "Audio belum tertangkap dari active system output.";
+      setAudioCaptureStatus("waiting", message);
+      if (realtimeStatus === "connecting" || realtimeStatus === "audio_waiting") {
+        setRealtimeStatus("connected", message);
       }
       return;
     }
 
     if (event.type === "error" && event.message) {
+      realtimeAudioHadHelperError = true;
       setRealtimeStatus("error", event.message);
     }
   } catch {
@@ -301,10 +383,8 @@ function sendRealtimeAction(payload: unknown) {
     return { ok: false, message: "Invalid realtime action payload." };
   }
 
-  if (realtimeStatus !== "listening" && realtimeStatus !== "responding") {
-    const message = realtimeStatus === "audio_waiting"
-      ? "Realtime tersambung, tetapi audio interview belum terdeteksi."
-      : "Realtime session belum aktif.";
+  if (!isRealtimeActionTransportReady()) {
+    const message = "Realtime session belum aktif.";
     emitRealtimeOverlayEvent({
       type: "error",
       requestId: actionPayload.requestId,
@@ -518,7 +598,7 @@ function registerOverlayIpc() {
     }
 
     if (type === "open") {
-      setRealtimeStatus("audio_waiting", "Mencari audio interview dari active system output...");
+      setRealtimeStatus("connected", "Realtime tersambung. Mencari audio interview dari active system output...");
       startRealtimeAudioStream();
       return { ok: true };
     }
@@ -669,12 +749,13 @@ function registerSystemAudioIpc() {
     });
 
     systemAudioProbeProcess.on("error", (error) => {
+      const message = getLoopbackHelperErrorMessage(error);
       emitSystemAudioProbeEvent({
         type: "error",
         status: "error",
         level: 0,
         peak: 0,
-        message: error.message
+        message
       });
       systemAudioProbeProcess = null;
       systemAudioProbeBuffer = "";

@@ -27,6 +27,8 @@ type SystemAudioProbeEvent = {
 type OverlayTranscriptEvent = {
   transcriptText: string;
   detectedQuestion?: string;
+  itemId?: string;
+  previousItemId?: string;
   speaker?: "interviewer" | "candidate" | "system";
   isFinal?: boolean;
   capturedAt?: string;

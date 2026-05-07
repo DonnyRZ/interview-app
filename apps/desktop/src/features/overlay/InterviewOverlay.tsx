@@ -28,7 +28,18 @@ type HelpResponse = {
   kind: "help" | "notice";
 };
 
+type ConversationTurn = {
+  itemId: string;
+  previousItemId?: string;
+  speaker: "interviewer";
+  text: string;
+  capturedAt: string;
+  sequence: number;
+};
+
 const waitingQuestionPrefix = "Menunggu pertanyaan interviewer";
+const waitingFocusText = "Menunggu konteks percakapan interviewer.";
+const freshConversationMs = 120_000;
 
 const fallbackContext: OverlayContext = {
   companyName: "Interview",
@@ -44,7 +55,9 @@ export function InterviewOverlay() {
   const [seconds, setSeconds] = useState(0);
   const [recentHelp, setRecentHelp] = useState<HelpResponse[]>([]);
   const [activeResponse, setActiveResponse] = useState<HelpResponse | null>(null);
-  const [latestQuestion, setLatestQuestion] = useState("Menunggu pertanyaan interviewer yang relevan dengan domain application.");
+  const [latestFocus, setLatestFocus] = useState(waitingFocusText);
+  const [conversationWindow, setConversationWindow] = useState("");
+  const [lastTranscriptAt, setLastTranscriptAt] = useState("");
   const [runtimeKeywordStatus, setRuntimeKeywordStatus] = useState<RuntimeKeywordStatus>("idle");
   const contextRef = useRef<OverlayContext>(fallbackContext);
   const activeRequestRef = useRef(0);
@@ -53,6 +66,13 @@ export function InterviewOverlay() {
   const realtimeSocketRef = useRef<WebSocket | null>(null);
   const realtimeStatusRef = useRef("");
   const recentTranscriptRef = useRef<string[]>([]);
+  const conversationTurnsRef = useRef<ConversationTurn[]>([]);
+  const transcriptItemsRef = useRef(new Map<string, ConversationTurn>());
+  const transcriptOrderRef = useRef<string[]>([]);
+  const transcriptSequenceRef = useRef(0);
+  const pendingSpeechRef = useRef(false);
+  const latestFocusRef = useRef(waitingFocusText);
+  const conversationWindowRef = useRef("");
 
   function applyContext(payload: unknown) {
     if (!payload || typeof payload !== "object") return;
@@ -69,30 +89,27 @@ export function InterviewOverlay() {
     contextRef.current = mergedContext;
     setContext(mergedContext);
 
-    setLatestQuestion((current) => {
-      if (nextContext.latestQuestion?.trim()) {
-        return nextContext.latestQuestion.trim();
-      }
-
-      const transcriptQuestion = deriveQuestionFromTranscriptEvent(nextContext.latestTranscriptEvent, mergedContext);
-      if (transcriptQuestion) {
-        return transcriptQuestion;
-      }
-
-      if (isNewRound) {
-        return buildQuestion(mergedContext);
-      }
-
-      return current;
-    });
+    if (nextContext.latestTranscriptEvent) {
+      registerTranscriptEvent(nextContext.latestTranscriptEvent);
+    }
 
     if (isNewRound) {
       activeRequestRef.current += 1;
       runtimeKeywordRequestRef.current = "";
       recentTranscriptRef.current = [];
+      conversationTurnsRef.current = [];
+      transcriptItemsRef.current = new Map();
+      transcriptOrderRef.current = [];
+      transcriptSequenceRef.current = 0;
+      pendingSpeechRef.current = false;
+      latestFocusRef.current = waitingFocusText;
+      conversationWindowRef.current = "";
       setActiveResponse(null);
       setRecentHelp([]);
       setSeconds(0);
+      setLatestFocus(waitingFocusText);
+      setConversationWindow("");
+      setLastTranscriptAt("");
       setMode("mini");
     }
   }
@@ -124,6 +141,24 @@ export function InterviewOverlay() {
             ...current,
             realtimeStatus: nextStatus,
             realtimeMessage: nextMessage
+          };
+          contextRef.current = nextContext;
+          return nextContext;
+        });
+        return;
+      }
+
+      if (event.type === "audio_status") {
+        const nextStatus = typeof event.status === "string" ? event.status : "";
+        const nextMessage = typeof event.message === "string" ? event.message : "";
+        const deviceLabel = typeof event.deviceLabel === "string" ? event.deviceLabel : undefined;
+        setContext((current) => {
+          const nextContext = {
+            ...current,
+            audioStatus: nextStatus,
+            audioDeviceLabel: deviceLabel || current.audioDeviceLabel,
+            audioSourceKind: "system-loopback",
+            realtimeMessage: nextMessage || current.realtimeMessage
           };
           contextRef.current = nextContext;
           return nextContext;
@@ -252,7 +287,7 @@ export function InterviewOverlay() {
       return;
     }
 
-    if (!isDetectedQuestion(latestQuestion)) {
+    if (!hasFreshConversationContext() || !latestFocus.trim() || latestFocus === waitingFocusText) {
       if (context.runtimeKeywords?.length) {
         syncRuntimeKeywords([]);
       }
@@ -261,9 +296,9 @@ export function InterviewOverlay() {
       return;
     }
 
-    const recentTranscript = getRecentTranscriptText();
-    const keywordSourceText = buildKeywordSourceText(latestQuestion, recentTranscript);
-    const requestKey = `${context.interviewRoundId || "draft"}::${latestQuestion.trim()}::${keywordSourceText.slice(-240)}`;
+    const recentTranscript = conversationWindow || getRecentTranscriptText();
+    const keywordSourceText = buildKeywordSourceText(latestFocus, recentTranscript);
+    const requestKey = `${context.interviewRoundId || "draft"}::${latestFocus.trim()}::${keywordSourceText.slice(-240)}`;
     if (runtimeKeywordRequestRef.current === requestKey) {
       return;
     }
@@ -272,14 +307,14 @@ export function InterviewOverlay() {
     setRuntimeKeywordStatus("loading");
     syncRuntimeKeywords([]);
 
-    const nextKeywords = buildLocalRuntimeKeywords(latestQuestion, context, keywordSourceText);
+    const nextKeywords = buildLocalRuntimeKeywords(latestFocus, context, keywordSourceText);
     syncRuntimeKeywords(nextKeywords);
     setRuntimeKeywordStatus(nextKeywords.length ? "ready" : "empty");
 
     if (nextKeywords.length) {
       setMode((current) => current === "mini" ? "expanded" : current);
     }
-  }, [context.interviewRoundId, context.realtimeContext, context.runtimeKeywords, latestQuestion]);
+  }, [context.interviewRoundId, context.realtimeContext, context.runtimeKeywords, latestFocus, conversationWindow, lastTranscriptAt]);
 
   function beginDrag(event: PointerEvent<HTMLElement>) {
     const target = event.target as HTMLElement;
@@ -429,6 +464,27 @@ export function InterviewOverlay() {
     }
 
     const type = typeof event.type === "string" ? event.type : "";
+    if (type === "input_audio_buffer.speech_started") {
+      pendingSpeechRef.current = true;
+      updateRealtimeStatus("listening", "Menangkap ucapan interviewer...");
+      return;
+    }
+
+    if (type === "input_audio_buffer.speech_stopped") {
+      pendingSpeechRef.current = true;
+      updateRealtimeStatus("listening", "Ucapan selesai, menunggu transcript...");
+      return;
+    }
+
+    if (type === "input_audio_buffer.committed") {
+      const itemId = typeof event.item_id === "string" ? event.item_id : "";
+      const previousItemId = typeof event.previous_item_id === "string" ? event.previous_item_id : undefined;
+      if (itemId) {
+        ensureTranscriptOrder(itemId, previousItemId);
+      }
+      return;
+    }
+
     if (type === "conversation.item.input_audio_transcription.delta") {
       const delta = typeof event.delta === "string" ? event.delta : "";
       if (delta) {
@@ -442,21 +498,31 @@ export function InterviewOverlay() {
     if (type === "conversation.item.input_audio_transcription.completed") {
       const transcriptText = typeof event.transcript === "string" ? event.transcript.trim() : "";
       if (transcriptText) {
-        const recentTranscript = appendRecentTranscript(transcriptText);
-        const detectedQuestion = deriveContextFromTranscriptWindow(recentTranscript, transcriptText, contextRef.current);
+        const itemId = typeof event.item_id === "string" ? event.item_id : undefined;
+        const previousItemId = typeof event.previous_item_id === "string" ? event.previous_item_id : undefined;
+        const capturedAt = new Date().toISOString();
+        const turn = registerTranscriptText({
+          text: transcriptText,
+          itemId,
+          previousItemId,
+          capturedAt
+        });
+        const recentTranscript = getRecentTranscriptText();
+        const detectedQuestion = deriveLatestConversationFocus(recentTranscript, transcriptText, contextRef.current);
         const transcriptEvent: OverlayTranscriptEvent = {
           transcriptText,
           detectedQuestion,
+          itemId: turn?.itemId,
+          previousItemId,
           speaker: "interviewer",
           isFinal: true,
-          capturedAt: new Date().toISOString()
+          capturedAt
         };
         void window.interviewDesktop?.updateOverlayContext?.({
           latestTranscriptEvent: transcriptEvent
         });
-        if (detectedQuestion) {
-          setLatestQuestion(detectedQuestion);
-        }
+        pendingSpeechRef.current = false;
+        updateRealtimeStatus("listening", "Konteks siap dari transcript terbaru.");
       }
       return;
     }
@@ -492,10 +558,15 @@ export function InterviewOverlay() {
           points: formatRealtimeResponsePoints(finalText)
         });
       streamingResponseRef.current = "";
-      updateRealtimeStatus("listening", "Realtime listening via system audio.");
+      const audioReady = contextRef.current.audioStatus === "ready";
+      const nextStatus = audioReady ? "listening" : "connected";
+      const nextMessage = audioReady
+        ? `Listening via ${contextRef.current.audioDeviceLabel || "active system output"}`
+        : "Realtime tersambung. Menunggu audio interview.";
+      updateRealtimeStatus(nextStatus, nextMessage);
       void window.interviewDesktop?.reportRealtimeClientEvent?.({
         type: "listening",
-        message: "Realtime listening via system audio."
+        message: nextMessage
       });
       setMode("response");
       return;
@@ -524,28 +595,130 @@ export function InterviewOverlay() {
     return true;
   }
 
-  function appendRecentTranscript(transcriptText: string) {
-    const normalized = transcriptText.replace(/\s+/g, " ").trim();
+  function registerTranscriptEvent(event: OverlayTranscriptEvent) {
+    if (!event.transcriptText || event.speaker === "candidate" || event.speaker === "system") {
+      return null;
+    }
+
+    return registerTranscriptText({
+      text: event.transcriptText,
+      itemId: event.itemId,
+      previousItemId: event.previousItemId,
+      capturedAt: event.capturedAt || new Date().toISOString()
+    });
+  }
+
+  function registerTranscriptText(input: {
+    text: string;
+    itemId?: string;
+    previousItemId?: string;
+    capturedAt: string;
+  }) {
+    const normalized = input.text.replace(/\s+/g, " ").trim();
     if (!normalized || isLikelyTranscriptNoise(normalized)) {
-      return getRecentTranscriptText();
+      return null;
     }
 
-    const lastItem = recentTranscriptRef.current.at(-1);
-    if (lastItem !== normalized) {
-      recentTranscriptRef.current = [...recentTranscriptRef.current, normalized].slice(-8);
+    const itemId = input.itemId || `local-${input.capturedAt}-${normalized.slice(0, 24)}`;
+    ensureTranscriptOrder(itemId, input.previousItemId);
+
+    const existing = transcriptItemsRef.current.get(itemId);
+    if (existing && existing.text === normalized && existing.capturedAt === input.capturedAt) {
+      return existing;
     }
 
-    return getRecentTranscriptText();
+    const turn: ConversationTurn = {
+      itemId,
+      previousItemId: input.previousItemId,
+      speaker: "interviewer",
+      text: normalized,
+      capturedAt: input.capturedAt,
+      sequence: existing?.sequence || ++transcriptSequenceRef.current
+    };
+
+    transcriptItemsRef.current.set(itemId, turn);
+    rebuildConversationFromTranscriptItems();
+    return turn;
+  }
+
+  function ensureTranscriptOrder(itemId: string, previousItemId?: string) {
+    if (transcriptOrderRef.current.includes(itemId)) {
+      return;
+    }
+
+    if (previousItemId) {
+      const previousIndex = transcriptOrderRef.current.indexOf(previousItemId);
+      if (previousIndex >= 0) {
+        transcriptOrderRef.current.splice(previousIndex + 1, 0, itemId);
+        return;
+      }
+    }
+
+    transcriptOrderRef.current.push(itemId);
+  }
+
+  function rebuildConversationFromTranscriptItems() {
+    const orderedTurns = transcriptOrderRef.current
+      .map((itemId) => transcriptItemsRef.current.get(itemId))
+      .filter((turn): turn is ConversationTurn => Boolean(turn))
+      .slice(-20);
+
+    conversationTurnsRef.current = orderedTurns;
+    recentTranscriptRef.current = orderedTurns.map((turn) => turn.text).slice(-8);
+
+    const nextWindow = buildConversationWindow(orderedTurns);
+    const latestTurn = orderedTurns.at(-1);
+    const nextFocus = deriveLatestConversationFocus(nextWindow, latestTurn?.text || "", contextRef.current) || latestTurn?.text || waitingFocusText;
+
+    conversationWindowRef.current = nextWindow;
+    latestFocusRef.current = nextFocus;
+    setConversationWindow(nextWindow);
+    setLatestFocus(nextFocus);
+    setLastTranscriptAt(latestTurn?.capturedAt || "");
+    void window.interviewDesktop?.updateOverlayContext?.({
+      latestQuestion: nextFocus
+    });
   }
 
   function getRecentTranscriptText() {
     const maxLength = 1400;
-    const joined = recentTranscriptRef.current.join("\n").trim();
+    const joined = conversationWindowRef.current || recentTranscriptRef.current.join("\n").trim();
     if (joined.length <= maxLength) {
       return joined;
     }
 
     return joined.slice(joined.length - maxLength).trim();
+  }
+
+  function hasFreshConversationContext() {
+    return Boolean(getFreshConversationSnapshot());
+  }
+
+  function getFreshConversationSnapshot() {
+    const latestTurn = conversationTurnsRef.current.at(-1);
+    if (!latestTurn) {
+      return null;
+    }
+
+    const capturedTime = new Date(latestTurn.capturedAt).getTime();
+    if (!Number.isFinite(capturedTime) || Date.now() - capturedTime > freshConversationMs) {
+      return null;
+    }
+
+    if (contextRef.current.realtimeStatus === "error") {
+      return null;
+    }
+
+    const windowText = getRecentTranscriptText();
+    if (!windowText.trim()) {
+      return null;
+    }
+
+    return {
+      focus: latestFocusRef.current !== waitingFocusText ? latestFocusRef.current : latestTurn.text,
+      windowText,
+      capturedAt: latestTurn.capturedAt
+    };
   }
 
   async function sendRealtimeActionToSocket(payload: RealtimeOverlayAction) {
@@ -604,15 +777,6 @@ export function InterviewOverlay() {
     activeRequestRef.current = requestId;
     setMode("loading");
 
-    if ((type === "answer" || type === "followup" || type === "explain") && !isDetectedQuestion(latestQuestion)) {
-      window.setTimeout(() => {
-        if (!isCurrentRequest(requestId)) return;
-        setActiveResponse(buildNoQuestionResponse());
-        setMode("response");
-      }, 300);
-      return;
-    }
-
     if (!isRealtimeLive(context)) {
       window.setTimeout(() => {
         if (!isCurrentRequest(requestId)) return;
@@ -628,11 +792,34 @@ export function InterviewOverlay() {
       return;
     }
 
+    const shouldRequireConversation = type === "answer" || type === "followup" || type === "explain" || type === "keyword";
+    if (shouldRequireConversation && pendingSpeechRef.current) {
+      window.setTimeout(() => {
+        if (!isCurrentRequest(requestId)) return;
+        void sendHelpAction(requestId, type, triggerText);
+      }, 1500);
+      return;
+    }
+
+    await sendHelpAction(requestId, type, triggerText);
+  }
+
+  async function sendHelpAction(requestId: number, type: string, triggerText?: string) {
+    const shouldRequireConversation = type === "answer" || type === "followup" || type === "explain" || type === "keyword";
+    const freshContext = getFreshConversationSnapshot();
+
+    if (shouldRequireConversation && !freshContext) {
+      if (!isCurrentRequest(requestId)) return;
+      setActiveResponse(buildNoFreshContextResponse());
+      setMode("response");
+      return;
+    }
+
     const response = await sendRealtimeActionToSocket({
       requestId,
       action: type as RealtimeOverlayAction["action"],
-      latestQuestion,
-      recentTranscript: getRecentTranscriptText(),
+      latestQuestion: freshContext?.focus || latestFocusRef.current,
+      recentTranscript: freshContext?.windowText || getRecentTranscriptText(),
       triggerText
     });
 
@@ -651,7 +838,6 @@ export function InterviewOverlay() {
     if (!text) return;
     form.reset();
     if (looksLikeInterviewerQuestion(text) || isDomainRelatedText(text, context)) {
-      setLatestQuestion(text);
       void window.interviewDesktop?.updateOverlayContext?.({
         latestQuestion: text
       });
@@ -663,8 +849,18 @@ export function InterviewOverlay() {
     void window.interviewDesktop?.endOverlayInterview?.({
       interviewRoundId: context.interviewRoundId,
       applicationId: context.applicationId,
-      transcriptText: buildDummyTranscript(context)
+      transcriptText: getFullTranscriptText()
     });
+  }
+
+  function getFullTranscriptText() {
+    const transcript = conversationTurnsRef.current
+      .map((turn) => turn.text)
+      .filter(Boolean)
+      .join("\n")
+      .trim();
+
+    return transcript || `Interview ${context.stageType || "HR"} untuk ${context.companyName || "company"} - ${context.roleTitle || "role"}. Transcript live belum tertangkap.`;
   }
 
   if (mode === "mini") {
@@ -683,7 +879,7 @@ export function InterviewOverlay() {
   }
 
   const hasResponseShell = mode === "loading" || mode === "response";
-  const questionDisplayText = getQuestionDisplayText(latestQuestion);
+  const focusDisplayText = getFocusDisplayText(latestFocus);
 
   return (
     <main className={`overlay-root panel ${hasResponseShell ? "with-response" : ""}`}>
@@ -701,8 +897,8 @@ export function InterviewOverlay() {
         </div>
 
         <div className="overlay-card question-card">
-          <strong>Latest detected question</strong>
-          <p>{questionDisplayText}</p>
+          <strong>Latest conversation focus</strong>
+          <p>{focusDisplayText}</p>
         </div>
 
         <div className="overlay-actions">
@@ -768,15 +964,6 @@ export function InterviewOverlay() {
   );
 }
 
-function buildQuestion(context: OverlayContext) {
-  return `${waitingQuestionPrefix} yang relevan dengan ${context.domainLabel || "domain application"}.`;
-}
-
-function readLatestQuestion(context: OverlayContext) {
-  const candidate = context.latestQuestion?.trim();
-  return candidate || buildQuestion(context);
-}
-
 function getOverlayAudioSourceLabel(context: OverlayContext) {
   return context.audioSourceKind === "system-candidate" || context.audioSourceKind === "system-loopback" ? "System" : "Mic";
 }
@@ -784,6 +971,10 @@ function getOverlayAudioSourceLabel(context: OverlayContext) {
 function getOverlayAudioStatusText(context: OverlayContext) {
   if (context.realtimeStatus === "connecting") {
     return "Realtime connecting";
+  }
+
+  if (context.realtimeStatus === "connected") {
+    return context.realtimeMessage || "Realtime tersambung. Mencari audio interview";
   }
 
   if (context.realtimeStatus === "audio_waiting") {
@@ -803,11 +994,21 @@ function getOverlayAudioStatusText(context: OverlayContext) {
   }
 
   if (context.audioStatus === "ready") {
-    return `${getOverlayAudioSourceLabel(context)} audio OK`;
+    return context.audioDeviceLabel
+      ? `${getOverlayAudioSourceLabel(context)} audio OK: ${context.audioDeviceLabel}`
+      : `${getOverlayAudioSourceLabel(context)} audio OK`;
+  }
+
+  if (context.audioStatus === "waiting") {
+    return "Mencari active system audio";
+  }
+
+  if (context.audioStatus === "silent") {
+    return "Realtime tersambung, audio sedang silent";
   }
 
   if (context.audioStatus === "loading" || context.audioStatus === "checking") {
-    return "Audio checking";
+    return context.realtimeMessage || "Audio checking";
   }
 
   return "Audio needs validation";
@@ -818,13 +1019,14 @@ function isDetectedQuestion(question: string) {
   return Boolean(normalized) && !normalized.startsWith(waitingQuestionPrefix);
 }
 
-function getQuestionDisplayText(question: string) {
-  return isDetectedQuestion(question) ? question : "Belum ada pertanyaan terdeteksi.";
+function getFocusDisplayText(focus: string) {
+  const normalized = focus.trim();
+  return normalized && normalized !== waitingFocusText ? normalized : "Belum ada konteks percakapan tertangkap.";
 }
 
 function getRuntimeKeywordMessage(status: RuntimeKeywordStatus, context: OverlayContext) {
   if (status === "loading") {
-    return "Mencari keyword relevan dari pertanyaan terbaru...";
+    return "Mencari keyword relevan dari konteks terbaru...";
   }
 
   if (status === "error") {
@@ -832,20 +1034,20 @@ function getRuntimeKeywordMessage(status: RuntimeKeywordStatus, context: Overlay
   }
 
   if (status === "empty") {
-    return "Belum ada keyword yang cukup relevan dari pertanyaan terbaru.";
+    return "Belum ada keyword yang cukup relevan dari konteks terbaru.";
   }
 
   return `Chips muncul saat topik interviewer relevan dengan ${context.domainLabel || "domain application"}.`;
 }
 
-function buildNoQuestionResponse(): HelpResponse {
+function buildNoFreshContextResponse(): HelpResponse {
   return {
-    title: "Belum Ada Pertanyaan",
+    title: "Konteks Belum Tertangkap",
     kind: "notice",
     points: [
-      "Belum ada pertanyaan interviewer yang terdeteksi.",
-      "Buka kolom Ask dan tulis pertanyaan interviewer secara manual untuk sementara.",
-      "Nanti setelah transcript live aktif, Bantu Jawab akan memakai pertanyaan terbaru otomatis."
+      "Konteks percakapan terbaru belum tertangkap.",
+      "Tunggu lawan bicara selesai berbicara sebentar, lalu klik bantuan lagi.",
+      "Saya tidak akan memakai konteks lama jika audio terbaru belum masuk."
     ]
   };
 }
@@ -863,7 +1065,10 @@ function buildRealtimeUnavailableResponse(message?: string): HelpResponse {
 }
 
 function isRealtimeLive(context: OverlayContext) {
-  return context.realtimeStatus === "listening" || context.realtimeStatus === "responding";
+  return context.realtimeStatus === "connected"
+    || context.realtimeStatus === "audio_waiting"
+    || context.realtimeStatus === "listening"
+    || context.realtimeStatus === "responding";
 }
 
 function formatRealtimeResponsePoints(text: string) {
@@ -913,9 +1118,11 @@ function buildRealtimeActionPrompt(payload: RealtimeOverlayAction) {
   const actionInstruction = buildRealtimeActionInstruction(payload);
   return [
     `TRIGGER: ${trigger}`,
-    payload.recentTranscript ? `Konteks transcript interviewer terbaru:\n${payload.recentTranscript}` : "",
-    payload.latestQuestion ? `Pertanyaan atau fokus terbaru:\n${payload.latestQuestion}` : "",
+    payload.recentTranscript ? `Conversation window terbaru:\n${payload.recentTranscript}` : "",
+    payload.latestQuestion ? `Latest conversation focus:\n${payload.latestQuestion}` : "",
     payload.triggerText ? `Input user/keyword: ${payload.triggerText}` : "",
+    "Prioritaskan conversation window terbaru di atas memori percakapan lama.",
+    "Jangan menjawab dari konteks beberapa menit lalu jika tidak muncul di conversation window ini.",
     "Jawab berdasarkan konteks transcript lengkap, bukan hanya potongan kalimat terakhir.",
     actionInstruction
   ].filter(Boolean).join("\n");
@@ -1036,13 +1243,6 @@ function buildDummyResponse(type: string, triggerText: string | undefined, conte
   };
 }
 
-function buildDummyTranscript(context: OverlayContext) {
-  return [
-    `Interview ${context.stageType || "HR"} untuk ${context.companyName || "company"} - ${context.roleTitle || "role"}.`,
-    "Dummy transcript: interviewer menanyakan pengalaman relevan dan cara menjelaskan impact."
-  ].join("\n");
-}
-
 function formatTime(totalSeconds: number) {
   const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
   const seconds = String(totalSeconds % 60).padStart(2, "0");
@@ -1055,6 +1255,50 @@ function sameKeywordTerms(left: string[], right: string[]) {
   }
 
   return left.every((term, index) => term === right[index]);
+}
+
+function buildConversationWindow(turns: ConversationTurn[]) {
+  const maxLength = 1800;
+  const joined = turns
+    .slice(-10)
+    .map((turn) => turn.text)
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+
+  if (joined.length <= maxLength) {
+    return joined;
+  }
+
+  return joined.slice(joined.length - maxLength).trim();
+}
+
+function deriveLatestConversationFocus(windowText: string, latestSegment: string, context: OverlayContext) {
+  const questionLikeFocus = deriveContextFromTranscriptWindow(windowText, latestSegment, context);
+  if (questionLikeFocus) {
+    return questionLikeFocus;
+  }
+
+  const source = latestSegment.trim() || windowText.trim();
+  if (!source || isLikelyTranscriptNoise(source)) {
+    return "";
+  }
+
+  const segments = source
+    .split(/[\n\r]+|(?<=[?.!])\s+/)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  const meaningful = [...segments].reverse().find((segment) => segment.length >= 12 && !isLikelyTranscriptNoise(segment));
+  return compactFocusText(meaningful || source);
+}
+
+function compactFocusText(value: string) {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length <= 220) {
+    return normalized;
+  }
+
+  return normalized.slice(normalized.length - 220).trim();
 }
 
 function buildKeywordSourceText(latestQuestion: string, recentTranscript: string) {
@@ -1174,6 +1418,14 @@ function buildQuestionKeywordCandidates(question: string, questionTokens: Set<st
       const sizeScore = size > 1 ? size : 0;
       const score = overlapScore * 3 + specificityScore + acronymScore + sizeScore + questionWeight;
 
+      if (overlapScore === 0 && acronymScore === 0) {
+        continue;
+      }
+
+      if (normalizedTokens.length === 1 && specificityScore === 0 && acronymScore === 0) {
+        continue;
+      }
+
       if (score >= 3) {
         candidateMap.set(keyword, Math.max(candidateMap.get(keyword) || 0, score));
       }
@@ -1202,7 +1454,9 @@ function tokenizeText(text: string) {
     "bagaimana", "kenapa", "mengapa", "bisa", "the", "and", "or", "for", "with", "from", "this", "that",
     "how", "what", "why", "can", "could", "would", "should", "jelaskan", "ceritakan", "menurut", "kalau",
     "jika", "saat", "itu", "ini", "nya", "paling", "cocok", "pilih", "memilih", "gunakan", "pakai",
-    "terkait", "tentang", "about", "tell", "me", "please", "use", "using", "choose", "related"
+    "terkait", "tentang", "about", "tell", "me", "please", "use", "using", "choose", "related",
+    "nanti", "gue", "aku", "akan", "kasih", "tunjuk", "ya", "dia", "seperti", "kerjaan", "hasil",
+    "lihat", "coba", "dong", "deh", "nih", "aja", "sih"
   ]);
 
   return new Set(text
@@ -1241,11 +1495,51 @@ function looksLikeInterviewerQuestion(text: string) {
     return false;
   }
 
-  if (normalized.includes("?")) {
+  const questionLead = /^(apa|apakah|bagaimana|kenapa|mengapa|kapan|di mana|seberapa|jelaskan|ceritakan|bandingkan|pilih|sebutkan|how|what|why|when|where|can|could|do|did|have|tell me|explain)\b/;
+  if (questionLead.test(normalized)) {
     return true;
   }
 
-  return /^(apa|apakah|bagaimana|kenapa|mengapa|kapan|di mana|seberapa|jelaskan|ceritakan|how|what|why|when|where|can|could|do|did|have|tell me)\b/.test(normalized);
+  if (!normalized.includes("?")) {
+    return false;
+  }
+
+  return /\b(apa|apakah|bagaimana|kenapa|mengapa|model|metode|cara|pilih|pakai|gunakan|jelaskan|ceritakan|why|how|what|explain|approach)\b/.test(normalized);
+}
+
+function isConfirmedInterviewQuestion(text: string, context: OverlayContext) {
+  const normalized = text.trim();
+  const normalizedLower = normalized.toLowerCase();
+  if (!isDetectedQuestion(normalized) || isLikelyTranscriptNoise(normalized)) {
+    return false;
+  }
+
+  if (normalized.length < 18) {
+    return false;
+  }
+
+  const narrativeOnlySignals = [
+    "nanti gue",
+    "gue akan kasih tunjuk",
+    "akan kasih tunjuk",
+    "lihat ya",
+    "coba lihat",
+    "hasil kerjaan dia",
+    "seperti apa. kenapa"
+  ];
+  if (narrativeOnlySignals.some((signal) => normalizedLower.includes(signal)) && !hasStrongInterviewSignal(normalizedLower)) {
+    return false;
+  }
+
+  if (looksLikeInterviewerQuestion(normalized)) {
+    return isRelevantTranscriptText(normalized, context) || hasStrongInterviewSignal(normalizedLower);
+  }
+
+  return normalized.length >= 48 && hasStrongInterviewSignal(normalizedLower) && isRelevantTranscriptText(normalized, context);
+}
+
+function hasStrongInterviewSignal(normalizedLower: string) {
+  return /\b(model|metode|cara|approach|pendekatan|pengalaman|project|proyek|role|posisi|metric|evaluasi|data|machine learning|ai|llm|prediksi|forecast|analisis|tantangan|impact|trade[- ]?off)\b/.test(normalizedLower);
 }
 
 function isDomainRelatedText(text: string, context: OverlayContext) {
@@ -1270,44 +1564,6 @@ function isDomainRelatedText(text: string, context: OverlayContext) {
   return normalizedTerms.some((term) => normalized.includes(term));
 }
 
-function deriveQuestionFromTranscriptEvent(
-  event: OverlayTranscriptEvent | undefined,
-  context: OverlayContext
-) {
-  if (!event || event.speaker === "candidate" || event.speaker === "system") {
-    return "";
-  }
-
-  const explicitQuestion = event.detectedQuestion?.trim();
-  if (explicitQuestion && isRelevantTranscriptText(explicitQuestion, context)) {
-    return explicitQuestion;
-  }
-
-  const transcriptText = event.transcriptText?.trim();
-  if (!transcriptText) {
-    return "";
-  }
-
-  const segments = transcriptText
-    .split(/[\n\r]+|(?<=[?.!])\s+/)
-    .map((segment) => segment.trim())
-    .filter(Boolean);
-
-  for (let index = segments.length - 1; index >= 0; index -= 1) {
-    const segment = segments[index];
-    if (segment && looksLikeInterviewerQuestion(segment) && isRelevantTranscriptText(segment, context)) {
-      return segment;
-    }
-  }
-
-  const trailingSegment = segments.at(-1) || transcriptText;
-  if (isRelevantTranscriptText(trailingSegment, context) && trailingSegment.length >= 24) {
-    return trailingSegment;
-  }
-
-  return "";
-}
-
 function deriveQuestionFromTranscriptText(transcriptText: string, context: OverlayContext) {
   const segments = transcriptText
     .split(/[\n\r]+|(?<=[?.!])\s+/)
@@ -1316,13 +1572,13 @@ function deriveQuestionFromTranscriptText(transcriptText: string, context: Overl
 
   for (let index = segments.length - 1; index >= 0; index -= 1) {
     const segment = segments[index];
-    if (segment && looksLikeInterviewerQuestion(segment) && isRelevantTranscriptText(segment, context)) {
+    if (segment && isConfirmedInterviewQuestion(segment, context)) {
       return segment;
     }
   }
 
   const trailingSegment = segments.at(-1) || transcriptText;
-  if (isRelevantTranscriptText(trailingSegment, context) && trailingSegment.length >= 24) {
+  if (isConfirmedInterviewQuestion(trailingSegment, context)) {
     return trailingSegment;
   }
 
@@ -1331,13 +1587,13 @@ function deriveQuestionFromTranscriptText(transcriptText: string, context: Overl
 
 function deriveContextFromTranscriptWindow(recentTranscript: string, latestSegment: string, context: OverlayContext) {
   const directQuestion = deriveQuestionFromTranscriptText(latestSegment, context);
-  if (directQuestion && directQuestion.length >= 48) {
+  if (directQuestion && directQuestion.length >= 48 && isConfirmedInterviewQuestion(directQuestion, context)) {
     return directQuestion;
   }
 
   const windowText = recentTranscript.trim();
   if (!windowText) {
-    return directQuestion;
+    return directQuestion && isConfirmedInterviewQuestion(directQuestion, context) ? directQuestion : "";
   }
 
   const segments = windowText
@@ -1346,11 +1602,15 @@ function deriveContextFromTranscriptWindow(recentTranscript: string, latestSegme
     .filter((segment) => segment && isRelevantTranscriptText(segment, context));
   const focusedWindow = segments.slice(-4).join(" ").trim();
 
-  if (directQuestion && focusedWindow && !focusedWindow.includes(directQuestion)) {
-    return `${focusedWindow} ${directQuestion}`.trim();
+  const combinedQuestion = directQuestion && focusedWindow && !focusedWindow.includes(directQuestion)
+    ? `${focusedWindow} ${directQuestion}`.trim()
+    : focusedWindow || directQuestion || "";
+
+  if (combinedQuestion && isConfirmedInterviewQuestion(combinedQuestion, context)) {
+    return combinedQuestion;
   }
 
-  return focusedWindow || directQuestion;
+  return directQuestion && isConfirmedInterviewQuestion(directQuestion, context) ? directQuestion : "";
 }
 
 function isLikelyTranscriptNoise(text: string) {
@@ -1405,13 +1665,17 @@ function isRelevantTranscriptText(text: string, context: OverlayContext) {
     "jelaskan",
     "ceritakan",
     "bagaimana",
-    "kenapa",
-    "mengapa",
     "approach",
     "pendekatan",
     "tantangan",
     "impact",
-    "hasil",
+    "metric",
+    "evaluasi",
+    "model",
+    "metode",
+    "data",
+    "prediksi",
+    "forecast",
     "explain",
     "tell me",
     "how would",

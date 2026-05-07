@@ -38,17 +38,19 @@ await runCommand(cscPath, [
 console.log(`Built Windows loopback helper: ${outputPath}`);
 
 if (process.env.WINDOWS_CERTIFICATE_FILE) {
-  await runCommand(isWindows ? "npm.cmd" : "npm", ["run", "sign:native:windows"], desktopRoot);
+  await runCommand(isWindows ? "npm.cmd" : "npm", ["run", "sign:native:windows"], desktopRoot, {
+    shell: isWindows
+  });
 } else {
   console.log("Skipping Windows loopback helper signing because WINDOWS_CERTIFICATE_FILE is not set.");
 }
 
-function runCommand(command: string, args: string[], cwd: string) {
-  return new Promise<void>((resolve, reject) => {
+function runCommand(command, args, cwd, options = {}) {
+  return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd,
       stdio: "inherit",
-      shell: command.endsWith(".cmd")
+      shell: Boolean(options.shell)
     });
 
     child.on("exit", (code) => {

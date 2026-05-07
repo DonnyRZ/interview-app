@@ -16,6 +16,11 @@ apps/api/dist/
 packages/shared/dist/
 apps/desktop/native/windows-loopback/bin/
 
+# Local code-signing material
+*.pfx
+*.p12
+apps/desktop/certs/beta/
+
 # TypeScript
 *.tsbuildinfo
 
