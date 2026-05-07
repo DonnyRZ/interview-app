@@ -18,10 +18,10 @@ type OverlayEndPayload = {
 };
 
 const DEV_TRANSCRIPT_SAMPLES = [
-  "Bagaimana kamu memilih model machine learning yang paling cocok untuk prediksi harga aluminium bulanan?",
-  "Kalau feature dari data makro banyak yang missing, approach kamu apa sebelum training model?",
-  "Bisa jelaskan perbedaan supervised dan unsupervised learning dengan contoh yang relevan ke role ini?",
-  "Coba jelaskan CTA funnel untuk campaign skincare."
+  "Bagaimana kamu memilih pendekatan yang paling cocok untuk problem utama di role ini?",
+  "Kalau data atau requirement penting belum lengkap, approach kamu apa sebelum membuat keputusan?",
+  "Bisa jelaskan konsep teknis dasar yang relevan dengan pekerjaan ini memakai contoh dari pengalamanmu?",
+  "Coba jelaskan proses kerja yang paling penting untuk menghasilkan impact di role ini."
 ] as const;
 
 const AUDIO_DEVICE_STORAGE_KEY = "interview-app:selected-audio-input-id";
@@ -215,7 +215,7 @@ export function CvDashboard() {
 
     setSystemAudioStatus("checking");
     setSystemAudioLevel(0);
-    setSystemAudioMessage("Menjalankan WASAPI loopback probe pada default output Windows...");
+    setSystemAudioMessage("Menjalankan WASAPI loopback probe pada active system output...");
 
     try {
       const response = await window.interviewDesktop.startSystemAudioProbe();
@@ -237,8 +237,9 @@ export function CvDashboard() {
 
   function handleSystemAudioProbeEvent(event: SystemAudioProbeEvent) {
     const nextLevel = Number.isFinite(event.level) ? Math.max(0, Math.min(1, event.level)) : 0;
+    const deviceSuffix = event.deviceLabel ? ` (${event.deviceLabel})` : "";
     setSystemAudioLevel(nextLevel);
-    setSystemAudioMessage(event.message || "System audio probe update.");
+    setSystemAudioMessage(`${event.message || "System audio probe update."}${deviceSuffix}`);
 
     if (event.status === "started" || event.status === "checking") {
       setSystemAudioStatus("checking");
@@ -490,7 +491,7 @@ export function CvDashboard() {
             roleTitle: application.roleTitle,
             stageType: selectedStage,
             audioStatus: hasSystemAudio ? "ready" : audioSignalStatus === "ok" ? "ready" : audioSignalStatus,
-            audioDeviceLabel: hasSystemAudio ? "Windows default output (WASAPI loopback)" : getSelectedAudioDeviceLabel(audioDevices, selectedAudioDeviceId),
+            audioDeviceLabel: hasSystemAudio ? "Active system output (WASAPI loopback)" : getSelectedAudioDeviceLabel(audioDevices, selectedAudioDeviceId),
             audioSourceKind: hasSystemAudio ? "system-loopback" : getAudioSourceKind(audioDevices, selectedAudioDeviceId),
             domainLabel: response.realtimeContext?.domainProfile.primaryDomain || getDomainProfile(application).primaryDomain,
             realtimeContext: response.realtimeContext
@@ -1122,7 +1123,7 @@ function DevTranscriptHarness({
       <form className="field-stack no-margin" onSubmit={handleSubmit}>
         <label className="field">
           <span>Transcript segment</span>
-          <textarea name="transcriptText" placeholder="Contoh: How would you validate a monthly forecasting model?" rows={3} />
+          <textarea name="transcriptText" placeholder="Contoh: Bagaimana kamu memvalidasi solusi untuk problem utama di role ini?" rows={3} />
         </label>
         <div className="actions-row no-margin">
           <button className="secondary-btn small" type="submit">Push transcript</button>
@@ -1214,7 +1215,7 @@ function AudioReadinessCard({
               {selectedDevice && !isSystemCandidateSelected ? "selected" : "not selected"}
             </span>
           </div>
-          <p className="subcopy compact">Valid untuk mic user. Ini tidak membuktikan Zoom/YouTube system audio masuk langsung.</p>
+          <p className="subcopy compact">Valid untuk mic user. Ini tidak membuktikan meeting/browser system audio masuk langsung.</p>
         </div>
         <div className={`audio-source-card ${isSystemCandidateSelected ? "active" : ""}`}>
           <div className="status-title-row">

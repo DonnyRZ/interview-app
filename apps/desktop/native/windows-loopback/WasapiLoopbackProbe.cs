@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
@@ -9,7 +10,12 @@ internal static class Program
     private const int AudclntStreamFlagsLoopback = 0x00020000;
     private const int AudclntBufferFlagsSilent = 0x00000002;
     private const int ClsctxAll = 23;
+    private const int DeviceStateActive = 0x00000001;
+    private const int StgmRead = 0;
     private const double SignalThreshold = 0.015;
+    private const double PeakTieTolerance = 0.003;
+    private static readonly PROPERTYKEY PkeyDeviceFriendlyName = new PROPERTYKEY(new Guid("a45c254e-df1c-4efd-8020-67d146a850e0"), 14);
+    private static readonly PROPERTYKEY PkeyDeviceDescription = new PROPERTYKEY(new Guid("a45c254e-df1c-4efd-8020-67d146a850e0"), 2);
 
     public static int Main(string[] args)
     {
@@ -37,58 +43,71 @@ internal static class Program
     private static int RunStream(int chunkMs)
     {
         IMMDeviceEnumerator enumerator = null;
-        IMMDevice device = null;
-        IAudioClient audioClient = null;
-        IAudioCaptureClient captureClient = null;
-        IntPtr formatPtr = IntPtr.Zero;
+        AudioCaptureSession currentSession = null;
+        PcmChunkWriter writer = null;
 
         try
         {
             enumerator = (IMMDeviceEnumerator)new MMDeviceEnumerator();
-            Marshal.ThrowExceptionForHR(enumerator.GetDefaultAudioEndpoint(EDataFlow.eRender, ERole.eConsole, out device));
+            WriteJson("status", "waiting_for_audio", 0, "Looking for active system audio output");
 
-            Guid audioClientId = typeof(IAudioClient).GUID;
-            object audioClientObject;
-            Marshal.ThrowExceptionForHR(device.Activate(ref audioClientId, ClsctxAll, IntPtr.Zero, out audioClientObject));
-            audioClient = (IAudioClient)audioClientObject;
-
-            Marshal.ThrowExceptionForHR(audioClient.GetMixFormat(out formatPtr));
-            AudioFormat format = AudioFormat.FromWaveFormatPointer(formatPtr);
-
-            Guid sessionGuid = Guid.Empty;
-            Marshal.ThrowExceptionForHR(audioClient.Initialize(
-                AudclntShareMode.Shared,
-                AudclntStreamFlagsLoopback,
-                10000000,
-                0,
-                formatPtr,
-                ref sessionGuid));
-
-            Guid captureClientId = typeof(IAudioCaptureClient).GUID;
-            object captureClientObject;
-            Marshal.ThrowExceptionForHR(audioClient.GetService(ref captureClientId, out captureClientObject));
-            captureClient = (IAudioCaptureClient)captureClientObject;
-
-            PcmChunkWriter writer = new PcmChunkWriter(Math.Max(10, chunkMs));
-            Marshal.ThrowExceptionForHR(audioClient.Start());
-            WriteJson("status", "started", 0, "WASAPI loopback stream started");
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            long nextLevelEmitMs = 0;
+            long nextWaitingEmitMs = 0;
+            long lastSignalMs = 0;
 
             while (true)
             {
-                DrainStreamPackets(captureClient, format, writer);
+                if (currentSession == null)
+                {
+                    if (stopwatch.ElapsedMilliseconds >= nextWaitingEmitMs)
+                    {
+                        WriteJson("status", "waiting_for_audio", 0, "Looking for active system audio output");
+                        nextWaitingEmitMs = stopwatch.ElapsedMilliseconds + 1000;
+                    }
+
+                    currentSession = SelectActiveRenderSession(enumerator, 800, 80, false);
+                    if (currentSession == null)
+                    {
+                        Thread.Sleep(200);
+                        continue;
+                    }
+
+                    writer = new PcmChunkWriter(Math.Max(10, chunkMs));
+                    lastSignalMs = stopwatch.ElapsedMilliseconds;
+                    nextLevelEmitMs = 0;
+                    WriteDeviceJson("selected_device", "ok", currentSession.Device, currentSession.LastPeak, "Selected active system audio output.");
+                }
+
+                double packetPeak = currentSession.DrainStream(writer);
+                if (packetPeak > SignalThreshold)
+                {
+                    lastSignalMs = stopwatch.ElapsedMilliseconds;
+                }
+
+                if (stopwatch.ElapsedMilliseconds >= nextLevelEmitMs)
+                {
+                    string status = packetPeak > SignalThreshold ? "ok" : "silent";
+                    WriteDeviceJson("level", status, currentSession.Device, packetPeak, "System audio stream running.");
+                    nextLevelEmitMs = stopwatch.ElapsedMilliseconds + 500;
+                }
+
+                if (stopwatch.ElapsedMilliseconds - lastSignalMs > 3000)
+                {
+                    writer.Flush();
+                    currentSession.Dispose();
+                    currentSession = null;
+                    writer = null;
+                    WriteJson("status", "waiting_for_audio", 0, "System audio became silent. Rescanning active outputs.");
+                }
+
                 Thread.Sleep(5);
             }
         }
         finally
         {
-            if (audioClient != null)
-            {
-                try { audioClient.Stop(); } catch { }
-            }
-            if (formatPtr != IntPtr.Zero) Marshal.FreeCoTaskMem(formatPtr);
-            ReleaseCom(captureClient);
-            ReleaseCom(audioClient);
-            ReleaseCom(device);
+            if (writer != null) writer.Flush();
+            if (currentSession != null) currentSession.Dispose();
             ReleaseCom(enumerator);
         }
     }
@@ -96,82 +115,307 @@ internal static class Program
     private static int RunProbe(int durationMs, int intervalMs)
     {
         IMMDeviceEnumerator enumerator = null;
-        IMMDevice device = null;
-        IAudioClient audioClient = null;
-        IAudioCaptureClient captureClient = null;
-        IntPtr formatPtr = IntPtr.Zero;
+        List<AudioCaptureSession> sessions = null;
 
         try
         {
             enumerator = (IMMDeviceEnumerator)new MMDeviceEnumerator();
-            Marshal.ThrowExceptionForHR(enumerator.GetDefaultAudioEndpoint(EDataFlow.eRender, ERole.eConsole, out device));
+            sessions = StartActiveRenderSessions(enumerator);
+            if (sessions.Count == 0)
+            {
+                WriteJson("status", "waiting_for_audio", 0, "No active system audio outputs are available.");
+                WriteJson("result", "silent", 0, "No active system audio output was detected.");
+                return 0;
+            }
 
-            Guid audioClientId = typeof(IAudioClient).GUID;
-            object audioClientObject;
-            Marshal.ThrowExceptionForHR(device.Activate(ref audioClientId, ClsctxAll, IntPtr.Zero, out audioClientObject));
-            audioClient = (IAudioClient)audioClientObject;
-
-            Marshal.ThrowExceptionForHR(audioClient.GetMixFormat(out formatPtr));
-            AudioFormat format = AudioFormat.FromWaveFormatPointer(formatPtr);
-
-            Guid sessionGuid = Guid.Empty;
-            Marshal.ThrowExceptionForHR(audioClient.Initialize(
-                AudclntShareMode.Shared,
-                AudclntStreamFlagsLoopback,
-                10000000,
-                0,
-                formatPtr,
-                ref sessionGuid));
-
-            Guid captureClientId = typeof(IAudioCaptureClient).GUID;
-            object captureClientObject;
-            Marshal.ThrowExceptionForHR(audioClient.GetService(ref captureClientId, out captureClientObject));
-            captureClient = (IAudioCaptureClient)captureClientObject;
-
-            Marshal.ThrowExceptionForHR(audioClient.Start());
-            WriteJson("status", "started", 0, "WASAPI loopback probe started");
+            WriteJson("status", "started", 0, "WASAPI loopback probe started for active system outputs.");
 
             Stopwatch stopwatch = Stopwatch.StartNew();
             long nextEmitMs = 0;
-            double intervalPeak = 0;
-            double overallPeak = 0;
 
             while (stopwatch.ElapsedMilliseconds < durationMs)
             {
-                double packetPeak = DrainPackets(captureClient, format);
-                if (packetPeak > intervalPeak) intervalPeak = packetPeak;
-                if (packetPeak > overallPeak) overallPeak = packetPeak;
+                for (int index = 0; index < sessions.Count; index++)
+                {
+                    sessions[index].DrainPeak();
+                }
 
                 if (stopwatch.ElapsedMilliseconds >= nextEmitMs)
                 {
-                    WriteJson("level", "checking", intervalPeak, "System audio probe running");
-                    intervalPeak = 0;
+                    AudioCaptureSession bestInterval = SelectBestSession(sessions, false);
+                    if (bestInterval != null)
+                    {
+                        string levelStatus = bestInterval.LastPeak > SignalThreshold ? "ok" : "checking";
+                        WriteDeviceJson("level", levelStatus, bestInterval.Device, bestInterval.LastPeak, "System audio probe running.");
+                    }
+                    else
+                    {
+                        WriteJson("level", "checking", 0, "System audio probe running.");
+                    }
+
                     nextEmitMs = stopwatch.ElapsedMilliseconds + intervalMs;
                 }
 
                 Thread.Sleep(10);
             }
 
-            Marshal.ThrowExceptionForHR(audioClient.Stop());
+            AudioCaptureSession bestOverall = SelectBestSession(sessions, true);
+            if (bestOverall != null && bestOverall.OverallPeak > SignalThreshold)
+            {
+                WriteDeviceJson("selected_device", "ok", bestOverall.Device, bestOverall.OverallPeak, "Selected active system audio output.");
+                WriteDeviceJson("result", "ok", bestOverall.Device, bestOverall.OverallPeak, "System audio signal detected via WASAPI loopback.");
+            }
+            else
+            {
+                WriteJson("status", "waiting_for_audio", 0, "Looking for active system audio output");
+                WriteJson("result", "silent", 0, "WASAPI loopback opened active outputs, but no system audio signal was detected.");
+            }
 
-            string status = overallPeak > SignalThreshold ? "ok" : "silent";
-            string message = status == "ok"
-                ? "System audio signal detected via WASAPI loopback."
-                : "WASAPI loopback stream opened, but no system audio signal was detected.";
-            WriteJson("result", status, overallPeak, message);
             return 0;
         }
         finally
         {
-            if (audioClient != null)
+            if (sessions != null)
             {
-                try { audioClient.Stop(); } catch { }
+                DisposeSessions(sessions);
             }
-            if (formatPtr != IntPtr.Zero) Marshal.FreeCoTaskMem(formatPtr);
-            ReleaseCom(captureClient);
-            ReleaseCom(audioClient);
-            ReleaseCom(device);
             ReleaseCom(enumerator);
+        }
+    }
+
+    private static AudioCaptureSession SelectActiveRenderSession(IMMDeviceEnumerator enumerator, int scanMs, int intervalMs, bool emitLevels)
+    {
+        List<AudioCaptureSession> sessions = StartActiveRenderSessions(enumerator);
+        if (sessions.Count == 0)
+        {
+            return null;
+        }
+
+        try
+        {
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            long nextEmitMs = 0;
+            while (stopwatch.ElapsedMilliseconds < scanMs)
+            {
+                for (int index = 0; index < sessions.Count; index++)
+                {
+                    sessions[index].DrainPeak();
+                }
+
+                if (emitLevels && stopwatch.ElapsedMilliseconds >= nextEmitMs)
+                {
+                    AudioCaptureSession intervalBest = SelectBestSession(sessions, false);
+                    if (intervalBest != null)
+                    {
+                        WriteDeviceJson("level", "checking", intervalBest.Device, intervalBest.LastPeak, "Scanning active system audio outputs.");
+                    }
+                    nextEmitMs = stopwatch.ElapsedMilliseconds + intervalMs;
+                }
+
+                Thread.Sleep(10);
+            }
+
+            AudioCaptureSession best = SelectBestSession(sessions, true);
+            if (best == null || best.OverallPeak <= SignalThreshold)
+            {
+                DisposeSessions(sessions);
+                return null;
+            }
+
+            for (int index = sessions.Count - 1; index >= 0; index--)
+            {
+                if (!object.ReferenceEquals(sessions[index], best))
+                {
+                    sessions[index].Dispose();
+                    sessions.RemoveAt(index);
+                }
+            }
+
+            return best;
+        }
+        catch
+        {
+            DisposeSessions(sessions);
+            throw;
+        }
+    }
+
+    private static List<AudioCaptureSession> StartActiveRenderSessions(IMMDeviceEnumerator enumerator)
+    {
+        List<RenderDeviceInfo> devices = EnumerateActiveRenderDevices(enumerator);
+        List<AudioCaptureSession> sessions = new List<AudioCaptureSession>();
+
+        for (int index = 0; index < devices.Count; index++)
+        {
+            RenderDeviceInfo device = devices[index];
+            try
+            {
+                sessions.Add(AudioCaptureSession.Start(device));
+            }
+            catch
+            {
+                ReleaseCom(device.Device);
+            }
+        }
+
+        return sessions;
+    }
+
+    private static List<RenderDeviceInfo> EnumerateActiveRenderDevices(IMMDeviceEnumerator enumerator)
+    {
+        IMMDeviceCollection collection = null;
+        List<RenderDeviceInfo> devices = new List<RenderDeviceInfo>();
+        Dictionary<string, int> defaultRanks = ReadDefaultRenderRanks(enumerator);
+
+        try
+        {
+            Marshal.ThrowExceptionForHR(enumerator.EnumAudioEndpoints(EDataFlow.eRender, DeviceStateActive, out collection));
+            uint count;
+            Marshal.ThrowExceptionForHR(collection.GetCount(out count));
+
+            for (uint index = 0; index < count; index++)
+            {
+                IMMDevice device;
+                Marshal.ThrowExceptionForHR(collection.Item(index, out device));
+                string id = ReadDeviceId(device);
+                int rank = defaultRanks.ContainsKey(id) ? defaultRanks[id] : 100;
+                devices.Add(new RenderDeviceInfo(device, id, ReadDeviceLabel(device), rank));
+            }
+        }
+        finally
+        {
+            ReleaseCom(collection);
+        }
+
+        return devices;
+    }
+
+    private static Dictionary<string, int> ReadDefaultRenderRanks(IMMDeviceEnumerator enumerator)
+    {
+        Dictionary<string, int> ranks = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        ERole[] roles = new ERole[] { ERole.eConsole, ERole.eMultimedia, ERole.eCommunications };
+
+        for (int index = 0; index < roles.Length; index++)
+        {
+            IMMDevice defaultDevice = null;
+            try
+            {
+                Marshal.ThrowExceptionForHR(enumerator.GetDefaultAudioEndpoint(EDataFlow.eRender, roles[index], out defaultDevice));
+                string id = ReadDeviceId(defaultDevice);
+                if (!ranks.ContainsKey(id) || ranks[id] > index)
+                {
+                    ranks[id] = index;
+                }
+            }
+            catch
+            {
+            }
+            finally
+            {
+                ReleaseCom(defaultDevice);
+            }
+        }
+
+        return ranks;
+    }
+
+    private static AudioCaptureSession SelectBestSession(List<AudioCaptureSession> sessions, bool useOverallPeak)
+    {
+        AudioCaptureSession best = null;
+        double bestPeak = -1;
+
+        for (int index = 0; index < sessions.Count; index++)
+        {
+            AudioCaptureSession session = sessions[index];
+            double peak = useOverallPeak ? session.OverallPeak : session.LastPeak;
+            if (best == null || IsBetterDeviceCandidate(session, peak, best, bestPeak))
+            {
+                best = session;
+                bestPeak = peak;
+            }
+        }
+
+        return best;
+    }
+
+    private static bool IsBetterDeviceCandidate(AudioCaptureSession candidate, double candidatePeak, AudioCaptureSession current, double currentPeak)
+    {
+        if (candidatePeak > currentPeak + PeakTieTolerance)
+        {
+            return true;
+        }
+
+        if (Math.Abs(candidatePeak - currentPeak) <= PeakTieTolerance)
+        {
+            return candidate.Device.DefaultRank < current.Device.DefaultRank;
+        }
+
+        return false;
+    }
+
+    private static void DisposeSessions(List<AudioCaptureSession> sessions)
+    {
+        for (int index = 0; index < sessions.Count; index++)
+        {
+            sessions[index].Dispose();
+        }
+        sessions.Clear();
+    }
+
+    private static string ReadDeviceId(IMMDevice device)
+    {
+        IntPtr idPtr = IntPtr.Zero;
+        try
+        {
+            Marshal.ThrowExceptionForHR(device.GetId(out idPtr));
+            return Marshal.PtrToStringUni(idPtr) ?? "";
+        }
+        finally
+        {
+            if (idPtr != IntPtr.Zero) Marshal.FreeCoTaskMem(idPtr);
+        }
+    }
+
+    private static string ReadDeviceLabel(IMMDevice device)
+    {
+        IPropertyStore store = null;
+        try
+        {
+            Marshal.ThrowExceptionForHR(device.OpenPropertyStore(StgmRead, out store));
+            string friendlyName = ReadPropertyStoreString(store, PkeyDeviceFriendlyName);
+            if (!string.IsNullOrWhiteSpace(friendlyName))
+            {
+                return friendlyName;
+            }
+
+            string description = ReadPropertyStoreString(store, PkeyDeviceDescription);
+            return string.IsNullOrWhiteSpace(description) ? "System output" : description;
+        }
+        catch
+        {
+            return "System output";
+        }
+        finally
+        {
+            ReleaseCom(store);
+        }
+    }
+
+    private static string ReadPropertyStoreString(IPropertyStore store, PROPERTYKEY key)
+    {
+        PROPVARIANT value = new PROPVARIANT();
+        try
+        {
+            Marshal.ThrowExceptionForHR(store.GetValue(ref key, out value));
+            return value.GetString();
+        }
+        catch
+        {
+            return "";
+        }
+        finally
+        {
+            PropVariantClear(ref value);
         }
     }
 
@@ -202,11 +446,12 @@ internal static class Program
         return peak;
     }
 
-    private static void DrainStreamPackets(IAudioCaptureClient captureClient, AudioFormat format, PcmChunkWriter writer)
+    private static double DrainStreamPackets(IAudioCaptureClient captureClient, AudioFormat format, PcmChunkWriter writer)
     {
         uint packetFrames;
         Marshal.ThrowExceptionForHR(captureClient.GetNextPacketSize(out packetFrames));
 
+        double peak = 0;
         while (packetFrames > 0)
         {
             IntPtr data;
@@ -216,18 +461,21 @@ internal static class Program
             ulong qpcPosition;
             Marshal.ThrowExceptionForHR(captureClient.GetBuffer(out data, out frames, out flags, out devicePosition, out qpcPosition));
 
-            WriteResampledPcm(data, frames, flags, format, writer);
+            double rms = WriteResampledPcm(data, frames, flags, format, writer);
+            if (rms > peak) peak = rms;
 
             Marshal.ThrowExceptionForHR(captureClient.ReleaseBuffer(frames));
             Marshal.ThrowExceptionForHR(captureClient.GetNextPacketSize(out packetFrames));
         }
+
+        return peak;
     }
 
-    private static void WriteResampledPcm(IntPtr data, uint frames, uint flags, AudioFormat format, PcmChunkWriter writer)
+    private static double WriteResampledPcm(IntPtr data, uint frames, uint flags, AudioFormat format, PcmChunkWriter writer)
     {
         if (frames == 0 || format.Channels <= 0 || format.BlockAlign <= 0 || format.SamplesPerSec <= 0)
         {
-            return;
+            return 0;
         }
 
         int sourceFrameCount = checked((int)frames);
@@ -240,7 +488,7 @@ internal static class Program
             {
                 writer.WriteSample(0);
             }
-            return;
+            return 0;
         }
 
         int byteCount = checked((int)(frames * format.BlockAlign));
@@ -259,6 +507,8 @@ internal static class Program
             double sample = ReadMonoSample(buffer, sourceFrame, format);
             writer.WriteSample(ToPcm16(sample));
         }
+
+        return CalculateRms(buffer, sourceFrameCount, format);
     }
 
     private static double CalculateRms(IntPtr data, uint frames, AudioFormat format)
@@ -268,6 +518,13 @@ internal static class Program
         int byteCount = checked((int)(frames * format.BlockAlign));
         byte[] buffer = new byte[byteCount];
         Marshal.Copy(data, buffer, 0, byteCount);
+
+        return CalculateRms(buffer, checked((int)frames), format);
+    }
+
+    private static double CalculateRms(byte[] buffer, int frames, AudioFormat format)
+    {
+        if (frames == 0 || format.Channels <= 0 || format.BlockAlign <= 0) return 0;
 
         double total = 0;
         int samples = 0;
@@ -363,6 +620,9 @@ internal static class Program
         }
     }
 
+    [DllImport("Ole32.dll")]
+    private static extern int PropVariantClear(ref PROPVARIANT pvar);
+
     private static void WriteJson(string type, string status, double level, string message)
     {
         string normalizedLevel = Math.Max(0, Math.Min(1, level * 8)).ToString("0.####", CultureInfo.InvariantCulture);
@@ -376,9 +636,135 @@ internal static class Program
         Console.Out.Flush();
     }
 
+    private static void WriteDeviceJson(string type, string status, RenderDeviceInfo device, double level, string message)
+    {
+        string normalizedLevel = Math.Max(0, Math.Min(1, level * 8)).ToString("0.####", CultureInfo.InvariantCulture);
+        string peak = Math.Max(0, level).ToString("0.####", CultureInfo.InvariantCulture);
+        Console.WriteLine(
+            "{\"type\":\"" + Escape(type) +
+            "\",\"status\":\"" + Escape(status) +
+            "\",\"deviceId\":\"" + Escape(device == null ? "" : device.Id) +
+            "\",\"deviceLabel\":\"" + Escape(device == null ? "System output" : device.Label) +
+            "\",\"level\":" + normalizedLevel +
+            ",\"peak\":" + peak +
+            ",\"message\":\"" + Escape(message) + "\"}");
+        Console.Out.Flush();
+    }
+
     private static string Escape(string value)
     {
         return (value ?? "").Replace("\\", "\\\\").Replace("\"", "\\\"");
+    }
+
+    private sealed class RenderDeviceInfo
+    {
+        public readonly IMMDevice Device;
+        public readonly string Id;
+        public readonly string Label;
+        public readonly int DefaultRank;
+
+        public RenderDeviceInfo(IMMDevice device, string id, string label, int defaultRank)
+        {
+            Device = device;
+            Id = id ?? "";
+            Label = string.IsNullOrWhiteSpace(label) ? "System output" : label;
+            DefaultRank = defaultRank;
+        }
+    }
+
+    private sealed class AudioCaptureSession : IDisposable
+    {
+        public readonly RenderDeviceInfo Device;
+        public double LastPeak;
+        public double OverallPeak;
+
+        private IAudioClient _audioClient;
+        private IAudioCaptureClient _captureClient;
+        private IntPtr _formatPtr;
+        private AudioFormat _format;
+
+        private AudioCaptureSession(RenderDeviceInfo device)
+        {
+            Device = device;
+        }
+
+        public static AudioCaptureSession Start(RenderDeviceInfo device)
+        {
+            AudioCaptureSession session = new AudioCaptureSession(device);
+            try
+            {
+                Guid audioClientId = typeof(IAudioClient).GUID;
+                object audioClientObject;
+                Marshal.ThrowExceptionForHR(device.Device.Activate(ref audioClientId, ClsctxAll, IntPtr.Zero, out audioClientObject));
+                session._audioClient = (IAudioClient)audioClientObject;
+
+                Marshal.ThrowExceptionForHR(session._audioClient.GetMixFormat(out session._formatPtr));
+                session._format = AudioFormat.FromWaveFormatPointer(session._formatPtr);
+
+                Guid sessionGuid = Guid.Empty;
+                Marshal.ThrowExceptionForHR(session._audioClient.Initialize(
+                    AudclntShareMode.Shared,
+                    AudclntStreamFlagsLoopback,
+                    10000000,
+                    0,
+                    session._formatPtr,
+                    ref sessionGuid));
+
+                Guid captureClientId = typeof(IAudioCaptureClient).GUID;
+                object captureClientObject;
+                Marshal.ThrowExceptionForHR(session._audioClient.GetService(ref captureClientId, out captureClientObject));
+                session._captureClient = (IAudioCaptureClient)captureClientObject;
+
+                Marshal.ThrowExceptionForHR(session._audioClient.Start());
+                return session;
+            }
+            catch
+            {
+                session.Dispose(false);
+                throw;
+            }
+        }
+
+        public double DrainPeak()
+        {
+            LastPeak = DrainPackets(_captureClient, _format);
+            if (LastPeak > OverallPeak) OverallPeak = LastPeak;
+            return LastPeak;
+        }
+
+        public double DrainStream(PcmChunkWriter writer)
+        {
+            LastPeak = DrainStreamPackets(_captureClient, _format, writer);
+            if (LastPeak > OverallPeak) OverallPeak = LastPeak;
+            return LastPeak;
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+        }
+
+        private void Dispose(bool releaseDevice)
+        {
+            if (_audioClient != null)
+            {
+                try { _audioClient.Stop(); } catch { }
+            }
+            if (_formatPtr != IntPtr.Zero)
+            {
+                Marshal.FreeCoTaskMem(_formatPtr);
+                _formatPtr = IntPtr.Zero;
+            }
+            ReleaseCom(_captureClient);
+            ReleaseCom(_audioClient);
+            _captureClient = null;
+            _audioClient = null;
+
+            if (releaseDevice && Device != null)
+            {
+                ReleaseCom(Device.Device);
+            }
+        }
     }
 }
 
@@ -407,7 +793,7 @@ internal sealed class PcmChunkWriter
         }
     }
 
-    private void Flush()
+    public void Flush()
     {
         if (_offset == 0)
         {
@@ -490,11 +876,20 @@ internal class MMDeviceEnumerator
 [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
 internal interface IMMDeviceEnumerator
 {
-    int EnumAudioEndpoints(EDataFlow dataFlow, uint stateMask, IntPtr devices);
+    int EnumAudioEndpoints(EDataFlow dataFlow, uint stateMask, out IMMDeviceCollection devices);
     int GetDefaultAudioEndpoint(EDataFlow dataFlow, ERole role, out IMMDevice endpoint);
     int GetDevice([MarshalAs(UnmanagedType.LPWStr)] string id, out IMMDevice device);
     int RegisterEndpointNotificationCallback(IntPtr client);
     int UnregisterEndpointNotificationCallback(IntPtr client);
+}
+
+[ComImport]
+[Guid("0BD7A1BE-7A1A-44DB-8397-C0C7B3710F5C")]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IMMDeviceCollection
+{
+    int GetCount(out uint count);
+    int Item(uint index, out IMMDevice device);
 }
 
 [ComImport]
@@ -503,9 +898,60 @@ internal interface IMMDeviceEnumerator
 internal interface IMMDevice
 {
     int Activate(ref Guid iid, int clsCtx, IntPtr activationParams, [MarshalAs(UnmanagedType.IUnknown)] out object interfaceObject);
-    int OpenPropertyStore(int access, IntPtr properties);
+    int OpenPropertyStore(int access, out IPropertyStore properties);
     int GetId(out IntPtr id);
     int GetState(out uint state);
+}
+
+[ComImport]
+[Guid("886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99")]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IPropertyStore
+{
+    int GetCount(out uint propertyCount);
+    int GetAt(uint propertyIndex, out PROPERTYKEY key);
+    int GetValue(ref PROPERTYKEY key, out PROPVARIANT value);
+    int SetValue(ref PROPERTYKEY key, ref PROPVARIANT value);
+    int Commit();
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct PROPERTYKEY
+{
+    public Guid fmtid;
+    public uint pid;
+
+    public PROPERTYKEY(Guid formatId, uint propertyId)
+    {
+        fmtid = formatId;
+        pid = propertyId;
+    }
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct PROPVARIANT
+{
+    public ushort vt;
+    public ushort wReserved1;
+    public ushort wReserved2;
+    public ushort wReserved3;
+    public IntPtr p;
+    public int p2;
+
+    public string GetString()
+    {
+        if (vt == 31 && p != IntPtr.Zero)
+        {
+            return Marshal.PtrToStringUni(p) ?? "";
+        }
+
+        if (vt == 30 && p != IntPtr.Zero)
+        {
+            return Marshal.PtrToStringAnsi(p) ?? "";
+        }
+
+        return "";
+    }
 }
 
 [ComImport]

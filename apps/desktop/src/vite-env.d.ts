@@ -19,6 +19,8 @@ type SystemAudioProbeEvent = {
   status: string;
   level: number;
   peak?: number;
+  deviceId?: string;
+  deviceLabel?: string;
   message: string;
 };
 

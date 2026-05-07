@@ -261,7 +261,9 @@ export function InterviewOverlay() {
       return;
     }
 
-    const requestKey = `${context.interviewRoundId || "draft"}::${latestQuestion.trim()}`;
+    const recentTranscript = getRecentTranscriptText();
+    const keywordSourceText = buildKeywordSourceText(latestQuestion, recentTranscript);
+    const requestKey = `${context.interviewRoundId || "draft"}::${latestQuestion.trim()}::${keywordSourceText.slice(-240)}`;
     if (runtimeKeywordRequestRef.current === requestKey) {
       return;
     }
@@ -270,7 +272,7 @@ export function InterviewOverlay() {
     setRuntimeKeywordStatus("loading");
     syncRuntimeKeywords([]);
 
-    const nextKeywords = buildLocalRuntimeKeywords(latestQuestion, context);
+    const nextKeywords = buildLocalRuntimeKeywords(latestQuestion, context, keywordSourceText);
     syncRuntimeKeywords(nextKeywords);
     setRuntimeKeywordStatus(nextKeywords.length ? "ready" : "empty");
 
@@ -367,7 +369,7 @@ export function InterviewOverlay() {
 
     socket.addEventListener("open", () => {
       if (realtimeSocketRef.current !== socket) return;
-      updateRealtimeStatus("listening", "Realtime listening via system audio.");
+      updateRealtimeStatus("audio_waiting", "Mencari audio interview dari active system output...");
       void window.interviewDesktop?.reportRealtimeClientEvent?.({ type: "open" });
     });
 
@@ -784,8 +786,12 @@ function getOverlayAudioStatusText(context: OverlayContext) {
     return "Realtime connecting";
   }
 
+  if (context.realtimeStatus === "audio_waiting") {
+    return context.realtimeMessage || "Mencari audio interview";
+  }
+
   if (context.realtimeStatus === "listening") {
-    return "Realtime listening";
+    return context.realtimeMessage || "Realtime listening";
   }
 
   if (context.realtimeStatus === "responding") {
@@ -1051,18 +1057,30 @@ function sameKeywordTerms(left: string[], right: string[]) {
   return left.every((term, index) => term === right[index]);
 }
 
-function buildLocalRuntimeKeywords(question: string, context: OverlayContext) {
+function buildKeywordSourceText(latestQuestion: string, recentTranscript: string) {
+  const normalizedQuestion = latestQuestion.trim();
+  const transcriptSegments = recentTranscript
+    .split(/\n+/)
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+    .slice(-4);
+  const parts = [...transcriptSegments, normalizedQuestion].filter(Boolean);
+  return Array.from(new Set(parts)).join("\n").trim();
+}
+
+function buildLocalRuntimeKeywords(question: string, context: OverlayContext, sourceText = question) {
   const profile = context.realtimeContext?.domainProfile;
   if (!profile) {
     return [];
   }
 
   const questionTokens = tokenizeText(question);
-  if (!questionTokens.size) {
+  const sourceTokens = tokenizeText(sourceText);
+  if (!questionTokens.size && !sourceTokens.size) {
     return [];
   }
 
-  const concepts = uniqueKeywords([
+  const contextConcepts = uniqueKeywords([
     profile.primaryDomain,
     profile.nicheDescription,
     ...profile.seedConcepts,
@@ -1071,77 +1089,38 @@ function buildLocalRuntimeKeywords(question: string, context: OverlayContext) {
     ...(context.realtimeContext?.stageContext.focus || [])
   ]);
 
-  const outOfScopeHit = profile.outOfScopeConcepts.some((concept) => scoreConcept(concept, question, questionTokens) >= 3);
-  const domainHit = concepts.some((concept) => scoreConcept(concept, question, questionTokens) >= 2);
-  if (outOfScopeHit && !domainHit) {
+  const contextTokens = tokenizeText(contextConcepts.join(" "));
+  const outOfScopeHit = profile.outOfScopeConcepts.some((concept) => scoreConcept(concept, sourceText, sourceTokens) >= 3);
+  const contextHit = contextConcepts.some((concept) => {
+    const questionScore = questionTokens.size ? scoreConcept(concept, question, questionTokens) : 0;
+    const sourceScore = sourceTokens.size ? scoreConcept(concept, sourceText, sourceTokens) : 0;
+    return questionScore >= 1 || sourceScore >= 2;
+  });
+  if (outOfScopeHit && !contextHit) {
     return [];
   }
 
-  const scoredConcepts = concepts
+  const questionCandidates = buildQuestionKeywordCandidates(question, questionTokens, contextTokens, 2);
+  const sourceCandidates = buildQuestionKeywordCandidates(sourceText, sourceTokens, contextTokens, 1);
+  const scoredConcepts = contextConcepts
     .map((concept) => ({
       term: compactKeyword(concept),
-      score: scoreConcept(concept, question, questionTokens)
+      score: scoreConcept(concept, question, questionTokens) * 2 + scoreConcept(concept, sourceText, sourceTokens)
     }))
     .filter((item) => item.score >= 2)
     .sort((left, right) => right.score - left.score)
     .map((item) => item.term);
 
-  const broadConcepts = buildBroadKeywordCandidates(questionTokens, concepts);
-  const keywords = uniqueKeywords([...scoredConcepts, ...broadConcepts]).slice(0, 3);
+  const keywords = uniqueKeywords([...questionCandidates, ...sourceCandidates, ...scoredConcepts]).slice(0, 3);
   if (keywords.length) {
     return keywords;
   }
 
-  if (domainHit || isDomainRelatedText(question, context)) {
-    return concepts.slice(0, 3).map(compactKeyword);
+  if (contextHit || isDomainRelatedText(question, context) || isDomainRelatedText(sourceText, context)) {
+    return contextConcepts.slice(0, 3).map(compactKeyword);
   }
 
   return [];
-}
-
-function buildBroadKeywordCandidates(questionTokens: Set<string>, concepts: string[]) {
-  const domainText = concepts.join(" ").toLowerCase();
-  const groups = [
-    {
-      keys: ["ai", "artificial", "intelligence", "kecerdasan", "llm", "neural"],
-      domainPattern: /\b(ai|artificial|intelligence|machine|learning|ml|deep|neural|model|data)\b/i,
-      conceptPattern: /\b(ai|artificial|intelligence|machine|learning|ml|deep|neural|llm|model)\b/i,
-      fallback: "AI fundamentals"
-    },
-    {
-      keys: ["machine", "learning", "model", "algoritma", "algorithm", "regression", "classification", "rnn", "lstm", "gbm"],
-      domainPattern: /\b(machine|learning|model|forecast|predict|prediction|data|feature|algorithm)\b/i,
-      conceptPattern: /\b(machine|learning|model|forecast|predict|prediction|algorithm|rnn|lstm|gbm)\b/i,
-      fallback: "Machine learning modeling"
-    },
-    {
-      keys: ["data", "dataset", "feature", "fitur", "training", "metric", "evaluasi", "akurasi", "accuracy"],
-      domainPattern: /\b(data|dataset|feature|metric|training|evaluation|model|analytics)\b/i,
-      conceptPattern: /\b(data|dataset|feature|metric|training|evaluation|analytics)\b/i,
-      fallback: "Data and feature strategy"
-    },
-    {
-      keys: ["bisnis", "business", "process", "proses", "stakeholder", "product", "operational", "operasi"],
-      domainPattern: /\b(role|business|process|stakeholder|product|operation|domain|customer|user)\b/i,
-      conceptPattern: /\b(business|process|stakeholder|product|operation|domain|customer|user)\b/i,
-      fallback: "Business domain context"
-    },
-    {
-      keys: ["harga", "price", "market", "pasar", "makro", "macro", "economy", "economic", "berita", "news", "global", "dunia"],
-      domainPattern: /\b(price|pricing|market|forecast|demand|supply|econom|macro|commodity|revenue|growth)\b/i,
-      conceptPattern: /\b(price|pricing|market|forecast|demand|supply|econom|macro|commodity|revenue|growth)\b/i,
-      fallback: "Market and external factors"
-    }
-  ];
-
-  return groups.flatMap((group) => {
-    const questionMatches = group.keys.some((key) => questionTokens.has(key));
-    if (!questionMatches || !group.domainPattern.test(domainText)) {
-      return [];
-    }
-
-    return [compactKeyword(concepts.find((concept) => group.conceptPattern.test(concept)) || group.fallback)];
-  });
 }
 
 function scoreConcept(concept: string, question: string, questionTokens: Set<string>) {
@@ -1166,11 +1145,64 @@ function scoreConcept(concept: string, question: string, questionTokens: Set<str
   return score;
 }
 
+function buildQuestionKeywordCandidates(question: string, questionTokens: Set<string>, contextTokens: Set<string>, questionWeight: number) {
+  const normalizedQuestion = question
+    .replace(/[?!.,;:()"'`]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const rawTokens = normalizedQuestion.split(" ").filter(Boolean);
+  const candidateMap = new Map<string, number>();
+
+  for (let start = 0; start < rawTokens.length; start += 1) {
+    for (let size = 1; size <= 4; size += 1) {
+      const phraseTokens = rawTokens.slice(start, start + size);
+      if (phraseTokens.length !== size) {
+        continue;
+      }
+
+      const normalizedTokens = phraseTokens
+        .map((token) => normalizeToken(token))
+        .filter((token) => token && questionTokens.has(token));
+      if (!normalizedTokens.length || normalizedTokens.length !== phraseTokens.length) {
+        continue;
+      }
+
+      const keyword = compactKeyword(toKeywordLabel(phraseTokens));
+      const overlapScore = normalizedTokens.filter((token) => contextTokens.has(token)).length;
+      const specificityScore = normalizedTokens.reduce((score, token) => score + (token.length >= 5 ? 1 : 0), 0);
+      const acronymScore = phraseTokens.some((token) => /^[A-Z0-9]{2,}$/.test(token)) ? 2 : 0;
+      const sizeScore = size > 1 ? size : 0;
+      const score = overlapScore * 3 + specificityScore + acronymScore + sizeScore + questionWeight;
+
+      if (score >= 3) {
+        candidateMap.set(keyword, Math.max(candidateMap.get(keyword) || 0, score));
+      }
+    }
+  }
+
+  return [...candidateMap.entries()]
+    .sort((left, right) => right[1] - left[1] || left[0].length - right[0].length)
+    .map(([keyword]) => keyword);
+}
+
+function toKeywordLabel(tokens: string[]) {
+  return tokens
+    .join(" ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())
+    .replace(/\b(Ai|Ml|Llm|Api|Sql|Nlp|Cv|Jd)\b/g, (term) => term.toUpperCase());
+}
+
+function normalizeToken(token: string) {
+  return token.toLowerCase().replace(/[^a-z0-9]+/gi, "").trim();
+}
+
 function tokenizeText(text: string) {
   const stopwords = new Set([
     "yang", "dan", "atau", "untuk", "dengan", "dari", "pada", "dalam", "kamu", "saya", "apa", "apakah",
     "bagaimana", "kenapa", "mengapa", "bisa", "the", "and", "or", "for", "with", "from", "this", "that",
-    "how", "what", "why", "can", "could", "would", "should"
+    "how", "what", "why", "can", "could", "would", "should", "jelaskan", "ceritakan", "menurut", "kalau",
+    "jika", "saat", "itu", "ini", "nya", "paling", "cocok", "pilih", "memilih", "gunakan", "pakai",
+    "terkait", "tentang", "about", "tell", "me", "please", "use", "using", "choose", "related"
   ]);
 
   return new Set(text
@@ -1364,31 +1396,27 @@ function isRelevantTranscriptText(text: string, context: OverlayContext) {
     return true;
   }
 
-  const interviewSignals = [
-    "ai",
-    "artificial intelligence",
-    "kecerdasan buatan",
-    "machine learning",
-    "deep learning",
-    "neural",
-    "model",
-    "data",
-    "training",
-    "prediksi",
-    "forecast",
-    "forecasting",
-    "bisnis",
-    "market",
-    "harga",
+  const genericInterviewSignals = [
     "role",
+    "posisi",
     "pengalaman",
     "project",
+    "proyek",
     "jelaskan",
     "ceritakan",
     "bagaimana",
     "kenapa",
-    "mengapa"
+    "mengapa",
+    "approach",
+    "pendekatan",
+    "tantangan",
+    "impact",
+    "hasil",
+    "explain",
+    "tell me",
+    "how would",
+    "why would"
   ];
 
-  return interviewSignals.some((signal) => normalized.includes(signal));
+  return genericInterviewSignals.some((signal) => normalized.includes(signal));
 }

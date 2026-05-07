@@ -15,7 +15,7 @@ const overlaySizes = {
   response: { width: 900, height: 440 }
 };
 
-type RealtimeStatus = "idle" | "connecting" | "listening" | "responding" | "error" | "closed";
+type RealtimeStatus = "idle" | "connecting" | "audio_waiting" | "listening" | "responding" | "error" | "closed";
 
 type RealtimeActionPayload = {
   requestId?: number;
@@ -245,12 +245,42 @@ function handleRealtimeAudioLine(line: string) {
   if (!trimmed) return;
 
   try {
-    const event = JSON.parse(trimmed) as { type?: string; audio?: string; message?: string };
+    const event = JSON.parse(trimmed) as { type?: string; status?: string; audio?: string; message?: string; deviceLabel?: string; deviceId?: string };
     if (event.type === "audio_chunk" && event.audio) {
       emitRealtimeOverlayEvent({
         type: "input_audio_buffer.append",
         audio: event.audio
       });
+      return;
+    }
+
+    if (event.type === "selected_device") {
+      const deviceLabel = typeof event.deviceLabel === "string" && event.deviceLabel.trim()
+        ? event.deviceLabel.trim()
+        : "active system output";
+      mergeOverlayContext({
+        audioStatus: "ready",
+        audioDeviceLabel: deviceLabel,
+        audioSourceKind: "system-loopback"
+      });
+      setRealtimeStatus("listening", `Listening via ${deviceLabel}`);
+      return;
+    }
+
+    if (event.type === "status" && event.status === "waiting_for_audio") {
+      if (realtimeStatus !== "audio_waiting") {
+        setRealtimeStatus("audio_waiting", event.message || "Mencari audio interview dari active system output...");
+      }
+      return;
+    }
+
+    if (event.type === "level") {
+      if (event.status === "ok" && realtimeStatus === "audio_waiting") {
+        const deviceLabel = typeof event.deviceLabel === "string" && event.deviceLabel.trim()
+          ? event.deviceLabel.trim()
+          : "active system output";
+        setRealtimeStatus("listening", `Listening via ${deviceLabel}`);
+      }
       return;
     }
 
@@ -272,7 +302,9 @@ function sendRealtimeAction(payload: unknown) {
   }
 
   if (realtimeStatus !== "listening" && realtimeStatus !== "responding") {
-    const message = "Realtime session belum aktif.";
+    const message = realtimeStatus === "audio_waiting"
+      ? "Realtime tersambung, tetapi audio interview belum terdeteksi."
+      : "Realtime session belum aktif.";
     emitRealtimeOverlayEvent({
       type: "error",
       requestId: actionPayload.requestId,
@@ -486,7 +518,7 @@ function registerOverlayIpc() {
     }
 
     if (type === "open") {
-      setRealtimeStatus("listening", "Realtime listening via system audio.");
+      setRealtimeStatus("audio_waiting", "Mencari audio interview dari active system output...");
       startRealtimeAudioStream();
       return { ok: true };
     }
