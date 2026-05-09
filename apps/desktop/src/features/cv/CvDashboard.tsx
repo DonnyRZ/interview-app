@@ -1,7 +1,7 @@
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import type { Application, Cv, InterviewRound, InterviewStage } from "@interview-app/shared";
-import { createApplication, getApplications } from "../applications/application-api.js";
+import { createApplication, deleteApplication as deleteApplicationRequest, getApplications } from "../applications/application-api.js";
 import { endInterview, getInterviewRounds, startInterview } from "../interviews/interview-api.js";
 import { getActiveCv, getCvList, retryCvProcessing, setActiveCv, uploadCv } from "./cv-api.js";
 
@@ -472,6 +472,33 @@ export function CvDashboard() {
     }
   }
 
+  async function handleDeleteApplication(application: Application) {
+    const companyRole = `${application.companyName} - ${application.roleTitle}`;
+    const confirmed = window.confirm(`Hapus application "${companyRole}" beserta semua interview round di dalamnya?`);
+    if (!confirmed) {
+      return;
+    }
+
+    setStatus("loading");
+    try {
+      await deleteApplicationRequest(application.id);
+      await refreshApplications();
+
+      if (selectedApplication?.id === application.id) {
+        setSelectedApplication(null);
+        setInterviewRounds([]);
+        setActiveInterviewRound(null);
+        setView("dashboard");
+      }
+
+      setStatus("idle");
+      setMessage(`${companyRole} berhasil dihapus.`);
+    } catch (error) {
+      setStatus("error");
+      setMessage(error instanceof Error ? error.message : "Gagal menghapus application.");
+    }
+  }
+
   async function handleStartInterview(application: Application) {
     setStatus("loading");
     try {
@@ -624,6 +651,7 @@ export function CvDashboard() {
           interviewRounds={interviewRounds}
           selectedStage={selectedStage}
           onBack={() => setView("dashboard")}
+          onDelete={() => void handleDeleteApplication(selectedApplication)}
           onStageChange={setSelectedStage}
           onStartInterview={() => void handleStartInterview(selectedApplication)}
           onPushDevTranscript={(transcriptText) => void pushDevTranscriptSegment(transcriptText)}
@@ -667,21 +695,29 @@ export function CvDashboard() {
         <div className="panel">
           <div className="application-list no-margin">
             {applications.length ? applications.map((application) => (
-              <button
-                className="application-row"
-                key={application.id}
-                onClick={() => selectApplication(application)}
-              >
-                <div>
-                  <h3>{application.companyName} - {application.roleTitle}</h3>
-                  <div className="meta-line">
-                    <span>CV linked</span>
-                    <span>Context ready</span>
-                    <span>{interviewRounds.length || 0} interview round</span>
+              <div className="application-row" key={application.id}>
+                <button
+                  className="application-row-main"
+                  onClick={() => selectApplication(application)}
+                >
+                  <div>
+                    <h3>{application.companyName} - {application.roleTitle}</h3>
+                    <div className="meta-line">
+                      <span>CV linked</span>
+                      <span>Context ready</span>
+                      <span>{interviewRounds.length || 0} interview round</span>
+                    </div>
                   </div>
-                </div>
-                <span className="pill good">Application</span>
-              </button>
+                  <span className="pill good">Application</span>
+                </button>
+                <button
+                  className="secondary-btn small danger-btn"
+                  onClick={() => void handleDeleteApplication(application)}
+                  disabled={status === "loading" || status === "processingApplication" || status === "uploading"}
+                >
+                  Delete
+                </button>
+              </div>
             )) : (
               <div className="empty-applications">
                 <div className="eyebrow">Application workspace</div>
@@ -897,6 +933,7 @@ function ApplicationDetailView({
   interviewRounds,
   selectedStage,
   onBack,
+  onDelete,
   onStageChange,
   onStartInterview,
   onPushDevTranscript,
@@ -925,6 +962,7 @@ function ApplicationDetailView({
   interviewRounds: InterviewRound[];
   selectedStage: InterviewStage;
   onBack: () => void;
+  onDelete: () => void;
   onStageChange: (stage: InterviewStage) => void;
   onStartInterview: () => void;
   onPushDevTranscript: (transcriptText: string) => void;
@@ -959,7 +997,10 @@ function ApplicationDetailView({
           <h1>{application.companyName}</h1>
           <p className="subcopy">{application.roleTitle} - CV aktif tersambung</p>
         </div>
-        <button className="secondary-btn" onClick={onBack}>Back to Dashboard</button>
+        <div className="actions-row no-margin">
+          <button className="secondary-btn" onClick={onBack}>Back to Dashboard</button>
+          <button className="secondary-btn danger-btn" onClick={onDelete}>Delete Application</button>
+        </div>
       </section>
 
       <section className="grid two">

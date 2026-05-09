@@ -7,6 +7,7 @@ import { ensureDevUser } from "../dev/dev-user.repository.js";
 import { findActiveCv } from "../cv/cv.repository.js";
 import {
   createApplication,
+  deleteApplication,
   findApplicationById,
   listApplications,
   updateApplication
@@ -48,6 +49,11 @@ export async function createApplicationForDevUser(input: CreateApplicationReques
 export async function updateApplicationForDevUser(applicationId: string, input: UpdateApplicationRequest) {
   await ensureDevUser();
   return updateApplication(DEV_USER_ID, applicationId, input);
+}
+
+export async function deleteApplicationForDevUser(applicationId: string) {
+  await ensureDevUser();
+  return deleteApplication(DEV_USER_ID, applicationId);
 }
 
 async function preprocessApplicationJd(

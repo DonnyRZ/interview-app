@@ -1,7 +1,8 @@
 import type {
   ApplicationListResponse,
   ApplicationResponse,
-  CreateApplicationRequest
+  CreateApplicationRequest,
+  DeleteApplicationResponse
 } from "@interview-app/shared";
 import { apiRequest } from "../../lib/api-client.js";
 
@@ -20,5 +21,11 @@ export function createApplication(input: CreateApplicationRequest) {
       "Content-Type": "application/json"
     },
     body: JSON.stringify(input)
+  });
+}
+
+export function deleteApplication(applicationId: string) {
+  return apiRequest<DeleteApplicationResponse>(`/applications/${applicationId}`, {
+    method: "DELETE"
   });
 }

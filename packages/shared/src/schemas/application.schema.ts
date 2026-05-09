@@ -31,8 +31,14 @@ export const applicationResponseSchema = z.object({
   application: applicationSchema
 });
 
+export const deleteApplicationResponseSchema = z.object({
+  ok: z.literal(true),
+  deletedApplicationId: z.string().uuid()
+});
+
 export type Application = z.infer<typeof applicationSchema>;
 export type CreateApplicationRequest = z.infer<typeof createApplicationRequestSchema>;
 export type UpdateApplicationRequest = z.infer<typeof updateApplicationRequestSchema>;
 export type ApplicationListResponse = z.infer<typeof applicationListResponseSchema>;
 export type ApplicationResponse = z.infer<typeof applicationResponseSchema>;
+export type DeleteApplicationResponse = z.infer<typeof deleteApplicationResponseSchema>;
