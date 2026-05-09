@@ -31,7 +31,21 @@ Agar `win-unpacked` ikut membawa perubahan terbaru, engineer harus menjalankan p
 
 ## Command yang relevan
 
-Untuk refresh `win-unpacked`:
+Untuk QA packaged app yang akan diklik langsung di Windows, gunakan beta-signed flow:
+
+```powershell
+npm.cmd --workspace @interview-app/desktop run package:win:beta
+```
+
+Setelah itu wajib cek signature:
+
+```powershell
+npm.cmd --workspace @interview-app/desktop run cert:beta:check
+```
+
+`package:win` biasa menghasilkan app unsigned. Jangan pakai command itu untuk artefak yang akan dites dengan cara klik `Interview App.exe`, karena Smart App Control Windows bisa memblokir app unsigned.
+
+Command unsigned hanya boleh dipakai untuk kebutuhan engineering cepat yang tidak membutuhkan klik/run packaged app:
 
 ```powershell
 npm.cmd --workspace @interview-app/desktop run package:win
@@ -40,12 +54,14 @@ npm.cmd --workspace @interview-app/desktop run package:win
 Untuk membuat installer distribusi:
 
 ```powershell
-npm.cmd --workspace @interview-app/desktop run dist:win
+npm.cmd --workspace @interview-app/desktop run dist:win:beta
 ```
 
 ## Rule kerja
 
 - Jika perubahan terlihat benar di mode dev tetapi tidak benar di `win-unpacked`, hal pertama yang dicek adalah apakah packaging ulang sudah dijalankan.
+- Untuk testing klik app di Windows, packaging ulang harus memakai `package:win:beta`, bukan `package:win`.
+- Setelah packaging beta, jalankan `cert:beta:check`; status `NotSigned` berarti artefak belum boleh dites sebagai packaged app.
 - Jangan audit logic runtime terlalu jauh sebelum memastikan `win-unpacked` memang fresh.
 - Cocokkan timestamp file berikut saat verifikasi:
   - `release/win-unpacked/Interview App.exe`
@@ -114,7 +130,48 @@ Namun untuk niat produk saat ini, pendekatan gratis ini tetap harus dihormati da
 
 - Jangan buru-buru mengubah arah ke certificate berbayar kecuali owner memang sudah setuju.
 - Jika ada friction Windows Security, cek dulu apakah flow beta certificate gratis sudah dijalankan dengan benar.
+- Jangan mengganti artefak `win-unpacked` yang biasa dites owner dengan build unsigned.
 - Saat menjelaskan opsi ke owner, bedakan jelas antara:
   - `free beta/self-signed flow`
   - `paid commercial signing flow`
 - Untuk tahap sekarang, default thinking yang benar adalah: selesaikan sebanyak mungkin lewat flow gratis dulu.
+
+## Contoh kesalahan yang harus dihindari
+
+Kasus nyata yang pernah terjadi:
+
+1. Engineer ingin refresh `win-unpacked` setelah code berubah.
+2. Engineer menjalankan command biasa:
+
+```powershell
+npm.cmd --workspace @interview-app/desktop run package:win
+```
+
+3. `win-unpacked` memang ter-refresh, tetapi `Interview App.exe` menjadi `NotSigned`.
+4. Owner klik icon/app yang sama seperti biasa.
+5. Windows Smart App Control memblokir app karena tidak bisa memverifikasi publisher.
+
+Masalahnya bukan owner salah klik. Masalahnya artefak packaged diganti menjadi unsigned.
+
+Don't:
+
+- Jangan pakai `package:win` untuk build yang akan diklik/test owner di Windows.
+- Jangan menganggap timestamp fresh berarti packaged app sudah aman dijalankan.
+- Jangan skip `cert:beta:check` setelah membuat packaged build beta.
+
+Do:
+
+- Pakai `package:win:beta` untuk refresh `win-unpacked` yang akan dites owner.
+- Jalankan `cert:beta:check` setelah packaging beta.
+- Pastikan hasil check minimal menunjukkan:
+  - `Packaged app signature valid`
+  - `Packaged helper signature valid`
+  - certificate trusted di `CurrentUser Root`
+  - certificate trusted di `CurrentUser TrustedPublisher`
+
+Command yang benar untuk kasus ini:
+
+```powershell
+npm.cmd --workspace @interview-app/desktop run package:win:beta
+npm.cmd --workspace @interview-app/desktop run cert:beta:check
+```
