@@ -5,7 +5,7 @@ Desktop application untuk membantu kandidat saat interview online dengan overlay
 Fokus utama aplikasi ini:
 
 - membantu kandidat tetap tenang saat interview
-- menangkap konteks interview secara near real time
+- menangkap konteks interview secara near real-time
 - memberi bantuan jawaban dalam bentuk teks, bukan auto-speaking
 - menjaga bantuan tetap relevan dengan profil kandidat, role, dan domain pekerjaan
 
@@ -49,7 +49,7 @@ Project ini memakai monorepo sederhana:
 - menangkap system audio pada Windows melalui WASAPI loopback helper
 - menjalankan live runtime dengan `gpt-realtime-mini`
 - menampilkan bantuan jawaban berbasis trigger user
-- menyimpan transcript text dan menyiapkan post-interview workflow
+- menyimpan transcript text sebagai bahan post-interview workflow berikutnya
 
 ## Model AI
 
@@ -59,7 +59,7 @@ Saat ini pembagian peran model secara umum:
   Dipakai untuk proses non-live seperti preprocessing CV, ringkasan JD/context, dan workflow text backend lainnya.
 
 - `gpt-realtime-mini`
-  Dipakai untuk sesi interview live yang membutuhkan audio input, transcript runtime, dan bantuan overlay near real time.
+  Dipakai untuk sesi interview live yang membutuhkan audio input, transcript runtime, dan bantuan overlay near real-time.
 
 ## UX Interview
 
@@ -141,11 +141,12 @@ npm run db:seed:dev
 
 - Flow live interview saat ini ditujukan untuk desktop Windows karena audio capture memakai WASAPI loopback helper.
 - Overlay didesain untuk membantu, bukan menggantikan kandidat.
-- Prompt dan logic AI dijaga tetap berada di backend / modul AI, bukan tersebar ke UI.
+- Prompt stabil dan logic AI utama dijaga di backend / modul AI. Current Realtime live masih punya pengecualian kecil di overlay untuk trigger action pendek; detailnya ada di `PROMPTING_RULES.md`.
 
 ## Referensi Internal
 
 - [mvp_build_spec.md](./mvp_build_spec.md)
-- [report_model_openai_mvp_engineer.md](./report_model_openai_mvp_engineer.md)
 - [mockup/interactive_mvp_mockup.html](./mockup/interactive_mvp_mockup.html)
 - [docs/audio-capture-windows.md](./docs/audio-capture-windows.md)
+- [apps/desktop/WIN_UNPACKED.md](./apps/desktop/WIN_UNPACKED.md)
+- [apps/api/src/modules/ai/PROMPTING_RULES.md](./apps/api/src/modules/ai/PROMPTING_RULES.md)

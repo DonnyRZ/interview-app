@@ -2,6 +2,7 @@ import {
   applicationListResponseSchema,
   applicationResponseSchema,
   createApplicationRequestSchema,
+  deleteApplicationResponseSchema,
   updateApplicationRequestSchema
 } from "@interview-app/shared";
 import type { FastifyInstance } from "fastify";
@@ -9,6 +10,7 @@ import { z } from "zod";
 import { mapApplication } from "./application.mapper.js";
 import {
   createApplicationForDevUser,
+  deleteApplicationForDevUser,
   getApplicationForDevUser,
   getApplicationsForDevUser,
   updateApplicationForDevUser
@@ -77,6 +79,23 @@ export async function registerApplicationRoutes(app: FastifyInstance) {
 
     return applicationResponseSchema.parse({
       application: mapApplication(application)
+    });
+  });
+
+  app.delete("/:id", async (request, reply) => {
+    const params = applicationParamsSchema.safeParse(request.params);
+    if (!params.success) {
+      return reply.code(400).send({ message: "Invalid application id" });
+    }
+
+    const deletedApplication = await deleteApplicationForDevUser(params.data.id);
+    if (!deletedApplication) {
+      return reply.code(404).send({ message: "Application not found" });
+    }
+
+    return deleteApplicationResponseSchema.parse({
+      ok: true,
+      deletedApplicationId: deletedApplication.id
     });
   });
 }

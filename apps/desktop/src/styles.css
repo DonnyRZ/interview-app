@@ -194,6 +194,12 @@ h2 {
   background: #f7f8fb;
 }
 
+.danger-btn {
+  color: #991b1b;
+  background: #fff5f5;
+  border-color: #fecaca;
+}
+
 .secondary-btn.small {
   min-height: 32px;
   padding: 0 10px;
@@ -245,7 +251,6 @@ h2 {
 
 .application-row {
   width: 100%;
-  text-align: left;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 18px;
@@ -259,13 +264,30 @@ h2 {
 }
 
 .application-row:hover,
-.application-row.active {
+.application-row.active,
+.application-row-main:hover,
+.application-row-main.active {
   border-color: #b9c0cf;
   transform: translateY(-1px);
 }
 
-.application-row.active {
+.application-row.active,
+.application-row-main.active {
   box-shadow: inset 0 0 0 1px #111318;
+}
+
+.application-row-main {
+  width: 100%;
+  text-align: left;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--ink);
+  padding: 0;
+  min-height: auto;
 }
 
 .meta-line {

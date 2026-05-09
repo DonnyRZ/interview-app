@@ -58,6 +58,14 @@ export async function updateApplication(userId: string, applicationId: string, i
   return updatedApplication || null;
 }
 
+export async function deleteApplication(userId: string, applicationId: string) {
+  const [deletedApplication] = await db.delete(applications)
+    .where(and(eq(applications.userId, userId), eq(applications.id, applicationId)))
+    .returning({ id: applications.id });
+
+  return deletedApplication || null;
+}
+
 function buildDummyCompanyContext(input: Pick<CreateApplicationRequest, "companyName" | "roleTitle" | "jobDescription">) {
   const jdPreview = input.jobDescription?.slice(0, 180) || "Belum ada job description.";
   return `Dummy context for ${input.roleTitle} at ${input.companyName}. JD preview: ${jdPreview}`;
