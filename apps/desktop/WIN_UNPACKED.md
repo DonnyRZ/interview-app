@@ -175,3 +175,58 @@ Command yang benar untuk kasus ini:
 npm.cmd --workspace @interview-app/desktop run package:win:beta
 npm.cmd --workspace @interview-app/desktop run cert:beta:check
 ```
+
+## Rekap blocker PFX/signing terbaru
+
+Kasus nyata yang terjadi saat refresh `win-unpacked`:
+
+1. Engineer sudah memperbaiki logic app dan menjalankan `npm.cmd --workspace @interview-app/desktop run build`.
+2. `build` berhasil, tetapi `win-unpacked` belum ikut berubah karena `build` hanya update `dist` dan `dist-electron`.
+3. Engineer lalu menjalankan `package:win` biasa untuk refresh `win-unpacked`.
+4. `win-unpacked` memang fresh, tetapi app dan helper menjadi unsigned.
+5. Ini melanggar rule dokumen ini, karena artefak yang akan diklik owner harus lewat beta-signed flow.
+6. Saat mau memperbaiki dengan `package:win:beta`, muncul blocker PFX/password certificate.
+7. PFX file ada, tetapi password lama tidak tersedia di environment.
+8. Private key certificate juga awalnya tidak siap dipakai langsung dari `CurrentUser\My`.
+9. Solusi akhirnya adalah membuat/mengekspor ulang beta PFX lokal, trust certificate ke `CurrentUser Root` dan `CurrentUser TrustedPublisher`, lalu menjalankan beta package/sign/check.
+10. Operasi trust certificate sempat hang saat dijalankan tanpa permission cukup; command perlu dijalankan dengan elevated permission.
+
+Hasil akhir yang benar:
+
+- `Native helper signature valid`
+- `Packaged app signature valid`
+- `Packaged helper signature valid`
+- certificate trusted di `CurrentUser Root`
+- certificate trusted di `CurrentUser TrustedPublisher`
+- `Beta certificate checks passed`
+
+## Playbook anti-terulang
+
+Sebelum owner mengetes `win-unpacked`, engineer wajib mengikuti urutan ini:
+
+1. Jalankan typecheck/build sesuai kebutuhan fitur.
+2. Refresh packaged artifact hanya dengan:
+
+```powershell
+npm.cmd --workspace @interview-app/desktop run package:win:beta
+```
+
+3. Verifikasi langsung dengan:
+
+```powershell
+npm.cmd --workspace @interview-app/desktop run cert:beta:check
+```
+
+4. Kalau `package:win:beta` meminta password PFX, jangan fallback ke `package:win`.
+5. Kalau password PFX tidak tersedia untuk local beta, recreate/export beta cert lokal dengan password baru, trust cert, lalu package beta.
+6. Kalau trust cert hang/gagal, jalankan trust/package/check dengan permission yang cukup.
+7. Jangan bilang `win-unpacked` siap dites sebelum `cert:beta:check` pass.
+
+Quick sanity check setelah packaging:
+
+```powershell
+Get-AuthenticodeSignature "apps/desktop/release/win-unpacked/Interview App.exe"
+Get-AuthenticodeSignature "apps/desktop/release/win-unpacked/resources/native/windows-loopback/WasapiLoopbackProbe.exe"
+```
+
+Kedua status harus `Valid`. Jika `NotSigned`, artefak itu belum boleh dipakai untuk testing klik Windows.

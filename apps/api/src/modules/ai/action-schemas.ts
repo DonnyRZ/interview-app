@@ -68,12 +68,61 @@ const domainProfileSchema = z.object({
   relevanceGuidance: ""
 });
 
+const cvExperienceSchema = z.object({
+  companyName: textSchema,
+  roleTitle: textSchema,
+  dateRange: textSchema,
+  duration: textSchema,
+  projects: stringArraySchema,
+  responsibilities: stringArraySchema,
+  impact: stringArraySchema,
+  technologies: stringArraySchema
+});
+
+const cvEducationSchema = z.object({
+  institution: textSchema,
+  degree: textSchema,
+  major: textSchema,
+  dateRange: textSchema,
+  notes: stringArraySchema
+});
+
+const cvOrganizationSchema = z.object({
+  organizationName: textSchema,
+  roleTitle: textSchema,
+  dateRange: textSchema,
+  responsibilities: stringArraySchema
+});
+
+const cvInternshipSchema = z.object({
+  companyName: textSchema,
+  roleTitle: textSchema,
+  dateRange: textSchema,
+  duration: textSchema,
+  responsibilities: stringArraySchema,
+  projects: stringArraySchema
+});
+
+function objectArraySchema<TSchema extends z.ZodTypeAny>(schema: TSchema) {
+  return z.preprocess((value) => {
+    if (value == null) {
+      return [];
+    }
+
+    return value;
+  }, z.array(schema)).default([]);
+}
+
 export const preprocessCvResultSchema = z.object({
   status: aiStatusSchema,
   result: z.object({
     candidateSummary: z.string(),
     skills: stringArraySchema,
     relevantExperience: stringArraySchema,
+    experiences: objectArraySchema(cvExperienceSchema),
+    education: objectArraySchema(cvEducationSchema),
+    organizations: objectArraySchema(cvOrganizationSchema),
+    internships: objectArraySchema(cvInternshipSchema),
     strengthsForInterview: stringArraySchema,
     risks: stringArraySchema,
     readyContext: z.string()
@@ -89,6 +138,8 @@ export const preprocessApplicationJdResultSchema = z.object({
   result: z.object({
     jdSummary: z.string(),
     roleRequirements: stringArraySchema,
+    responsibilities: stringArraySchema.default([]),
+    niceToHave: stringArraySchema.default([]),
     domainProfile: domainProfileSchema,
     interviewPrepThemes: stringArraySchema,
     applicationContext: z.string()

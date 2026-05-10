@@ -69,8 +69,11 @@ export function InterviewOverlay() {
   const conversationTurnsRef = useRef<ConversationTurn[]>([]);
   const transcriptItemsRef = useRef(new Map<string, ConversationTurn>());
   const transcriptOrderRef = useRef<string[]>([]);
+  const transcriptDeltaItemsRef = useRef(new Map<string, { text: string; previousItemId?: string; capturedAt: string }>());
+  const interimTranscriptRef = useRef<ConversationTurn | null>(null);
   const transcriptSequenceRef = useRef(0);
   const pendingSpeechRef = useRef(false);
+  const currentSpeechStartedAtRef = useRef(0);
   const latestFocusRef = useRef(waitingFocusText);
   const conversationWindowRef = useRef("");
 
@@ -100,8 +103,11 @@ export function InterviewOverlay() {
       conversationTurnsRef.current = [];
       transcriptItemsRef.current = new Map();
       transcriptOrderRef.current = [];
+      transcriptDeltaItemsRef.current = new Map();
+      interimTranscriptRef.current = null;
       transcriptSequenceRef.current = 0;
       pendingSpeechRef.current = false;
+      currentSpeechStartedAtRef.current = 0;
       latestFocusRef.current = waitingFocusText;
       conversationWindowRef.current = "";
       setActiveResponse(null);
@@ -466,6 +472,7 @@ export function InterviewOverlay() {
     const type = typeof event.type === "string" ? event.type : "";
     if (type === "input_audio_buffer.speech_started") {
       pendingSpeechRef.current = true;
+      currentSpeechStartedAtRef.current = Date.now();
       updateRealtimeStatus("listening", "Menangkap ucapan interviewer...");
       return;
     }
@@ -488,8 +495,15 @@ export function InterviewOverlay() {
     if (type === "conversation.item.input_audio_transcription.delta") {
       const delta = typeof event.delta === "string" ? event.delta : "";
       if (delta) {
-        void window.interviewDesktop?.updateOverlayContext?.({
-          realtimeTranscriptDelta: delta
+        const itemId = typeof event.item_id === "string" && event.item_id.trim()
+          ? event.item_id.trim()
+          : "interim-audio";
+        const previousItemId = typeof event.previous_item_id === "string" ? event.previous_item_id : undefined;
+        registerTranscriptDelta({
+          itemId,
+          previousItemId,
+          delta,
+          capturedAt: new Date().toISOString()
         });
       }
       return;
@@ -501,16 +515,31 @@ export function InterviewOverlay() {
         const itemId = typeof event.item_id === "string" ? event.item_id : undefined;
         const previousItemId = typeof event.previous_item_id === "string" ? event.previous_item_id : undefined;
         const capturedAt = new Date().toISOString();
+        const deltaText = itemId ? transcriptDeltaItemsRef.current.get(itemId)?.text : "";
+        const matchingInterimText = interimTranscriptRef.current
+          && (!itemId || interimTranscriptRef.current.itemId === itemId || areSameTranscript(interimTranscriptRef.current.text, transcriptText))
+          ? interimTranscriptRef.current.text
+          : "";
+        const completedTranscriptText = chooseMostCompleteTranscript(transcriptText, deltaText, matchingInterimText);
+        if (itemId) {
+          transcriptDeltaItemsRef.current.delete(itemId);
+          if (interimTranscriptRef.current?.itemId === itemId) {
+            interimTranscriptRef.current = null;
+          }
+        }
+        if (interimTranscriptRef.current && areSameTranscript(interimTranscriptRef.current.text, transcriptText)) {
+          interimTranscriptRef.current = null;
+        }
         const turn = registerTranscriptText({
-          text: transcriptText,
+          text: completedTranscriptText,
           itemId,
           previousItemId,
           capturedAt
         });
         const recentTranscript = getRecentTranscriptText();
-        const detectedQuestion = deriveLatestConversationFocus(recentTranscript, transcriptText, contextRef.current);
+        const detectedQuestion = deriveLatestConversationFocus(recentTranscript, completedTranscriptText, contextRef.current);
         const transcriptEvent: OverlayTranscriptEvent = {
-          transcriptText,
+          transcriptText: completedTranscriptText,
           detectedQuestion,
           itemId: turn?.itemId,
           previousItemId,
@@ -522,6 +551,7 @@ export function InterviewOverlay() {
           latestTranscriptEvent: transcriptEvent
         });
         pendingSpeechRef.current = false;
+        currentSpeechStartedAtRef.current = 0;
         updateRealtimeStatus("listening", "Konteks siap dari transcript terbaru.");
       }
       return;
@@ -608,6 +638,40 @@ export function InterviewOverlay() {
     });
   }
 
+  function registerTranscriptDelta(input: {
+    itemId: string;
+    previousItemId?: string;
+    delta: string;
+    capturedAt: string;
+  }) {
+    const existing = transcriptDeltaItemsRef.current.get(input.itemId);
+    const nextText = `${existing?.text || ""}${input.delta}`.replace(/\s+/g, " ").trim();
+    if (!nextText || isLikelyTranscriptNoise(nextText)) {
+      return;
+    }
+
+    transcriptDeltaItemsRef.current.set(input.itemId, {
+      text: nextText,
+      previousItemId: input.previousItemId || existing?.previousItemId,
+      capturedAt: input.capturedAt
+    });
+
+    if (nextText.length < 12) {
+      return;
+    }
+
+    const interimTurn: ConversationTurn = {
+      itemId: input.itemId,
+      previousItemId: input.previousItemId || existing?.previousItemId,
+      speaker: "interviewer",
+      text: nextText,
+      capturedAt: input.capturedAt,
+      sequence: transcriptSequenceRef.current + 0.5
+    };
+    interimTranscriptRef.current = interimTurn;
+    rebuildConversationFromTranscriptItems(interimTurn);
+  }
+
   function registerTranscriptText(input: {
     text: string;
     itemId?: string;
@@ -637,6 +701,9 @@ export function InterviewOverlay() {
     };
 
     transcriptItemsRef.current.set(itemId, turn);
+    if (interimTranscriptRef.current?.itemId === itemId) {
+      interimTranscriptRef.current = null;
+    }
     rebuildConversationFromTranscriptItems();
     return turn;
   }
@@ -657,17 +724,20 @@ export function InterviewOverlay() {
     transcriptOrderRef.current.push(itemId);
   }
 
-  function rebuildConversationFromTranscriptItems() {
+  function rebuildConversationFromTranscriptItems(interimTurn?: ConversationTurn | null) {
     const orderedTurns = transcriptOrderRef.current
       .map((itemId) => transcriptItemsRef.current.get(itemId))
       .filter((turn): turn is ConversationTurn => Boolean(turn))
       .slice(-20);
+    const visibleTurns = interimTurn && !orderedTurns.some((turn) => turn.itemId === interimTurn.itemId)
+      ? [...orderedTurns, interimTurn]
+      : orderedTurns;
 
     conversationTurnsRef.current = orderedTurns;
     recentTranscriptRef.current = orderedTurns.map((turn) => turn.text).slice(-8);
 
-    const nextWindow = buildConversationWindow(orderedTurns);
-    const latestTurn = orderedTurns.at(-1);
+    const nextWindow = buildConversationWindow(visibleTurns);
+    const latestTurn = visibleTurns.at(-1);
     const nextFocus = deriveLatestConversationFocus(nextWindow, latestTurn?.text || "", contextRef.current) || latestTurn?.text || waitingFocusText;
 
     conversationWindowRef.current = nextWindow;
@@ -694,14 +764,32 @@ export function InterviewOverlay() {
     return Boolean(getFreshConversationSnapshot());
   }
 
+  function getTurnCapturedAfter(turn: ConversationTurn | null | undefined, startedAtMs: number) {
+    if (!turn) {
+      return null;
+    }
+
+    const capturedTime = new Date(turn.capturedAt).getTime();
+    return Number.isFinite(capturedTime) && capturedTime >= startedAtMs ? turn : null;
+  }
+
   function getFreshConversationSnapshot() {
-    const latestTurn = conversationTurnsRef.current.at(-1);
+    const speechStartedAt = currentSpeechStartedAtRef.current;
+    const latestInterimTurn = interimTranscriptRef.current;
+    const latestFinalTurn = conversationTurnsRef.current.at(-1);
+    const latestTurn = pendingSpeechRef.current && speechStartedAt
+      ? getTurnCapturedAfter(latestInterimTurn, speechStartedAt) || getTurnCapturedAfter(latestFinalTurn, speechStartedAt)
+      : latestInterimTurn || latestFinalTurn;
     if (!latestTurn) {
       return null;
     }
 
     const capturedTime = new Date(latestTurn.capturedAt).getTime();
     if (!Number.isFinite(capturedTime) || Date.now() - capturedTime > freshConversationMs) {
+      return null;
+    }
+
+    if (pendingSpeechRef.current && speechStartedAt && capturedTime < speechStartedAt) {
       return null;
     }
 
@@ -787,18 +875,20 @@ export function InterviewOverlay() {
     }
 
     if (type === "keyword" && !triggerText) {
-      setActiveResponse(buildDummyResponse(type, triggerText, context));
+      setActiveResponse(buildNoKeywordResponse());
       setMode("response");
       return;
     }
 
     const shouldRequireConversation = type === "answer" || type === "followup" || type === "explain" || type === "keyword";
     if (shouldRequireConversation && pendingSpeechRef.current) {
-      window.setTimeout(() => {
-        if (!isCurrentRequest(requestId)) return;
-        void sendHelpAction(requestId, type, triggerText);
-      }, 1500);
-      return;
+      if (!getFreshConversationSnapshot()) {
+        window.setTimeout(() => {
+          if (!isCurrentRequest(requestId)) return;
+          void sendHelpAction(requestId, type, triggerText);
+        }, 1500);
+        return;
+      }
     }
 
     await sendHelpAction(requestId, type, triggerText);
@@ -854,7 +944,10 @@ export function InterviewOverlay() {
   }
 
   function getFullTranscriptText() {
-    const transcript = conversationTurnsRef.current
+    const turns = interimTranscriptRef.current && !conversationTurnsRef.current.some((turn) => turn.itemId === interimTranscriptRef.current?.itemId)
+      ? [...conversationTurnsRef.current, interimTranscriptRef.current]
+      : conversationTurnsRef.current;
+    const transcript = turns
       .map((turn) => turn.text)
       .filter(Boolean)
       .join("\n")
@@ -1052,6 +1145,18 @@ function buildNoFreshContextResponse(): HelpResponse {
   };
 }
 
+function buildNoKeywordResponse(): HelpResponse {
+  return {
+    title: "Keyword Belum Ada",
+    kind: "notice",
+    points: [
+      "Belum ada keyword spesifik yang bisa dijelaskan dari konteks terbaru.",
+      "Kalau butuh bantuan sekarang, pakai Bantu Jawab, Bantu Follow-up, Jelaskan Maksudnya, atau tulis pertanyaan manual di Ask.",
+      "Saya tidak akan membuat keyword dummy karena bisa menyesatkan saat interview."
+    ]
+  };
+}
+
 function buildRealtimeUnavailableResponse(message?: string): HelpResponse {
   return {
     title: "Realtime Belum Aktif",
@@ -1094,7 +1199,7 @@ function formatRealtimeResponsePoints(text: string) {
 function splitLongRealtimeParagraph(text: string) {
   const normalized = text
     .replace(/\s+(\d+[.)])\s+/g, "\n$1 ")
-    .replace(/\s+[-*â€¢]\s+/g, "\n")
+    .replace(/\s+[-*\u2022]\s+/g, "\n")
     .trim();
 
   const numberedPoints = normalized
@@ -1124,7 +1229,32 @@ function buildRealtimeActionPrompt(payload: RealtimeOverlayAction) {
     "Prioritaskan conversation window terbaru di atas memori percakapan lama.",
     "Jangan menjawab dari konteks beberapa menit lalu jika tidak muncul di conversation window ini.",
     "Jawab berdasarkan konteks transcript lengkap, bukan hanya potongan kalimat terakhir.",
+    buildContextUsagePolicy(payload),
     actionInstruction
+  ].filter(Boolean).join("\n");
+}
+
+function buildContextUsagePolicy(payload: RealtimeOverlayAction) {
+  return [
+    "Pilih sumber konteks secara adaptif sebelum menjawab:",
+    "- Jika pertanyaan bisa dijawab sebagai pengetahuan umum/teknis/proses kerja, jawab langsung tanpa memaksakan CV atau JD.",
+    "- Jika interviewer meminta intro, background, atau pengalaman paling relevan, gunakan CV sebagai sumber utama dan pakai JD hanya untuk memilih relevansi role secara ringan.",
+    "- Jika interviewer meminta pengalaman, contoh nyata, background, project, kekuatan, atau cerita kandidat, gunakan bukti CV yang paling relevan.",
+    "- Jika interviewer meminta cerita project, tantangan, kegagalan, atau kasus sulit, jawab dengan company/project/blocker/solusi yang spesifik dari CV; jangan berhenti di proses generik.",
+    "- Jika interviewer membahas role, ekspektasi kerja, responsibility, requirement, nice-to-have, atau closing question, gunakan JD seperlunya dan kaitkan ke CV hanya jika aman.",
+    "- Jika interviewer menutup dengan kesempatan bertanya, prioritaskan pertanyaan siap ucap dari JD/responsibility/nice-to-have; kaitkan CV hanya jika ada match yang benar-benar jelas.",
+    "- Jika konteksnya debat, reaksi, maksud tersirat, atau tekanan percakapan, prioritaskan conversation window terbaru dan general knowledge yang wajar.",
+    "- Jangan menyebut company, project, angka, tanggal, pendidikan, organisasi, internship, atau detail JD jika tidak tersedia di context.",
+    "- Jangan overfit ke contoh use case tertentu; ikuti intent percakapan terbaru dan kebutuhan tombol ini.",
+    payload.action === "followup"
+      ? "- Untuk follow-up, jangan selalu mengaitkan CV. Tanyakan hal yang paling membantu kandidat memahami kebutuhan interviewer."
+      : "",
+    payload.action === "explain"
+      ? "- Untuk penjelasan maksud, fokus pada apa yang sedang diuji atau disiratkan, lalu beri angle respons singkat."
+      : "",
+    payload.action === "keyword"
+      ? "- Untuk keyword, jelaskan keyword sesuai konteks percakapan, bukan sebagai topik lepas."
+      : ""
   ].filter(Boolean).join("\n");
 }
 
@@ -1206,43 +1336,6 @@ function extractRealtimeResponseText(event: Record<string, unknown>) {
   }).join("").trim();
 }
 
-function buildDummyResponse(type: string, triggerText: string | undefined, context: OverlayContext): HelpResponse {
-  const label = triggerText || type;
-  if (type === "followup") {
-    return {
-      title: "Bantu Follow-up",
-      kind: "help",
-      points: [
-        "Tanyakan metric utama yang paling diprioritaskan interviewer untuk role ini.",
-        "Minta contoh masalah nyata yang sedang dihadapi tim.",
-        "Hubungkan follow-up ke pengalaman kamu yang paling relevan."
-      ]
-    };
-  }
-
-  if (type === "explain") {
-    return {
-      title: "Jelaskan Maksudnya",
-      kind: "help",
-      points: [
-        "Interviewer ingin melihat apakah kamu paham konteks bisnis, bukan hanya istilah teknis.",
-        "Jawaban yang kuat menyebut problem, pendekatan, metric, dan trade-off.",
-        "Hindari jawaban terlalu umum tanpa contoh konkret."
-      ]
-    };
-  }
-
-  return {
-    title: type === "keyword" ? `Keyword: ${label}` : type === "ask" ? "Ask" : "Bantu Jawab",
-    kind: "help",
-    points: [
-      `Mulai dari konteks role ${context.roleTitle || "ini"} dan kebutuhan ${context.companyName || "company"}.`,
-      "Berikan struktur: problem, pendekatan, hasil yang diukur, lalu pembelajaran.",
-      "Akhiri dengan contoh singkat agar jawaban terasa grounded dan tidak generik."
-    ]
-  };
-}
-
 function formatTime(totalSeconds: number) {
   const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
   const seconds = String(totalSeconds % 60).padStart(2, "0");
@@ -1320,7 +1413,7 @@ function buildLocalRuntimeKeywords(question: string, context: OverlayContext, so
 
   const questionTokens = tokenizeText(question);
   const sourceTokens = tokenizeText(sourceText);
-  if (!questionTokens.size && !sourceTokens.size) {
+  if ((!questionTokens.size && !sourceTokens.size) || isLikelyTranscriptNoise(sourceText)) {
     return [];
   }
 
@@ -1330,6 +1423,9 @@ function buildLocalRuntimeKeywords(question: string, context: OverlayContext, so
     ...profile.seedConcepts,
     ...profile.inScopeConcepts,
     ...(context.realtimeContext?.applicationContext.roleRequirements || []),
+    ...(context.realtimeContext?.applicationContext.responsibilities || []),
+    ...(context.realtimeContext?.applicationContext.niceToHave || []),
+    ...(context.realtimeContext?.candidateContext.skills || []),
     ...(context.realtimeContext?.stageContext.focus || [])
   ]);
 
@@ -1344,8 +1440,8 @@ function buildLocalRuntimeKeywords(question: string, context: OverlayContext, so
     return [];
   }
 
-  const questionCandidates = buildQuestionKeywordCandidates(question, questionTokens, contextTokens, 2);
-  const sourceCandidates = buildQuestionKeywordCandidates(sourceText, sourceTokens, contextTokens, 1);
+  const questionCandidates = buildQuestionKeywordCandidates(question, questionTokens, contextTokens, 2, true);
+  const sourceCandidates = buildQuestionKeywordCandidates(sourceText, sourceTokens, contextTokens, 1, true);
   const scoredConcepts = contextConcepts
     .map((concept) => ({
       term: compactKeyword(concept),
@@ -1355,13 +1451,15 @@ function buildLocalRuntimeKeywords(question: string, context: OverlayContext, so
     .sort((left, right) => right.score - left.score)
     .map((item) => item.term);
 
-  const keywords = uniqueKeywords([...questionCandidates, ...sourceCandidates, ...scoredConcepts]).slice(0, 3);
+  const keywords = uniqueKeywords([...questionCandidates, ...sourceCandidates, ...scoredConcepts])
+    .filter(isUsefulRuntimeKeyword)
+    .slice(0, 3);
   if (keywords.length) {
     return keywords;
   }
 
   if (contextHit || isDomainRelatedText(question, context) || isDomainRelatedText(sourceText, context)) {
-    return contextConcepts.slice(0, 3).map(compactKeyword);
+    return contextConcepts.slice(0, 3).map(compactKeyword).filter(isUsefulRuntimeKeyword);
   }
 
   return [];
@@ -1389,7 +1487,13 @@ function scoreConcept(concept: string, question: string, questionTokens: Set<str
   return score;
 }
 
-function buildQuestionKeywordCandidates(question: string, questionTokens: Set<string>, contextTokens: Set<string>, questionWeight: number) {
+function buildQuestionKeywordCandidates(
+  question: string,
+  questionTokens: Set<string>,
+  contextTokens: Set<string>,
+  questionWeight: number,
+  allowStandalone = false
+) {
   const normalizedQuestion = question
     .replace(/[?!.,;:()"'`]+/g, " ")
     .replace(/\s+/g, " ")
@@ -1416,9 +1520,14 @@ function buildQuestionKeywordCandidates(question: string, questionTokens: Set<st
       const specificityScore = normalizedTokens.reduce((score, token) => score + (token.length >= 5 ? 1 : 0), 0);
       const acronymScore = phraseTokens.some((token) => /^[A-Z0-9]{2,}$/.test(token)) ? 2 : 0;
       const sizeScore = size > 1 ? size : 0;
+      const technicalSignalScore = normalizedTokens.filter(isProfessionalKeywordToken).length;
       const score = overlapScore * 3 + specificityScore + acronymScore + sizeScore + questionWeight;
 
-      if (overlapScore === 0 && acronymScore === 0) {
+      if (!allowStandalone && overlapScore === 0 && acronymScore === 0) {
+        continue;
+      }
+
+      if (allowStandalone && overlapScore === 0 && acronymScore === 0 && technicalSignalScore === 0 && specificityScore < 2) {
         continue;
       }
 
@@ -1446,6 +1555,18 @@ function toKeywordLabel(tokens: string[]) {
 
 function normalizeToken(token: string) {
   return token.toLowerCase().replace(/[^a-z0-9]+/gi, "").trim();
+}
+
+function isProfessionalKeywordToken(token: string) {
+  const signals = new Set([
+    "ai", "ml", "llm", "sql", "api", "etl", "nlp", "ocr", "rag", "data", "model", "models", "query",
+    "table", "join", "group", "order", "limit", "where", "customer", "transaction", "transaksi",
+    "pembelian", "forecast", "forecasting", "prediksi", "metric", "metrics", "evaluasi", "pipeline",
+    "inventory", "inventori", "supply", "demand", "marketing", "sales", "content", "konten",
+    "risk", "risiko", "strategy", "strategi", "process", "proses", "workflow", "product",
+    "requirement", "responsibility", "nice", "technical", "behavioral", "project", "proyek"
+  ]);
+  return signals.has(token) || token.length >= 7;
 }
 
 function tokenizeText(text: string) {
@@ -1487,6 +1608,74 @@ function compactKeyword(value: string) {
   }
 
   return `${trimmed.slice(0, 35).trim()}...`;
+}
+
+function isUsefulRuntimeKeyword(value: string) {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized || normalized.length < 3) {
+    return false;
+  }
+
+  const blocked = new Set([
+    "role",
+    "posisi",
+    "pengalaman",
+    "project",
+    "proyek",
+    "komunikasi",
+    "company",
+    "interview",
+    "application domain",
+    "domain profile belum cukup tajam"
+  ]);
+  if (blocked.has(normalized)) {
+    return false;
+  }
+
+  const tokens = [...tokenizeText(normalized)];
+  return tokens.length > 0 && tokens.some((token) => token.length >= 4 || isProfessionalKeywordToken(token));
+}
+
+function chooseMostCompleteTranscript(finalText: string, ...candidates: Array<string | undefined>): string {
+  const normalizedFinal = normalizeTranscriptText(finalText);
+  return candidates.reduce<string>((best, candidate) => {
+    const normalizedCandidate = normalizeTranscriptText(candidate || "");
+    if (!normalizedCandidate || isLikelyTranscriptNoise(normalizedCandidate)) {
+      return best;
+    }
+
+    return isMoreCompleteTranscript(normalizedCandidate, best) ? normalizedCandidate : best;
+  }, normalizedFinal);
+}
+
+function isMoreCompleteTranscript(candidate: string, current: string) {
+  if (!current) {
+    return true;
+  }
+
+  if (areSameTranscript(candidate, current)) {
+    return wordCount(candidate) > wordCount(current) || candidate.length > current.length + 20;
+  }
+
+  const candidateWords = wordCount(candidate);
+  const currentWords = wordCount(current);
+  return candidateWords >= currentWords + 4 && candidate.length >= current.length + 24;
+}
+
+function normalizeTranscriptText(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function wordCount(value: string) {
+  return tokenizeText(value).size;
+}
+
+function areSameTranscript(left: string, right: string) {
+  const normalize = (value: string) => value.replace(/\s+/g, " ").trim().toLowerCase();
+  const normalizedLeft = normalize(left);
+  const normalizedRight = normalize(right);
+  return Boolean(normalizedLeft && normalizedRight)
+    && (normalizedLeft.includes(normalizedRight) || normalizedRight.includes(normalizedLeft));
 }
 
 function looksLikeInterviewerQuestion(text: string) {
