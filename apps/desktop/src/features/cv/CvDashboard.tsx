@@ -573,7 +573,7 @@ export function CvDashboard() {
         await refreshApplications();
       }
       setStatus("idle");
-      setMessage("Interview ended. Summary dummy sudah tersimpan di round.");
+      setMessage("Interview ended. Transcript terbaru sudah tersimpan di round.");
     } catch (error) {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "Gagal end interview.");

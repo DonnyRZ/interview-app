@@ -1,5 +1,6 @@
 import type { RealtimeContext } from "@interview-app/shared";
 import type { ActionSpec } from "../action-types.js";
+import { formatInterviewContextForPrompt, interviewContextUsagePolicy } from "./interview-context-format.js";
 
 export type GenerateInterviewExplanationInput = {
   interviewerQuestion: string;
@@ -16,12 +17,15 @@ export const generateInterviewExplanationSpec: ActionSpec<GenerateInterviewExpla
     "Baca pertanyaan interviewer dan realtimeContext application.",
     "Jelaskan secara singkat maksud atau tujuan di balik pertanyaan interviewer.",
     "Sebutkan 1-3 hal yang kemungkinan sedang diuji interviewer.",
+    "Pilih sumber konteks yang paling tepat: recentTranscript, general knowledge, CV, JD, atau gabungan CV/JD yang aman.",
     "Berikan angle jawaban aman agar kandidat bisa merespons dengan tepat tanpa mengarang."
   ].join("\n"),
   policyRules: [
+    ...interviewContextUsagePolicy,
     "Penjelasan harus ringkas, natural, dan mudah discan cepat di overlay.",
     "Jangan mengklaim pengalaman, angka, tools, company, atau pencapaian yang tidak ada di CV context.",
-    "Jika pertanyaan teknis/domain, gunakan domainProfile sebagai boundary relevansi.",
+    "Jelaskan statement, reaksi, debat, atau implied question meskipun kalimat interviewer bukan pertanyaan formal.",
+    "Jika pertanyaan teknis/domain, gunakan domainProfile sebagai bantuan relevansi, bukan kewajiban untuk selalu mengaitkan CV/JD.",
     "Jika pertanyaan interviewer tidak cukup jelas, jelaskan ketidakjelasannya secara aman dan sarankan klarifikasi singkat.",
     "Prioritaskan 2-4 poin total yang pendek, bukan penjelasan panjang.",
     "Gunakan bahasa yang sama dengan pertanyaan interviewer jika jelas; jika tidak jelas, gunakan bahasa Indonesia.",
@@ -48,27 +52,5 @@ ${input.interviewerQuestion.trim() || "unknown"}
 - recentTranscript:
 ${input.recentTranscript?.trim() || "unknown"}
 
-- candidateContext:
-  - summary: ${input.realtimeContext.candidateContext.summary || "unknown"}
-  - readyContext: ${input.realtimeContext.candidateContext.readyContext || "unknown"}
-  - skills: ${input.realtimeContext.candidateContext.skills.join(", ") || "none"}
-  - relevantExperience: ${input.realtimeContext.candidateContext.relevantExperience.join(", ") || "none"}
-
-- applicationContext:
-  - companyName: ${input.realtimeContext.applicationContext.companyName}
-  - roleTitle: ${input.realtimeContext.applicationContext.roleTitle}
-  - jdSummary: ${input.realtimeContext.applicationContext.jdSummary || "unknown"}
-  - roleRequirements: ${input.realtimeContext.applicationContext.roleRequirements.join(", ") || "none"}
-
-- domainProfile:
-  - primaryDomain: ${input.realtimeContext.domainProfile.primaryDomain || "unknown"}
-  - nicheDescription: ${input.realtimeContext.domainProfile.nicheDescription || "unknown"}
-  - inScopeConcepts: ${input.realtimeContext.domainProfile.inScopeConcepts.join(", ") || "none"}
-  - outOfScopeConcepts: ${input.realtimeContext.domainProfile.outOfScopeConcepts.join(", ") || "none"}
-  - seedConcepts: ${input.realtimeContext.domainProfile.seedConcepts.join(", ") || "none"}
-  - relevanceGuidance: ${input.realtimeContext.domainProfile.relevanceGuidance || "unknown"}
-
-- stageContext:
-  - stageType: ${input.realtimeContext.stageContext.stageType}
-  - focus: ${input.realtimeContext.stageContext.focus.join(", ") || "none"}`
+${formatInterviewContextForPrompt(input.realtimeContext)}`
 };

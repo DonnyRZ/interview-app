@@ -1,18 +1,10 @@
+import type { RealtimeContext } from "@interview-app/shared";
 import type { ActionSpec } from "../action-types.js";
+import { formatInterviewContextForPrompt } from "./interview-context-format.js";
 
 export type SurfaceRealtimeKeywordsInput = {
-  companyName: string;
-  roleTitle: string;
-  stageType: string;
   transcriptSegment: string;
-  domainProfile: {
-    primaryDomain?: string;
-    nicheDescription?: string;
-    inScopeConcepts?: string[];
-    outOfScopeConcepts?: string[];
-    seedConcepts?: string[];
-    relevanceGuidance?: string;
-  };
+  realtimeContext: RealtimeContext;
 };
 
 export const surfaceRealtimeKeywordsSpec: ActionSpec<SurfaceRealtimeKeywordsInput> = {
@@ -21,16 +13,16 @@ export const surfaceRealtimeKeywordsSpec: ActionSpec<SurfaceRealtimeKeywordsInpu
   goal: "Memilih keyword interview yang paling membantu dari ucapan interviewer dengan relevansi berlapis terhadap CV + JD.",
   role: "Kamu adalah classifier keyword realtime untuk overlay interview.",
   task: [
-    "Baca domainProfile application dan potongan transcript interviewer terbaru.",
+    "Baca realtimeContext application dan potongan transcript interviewer terbaru.",
     "Nilai relevansi transcript secara berlapis, bukan hanya irisan niche yang paling sempit.",
-    "Layer yang boleh dianggap relevan: core role/domain, skill domain, business domain, adjacent knowledge yang wajar untuk interview, dan macro/contextual factor yang memengaruhi domain.",
+    "Layer yang boleh dianggap relevan: core role/domain, skill kandidat, responsibility JD, business domain, adjacent knowledge yang wajar untuk interview, dan macro/contextual factor yang memengaruhi domain.",
     "Jika transcript masuk salah satu layer relevansi tersebut, pilih maksimal 3 keyword spesifik yang membantu kandidat terdengar luas tetapi tetap nyambung.",
     "Jika transcript benar-benar tidak terkait dengan role, JD, candidate context, business domain, atau adjacent knowledge yang wajar, kembalikan keywords kosong dan shouldExpandOverlay false."
   ].join("\n"),
   policyRules: [
-    "Jangan menampilkan keyword hanya karena istilah itu terdengar penting secara umum; harus ada alasan relevansi terhadap CV + JD atau role.",
+    "Jangan menampilkan keyword hanya karena istilah itu terdengar penting secara umum; harus ada alasan relevansi terhadap percakapan terbaru, CV, JD, atau role.",
     "Keyword boleh berasal dari core niche, skill utama role, konsep umum bidang kerja, business process, domain industry, atau faktor eksternal yang logis memengaruhi role.",
-    "Pertanyaan generic tidak otomatis out-of-scope jika generic itu masih menguji kompetensi role atau bidang kerja kandidat.",
+    "Pertanyaan generic tidak otomatis out-of-scope jika generic itu masih menguji kompetensi role, skill kandidat, bidang kerja, atau professional judgment.",
     "Seed concepts hanya referensi domain, bukan daftar wajib match.",
     "Out-of-scope berarti topik yang tidak punya hubungan wajar dengan role, JD, kandidat, business domain, atau adjacent professional knowledge.",
     "Jika transcript membahas konsep true out-of-scope, return keywords kosong.",
@@ -62,17 +54,7 @@ export const surfaceRealtimeKeywordsSpec: ActionSpec<SurfaceRealtimeKeywordsInpu
   "evidence": [{ "field": "string", "source": "string", "quote": "string" }]
 }`,
   buildContext: (input) => `Runtime payload:
-- companyName: ${input.companyName}
-- roleTitle: ${input.roleTitle}
-- stageType: ${input.stageType}
-
-- domainProfile:
-  - primaryDomain: ${input.domainProfile.primaryDomain || "unknown"}
-  - nicheDescription: ${input.domainProfile.nicheDescription || "unknown"}
-  - inScopeConcepts: ${(input.domainProfile.inScopeConcepts || []).join(", ") || "none"}
-  - outOfScopeConcepts: ${(input.domainProfile.outOfScopeConcepts || []).join(", ") || "none"}
-  - seedConcepts: ${(input.domainProfile.seedConcepts || []).join(", ") || "none"}
-  - relevanceGuidance: ${input.domainProfile.relevanceGuidance || "unknown"}
+${formatInterviewContextForPrompt(input.realtimeContext)}
 
 - latestInterviewerTranscriptSegment:
 ${input.transcriptSegment.trim() || "unknown"}`

@@ -11,12 +11,51 @@ export const realtimeDomainProfileSchema = z.object({
   relevanceGuidance: z.string()
 });
 
+export const realtimeCandidateExperienceSchema = z.object({
+  companyName: z.string(),
+  roleTitle: z.string(),
+  dateRange: z.string(),
+  duration: z.string(),
+  projects: z.array(z.string()),
+  responsibilities: z.array(z.string()),
+  impact: z.array(z.string()),
+  technologies: z.array(z.string())
+});
+
+export const realtimeCandidateEducationSchema = z.object({
+  institution: z.string(),
+  degree: z.string(),
+  major: z.string(),
+  dateRange: z.string(),
+  notes: z.array(z.string())
+});
+
+export const realtimeCandidateOrganizationSchema = z.object({
+  organizationName: z.string(),
+  roleTitle: z.string(),
+  dateRange: z.string(),
+  responsibilities: z.array(z.string())
+});
+
+export const realtimeCandidateInternshipSchema = z.object({
+  companyName: z.string(),
+  roleTitle: z.string(),
+  dateRange: z.string(),
+  duration: z.string(),
+  responsibilities: z.array(z.string()),
+  projects: z.array(z.string())
+});
+
 export const realtimeContextSchema = z.object({
   candidateContext: z.object({
     summary: z.string(),
     readyContext: z.string(),
     skills: z.array(z.string()),
     relevantExperience: z.array(z.string()),
+    experiences: z.array(realtimeCandidateExperienceSchema),
+    education: z.array(realtimeCandidateEducationSchema),
+    organizations: z.array(realtimeCandidateOrganizationSchema),
+    internships: z.array(realtimeCandidateInternshipSchema),
     strengthsForInterview: z.array(z.string()),
     risks: z.array(z.string())
   }),
@@ -25,6 +64,8 @@ export const realtimeContextSchema = z.object({
     roleTitle: z.string(),
     jdSummary: z.string(),
     roleRequirements: z.array(z.string()),
+    responsibilities: z.array(z.string()),
+    niceToHave: z.array(z.string()),
     interviewPrepThemes: z.array(z.string()),
     applicationContext: z.string()
   }),
@@ -195,6 +236,10 @@ export const interviewRoundListResponseSchema = z.object({
 
 export type InterviewStage = z.infer<typeof interviewStageSchema>;
 export type RealtimeDomainProfile = z.infer<typeof realtimeDomainProfileSchema>;
+export type RealtimeCandidateExperience = z.infer<typeof realtimeCandidateExperienceSchema>;
+export type RealtimeCandidateEducation = z.infer<typeof realtimeCandidateEducationSchema>;
+export type RealtimeCandidateOrganization = z.infer<typeof realtimeCandidateOrganizationSchema>;
+export type RealtimeCandidateInternship = z.infer<typeof realtimeCandidateInternshipSchema>;
 export type RealtimeContext = z.infer<typeof realtimeContextSchema>;
 export type InterviewRound = z.infer<typeof interviewRoundSchema>;
 export type StartInterviewRequest = z.infer<typeof startInterviewRequestSchema>;

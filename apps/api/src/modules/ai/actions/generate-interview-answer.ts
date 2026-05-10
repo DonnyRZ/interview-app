@@ -1,5 +1,6 @@
 import type { RealtimeContext } from "@interview-app/shared";
 import type { ActionSpec } from "../action-types.js";
+import { formatInterviewContextForPrompt, interviewContextUsagePolicy } from "./interview-context-format.js";
 
 export type GenerateInterviewAnswerInput = {
   interviewerQuestion: string;
@@ -15,16 +16,18 @@ export const generateInterviewAnswerSpec: ActionSpec<GenerateInterviewAnswerInpu
   task: [
     "Baca pertanyaan interviewer dan realtimeContext application.",
     "Buat jawaban singkat yang bisa langsung diucapkan kandidat.",
-    "Hubungkan jawaban dengan pengalaman kandidat, role, JD, dan domain/niche jika relevan.",
-    "Jika pertanyaan cocok dengan outOfScopeConcepts, jawab secara umum dan profesional tanpa memaksakan domain/niche application.",
+    "Pilih sumber konteks yang paling tepat: recentTranscript, general knowledge, CV, JD, atau gabungan CV/JD yang aman.",
+    "Hubungkan jawaban dengan pengalaman kandidat, role, JD, dan domain/niche hanya jika memang relevan.",
+    "Jika pertanyaan teknis/proses kerja bisa dijawab tanpa data kandidat, jawab langsung tanpa memaksakan CV/JD.",
     "Jika pertanyaan belum jelas atau konteks tidak cukup, jangan mengarang; berikan jawaban klarifikasi yang aman."
   ].join("\n"),
   policyRules: [
+    ...interviewContextUsagePolicy,
     "Jawaban harus terdengar seperti kandidat manusia, bukan seperti AI atau naskah panjang.",
     "Jangan mengklaim pengalaman, angka, tools, company, atau pencapaian yang tidak ada di CV context.",
     "Jika informasi CV tidak cukup, gunakan framing umum yang jujur dan tandai missingInputs.",
-    "Prioritaskan jawaban 2-3 kalimat, maksimal sekitar 65 kata.",
-    "Untuk pertanyaan teknis/domain, gunakan domainProfile sebagai boundary relevansi.",
+    "Prioritaskan jawaban dalam 3-5 poin singkat yang siap dibaca kandidat.",
+    "Untuk pertanyaan teknis/domain, gunakan domainProfile sebagai bantuan relevansi, bukan kewajiban untuk selalu mengaitkan jawaban.",
     "Jika pertanyaan interviewer tidak relevan dengan role/JD, tetap jawab secara profesional tanpa memaksakan keyword domain.",
     "Jika pertanyaan membahas konsep out-of-scope, jangan mengaitkannya ke company, domain application, atau niche lain kecuali interviewer menyebutnya eksplisit.",
     "Untuk kasus out-of-scope, aturan ini berlaku untuk semua field output: answerDraft, keyPoints, followUpNote, warnings, dan evidence.",
@@ -38,7 +41,7 @@ export const generateInterviewAnswerSpec: ActionSpec<GenerateInterviewAnswerInpu
   "status": "success | partial | insufficient_input | needs_human_review | failed_policy",
   "result": {
     "shouldAnswer": true,
-    "answerDraft": "jawaban singkat siap diucapkan, maksimal 65 kata",
+    "answerDraft": "jawaban singkat siap diucapkan, sebaiknya berbentuk 3-5 poin",
     "keyPoints": ["maksimal 3 poin pendukung, pendek"],
     "followUpNote": "catatan singkat jika kandidat perlu klarifikasi, boleh string kosong"
   },
@@ -54,31 +57,5 @@ ${input.interviewerQuestion.trim() || "unknown"}
 - recentTranscript:
 ${input.recentTranscript?.trim() || "unknown"}
 
-- candidateContext:
-  - summary: ${input.realtimeContext.candidateContext.summary || "unknown"}
-  - readyContext: ${input.realtimeContext.candidateContext.readyContext || "unknown"}
-  - skills: ${input.realtimeContext.candidateContext.skills.join(", ") || "none"}
-  - relevantExperience: ${input.realtimeContext.candidateContext.relevantExperience.join(", ") || "none"}
-  - strengthsForInterview: ${input.realtimeContext.candidateContext.strengthsForInterview.join(", ") || "none"}
-  - risks: ${input.realtimeContext.candidateContext.risks.join(", ") || "none"}
-
-- applicationContext:
-  - companyName: ${input.realtimeContext.applicationContext.companyName}
-  - roleTitle: ${input.realtimeContext.applicationContext.roleTitle}
-  - jdSummary: ${input.realtimeContext.applicationContext.jdSummary || "unknown"}
-  - roleRequirements: ${input.realtimeContext.applicationContext.roleRequirements.join(", ") || "none"}
-  - interviewPrepThemes: ${input.realtimeContext.applicationContext.interviewPrepThemes.join(", ") || "none"}
-  - applicationContext: ${input.realtimeContext.applicationContext.applicationContext || "unknown"}
-
-- domainProfile:
-  - primaryDomain: ${input.realtimeContext.domainProfile.primaryDomain || "unknown"}
-  - nicheDescription: ${input.realtimeContext.domainProfile.nicheDescription || "unknown"}
-  - inScopeConcepts: ${input.realtimeContext.domainProfile.inScopeConcepts.join(", ") || "none"}
-  - outOfScopeConcepts: ${input.realtimeContext.domainProfile.outOfScopeConcepts.join(", ") || "none"}
-  - seedConcepts: ${input.realtimeContext.domainProfile.seedConcepts.join(", ") || "none"}
-  - relevanceGuidance: ${input.realtimeContext.domainProfile.relevanceGuidance || "unknown"}
-
-- stageContext:
-  - stageType: ${input.realtimeContext.stageContext.stageType}
-  - focus: ${input.realtimeContext.stageContext.focus.join(", ") || "none"}`
+${formatInterviewContextForPrompt(input.realtimeContext)}`
 };

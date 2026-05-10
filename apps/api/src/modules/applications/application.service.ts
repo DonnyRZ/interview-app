@@ -87,6 +87,8 @@ function normalizeApplicationResult(result: PreprocessApplicationJdResult): Prep
     result: {
       ...result.result,
       jdSummary: truncateText(result.result.jdSummary, 220),
+      responsibilities: compactList(result.result.responsibilities, 8, 120),
+      niceToHave: compactList(result.result.niceToHave, 8, 120),
       domainProfile: {
         ...domainProfile,
         primaryDomain: truncateText(domainProfile.primaryDomain, 90),
@@ -113,6 +115,8 @@ function buildFallbackApplicationResult(
     result: {
       jdSummary: `${input.roleTitle} di ${input.companyName}. JD preview: ${jdPreview}`,
       roleRequirements: [],
+      responsibilities: input.jobDescription ? extractFallbackConcepts(input.jobDescription) : [],
+      niceToHave: [],
       domainProfile: {
         primaryDomain: input.roleTitle,
         nicheDescription: input.jobDescription

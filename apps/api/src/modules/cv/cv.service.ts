@@ -152,6 +152,10 @@ function buildFailedCvResult(fileName: string, warning: string): PreprocessCvRes
       candidateSummary: `CV ${fileName} sudah tersimpan, tetapi belum berhasil diproses AI.`,
       skills: [],
       relevantExperience: [],
+      experiences: [],
+      education: [],
+      organizations: [],
+      internships: [],
       strengthsForInterview: [],
       risks: ["Context CV masih terbatas karena preprocessing AI gagal."],
       readyContext: ""
