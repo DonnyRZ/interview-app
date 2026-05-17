@@ -9,7 +9,7 @@ Dokumen ini adalah aturan ringkas untuk semua prompt di modul AI backend.
 - Stable instruction harus dipisah dari runtime payload. Prompt berisi aturan yang relatif stabil; payload berisi data request seperti CV, JD, transcript, domain profile, dan metadata.
 - Prompt harus dirakit lewat `prompt-builder.ts`. File lain boleh memilih spec dan menjalankan action, tapi jangan merakit prompt sendiri.
 - Validasi tidak boleh hanya mengandalkan prompt. Output tetap harus dicek lewat schema, policy, dan guardrail kode.
-- Catatan current build: live Realtime action text masih dirakit di desktop overlay untuk trigger `gpt-realtime-mini`. Ini adalah pengecualian sementara untuk jalur WebSocket live, bukan pola ideal untuk prompt backend baru.
+- Catatan current build: live Realtime action text masih dirakit di `apps/desktop/src/features/overlay/realtime-action-prompt.ts` untuk trigger `gpt-realtime-mini`. Ini adalah pengecualian sementara untuk jalur WebSocket live, bukan pola ideal untuk prompt backend baru.
 
 ## Struktur File
 
@@ -62,9 +62,12 @@ Jangan menaruh prompt/instruksi model di:
 
 Pengecualian sementara:
 
-- `InterviewOverlay.tsx` boleh memiliki action instruction pendek untuk live Realtime trigger selama runtime live masih langsung berbicara dengan OpenAI Realtime WebSocket dari desktop.
-- Instruksi di overlay harus terbatas pada action live seperti `BANTU_JAWAB`, `BANTU_FOLLOWUP`, `JELASKAN_MAKSUDNYA`, `EXPLAIN_KEYWORD`, dan `ASK`.
-- Jangan menambahkan prompt preprocessing CV/JD, summary, scoring, atau business logic AI baru ke overlay.
+- `apps/api/src/modules/ai/actions/realtime-interview-session.ts` dan `apps/api/src/modules/ai/actions/realtime-interview-transcription.ts` boleh berupa builder instruksi Realtime, bukan `ActionSpec`, karena konfigurasi Realtime session/client secret tidak berjalan lewat `action-runner.ts`.
+- Prompt Realtime backend tetap harus berada di `ai/actions/`, bukan di `openai.client.ts`, route, atau service interview.
+- `apps/desktop/src/features/overlay/realtime-action-prompt.ts` boleh memiliki action instruction pendek untuk live Realtime trigger selama runtime live masih langsung berbicara dengan OpenAI Realtime WebSocket dari desktop.
+- React component seperti `InterviewOverlay.tsx` tidak boleh menampung prompt/instruksi model; component hanya boleh memanggil builder prompt yang sudah dipisahkan.
+- Instruksi di `realtime-action-prompt.ts` harus terbatas pada action live seperti `BANTU_JAWAB`, `BANTU_FOLLOWUP`, `JELASKAN_MAKSUDNYA`, `EXPLAIN_KEYWORD`, dan `ASK`.
+- Jangan menambahkan prompt preprocessing CV/JD, summary, scoring, atau business logic AI baru ke overlay/desktop.
 - Jika realtime action prompt makin besar atau kompleks, pindahkan ke modul bersama/backend agar governance prompt kembali terpusat.
 
 ## Runtime Context
@@ -96,7 +99,9 @@ Untuk interview near real-time:
 - CV + JD diproses sebelum interview menjadi domain/niche context.
 - Saat interview berjalan, transcript hanya menjadi runtime payload.
 - Keyword atau bantuan interview harus diputuskan oleh action khusus yang membaca transcript + domain profile.
-- Overlay live saat ini boleh mengirim trigger/action text pendek ke Realtime session, tetapi tidak boleh menjadi tempat prompt besar atau preprocessing logic.
+- Runtime keyword chips bersifat opsional dan evidence-based. Jangan memunculkan chip hanya dari seed/domain profile jika transcript terbaru belum memunculkan atau menyiratkan konsep konkret.
+- Prompt dan heuristic keyword harus role-neutral; jangan default ke vocabulary satu bidang tertentu ketika role/JD/CV tidak mendukungnya.
+- Overlay live saat ini boleh mengirim trigger/action text pendek ke Realtime session melalui `realtime-action-prompt.ts`, tetapi tidak boleh menjadi tempat prompt besar atau preprocessing logic.
 - Default arah jangka panjang tetap: stable AI rules dikelola di backend/module AI, runtime payload tetap data.
 
 Target desainnya: prompt tetap terkontrol, sementara data interview bisa mengalir cepat.

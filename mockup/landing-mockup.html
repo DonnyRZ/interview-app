@@ -1,0 +1,1871 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Orviko Landing Mockup</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --bg-soft: #f3f8ff;
+      --line: rgba(73, 116, 186, 0.16);
+      --line-strong: rgba(73, 116, 186, 0.28);
+      --text: #12305e;
+      --muted: #3f5b82;
+      --muted-soft: #6880a6;
+      --blue: #2d74ff;
+      --blue-deep: #1657d8;
+      --blue-pale: #ebf4ff;
+      --shadow: 0 28px 80px rgba(42, 98, 192, 0.16);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(114, 187, 255, 0.20), transparent 26%),
+        linear-gradient(180deg, #f5fbff 0%, #ffffff 46%, #ffffff 100%);
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    .page {
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    .hero-shell {
+      position: relative;
+      min-height: 100vh;
+      isolation: isolate;
+      background:
+        linear-gradient(180deg, rgba(235, 247, 255, 0.02) 0%, rgba(255, 255, 255, 0.00) 30%, rgba(255, 255, 255, 0.72) 82%, #ffffff 100%),
+        url("./assets/Hero Section Background.png") center top / cover no-repeat;
+    }
+
+    .hero-shell::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.22) 52%, rgba(255, 255, 255, 0.34) 100%),
+        radial-gradient(ellipse at 50% 34%, rgba(255, 255, 255, 0.64) 0%, rgba(246, 251, 255, 0.44) 22%, rgba(246, 251, 255, 0.18) 44%, transparent 66%),
+        radial-gradient(circle at 50% 22%, rgba(235, 246, 255, 0.28), rgba(235, 246, 255, 0.08) 26%, transparent 52%),
+        linear-gradient(180deg, rgba(219, 241, 255, 0.06) 0%, rgba(255, 255, 255, 0.00) 24%, rgba(255, 255, 255, 0.00) 72%, rgba(255, 255, 255, 0.88) 100%);
+      pointer-events: none;
+    }
+
+    .hero-shell::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: -1px;
+      height: 220px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.72) 56%, #ffffff 100%);
+      pointer-events: none;
+    }
+
+    .container {
+      width: min(1180px, calc(100% - 40px));
+      margin: 0 auto;
+    }
+
+    .site-header {
+      position: relative;
+      z-index: 3;
+      padding-top: 18px;
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 12px 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.52);
+      background: rgba(255, 255, 255, 0.40);
+      box-shadow: 0 16px 44px rgba(72, 129, 211, 0.14);
+      backdrop-filter: blur(18px);
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+      padding: 6px 10px 6px 8px;
+      border-radius: 999px;
+      background: rgba(98, 151, 233, 0.12);
+    }
+
+    .brand-mark {
+      width: clamp(34px, 4vw, 44px);
+      height: auto;
+      display: block;
+      filter: drop-shadow(0 10px 20px rgba(89, 132, 214, 0.18));
+      flex: 0 0 auto;
+    }
+
+    .brand-name {
+      font-size: clamp(1.22rem, 1.4vw, 1.62rem);
+      line-height: 1;
+      font-weight: 780;
+      letter-spacing: -0.035em;
+      color: #1d4481;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      color: #3d5d8c;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .nav-links a {
+      transition: opacity 0.2s ease;
+    }
+
+    .nav-links a:hover {
+      opacity: 0.72;
+    }
+
+    .cta-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      min-height: 48px;
+      padding: 0 20px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .btn-primary {
+      color: #ffffff;
+      background: linear-gradient(135deg, #2e7dff 0%, #246df0 45%, #4aa3ff 100%);
+      box-shadow: 0 18px 38px rgba(37, 107, 227, 0.28);
+    }
+
+    .btn-secondary {
+      color: #0d2954;
+      border-color: rgba(89, 132, 214, 0.20);
+      background: rgba(255, 255, 255, 0.74);
+      backdrop-filter: blur(12px);
+    }
+
+    .windows-icon {
+      width: 15px;
+      height: 15px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 2px;
+      flex: 0 0 auto;
+    }
+
+    .windows-icon span {
+      display: block;
+      background: currentColor;
+      border-radius: 1px;
+    }
+
+    .floating-cta {
+      position: fixed;
+      top: 12px;
+      right: 14px;
+      z-index: 30;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-8px);
+      transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
+    }
+
+    .floating-cta.visible {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+
+    .floating-cta .btn {
+      min-height: 42px;
+      padding: 0 16px;
+      font-size: 13px;
+      box-shadow: 0 14px 30px rgba(37, 107, 227, 0.28);
+    }
+
+    .hero {
+      position: relative;
+      z-index: 2;
+      padding: 84px 0 150px;
+    }
+
+    .hero-inner {
+      max-width: 760px;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    .eyebrow {
+      width: fit-content;
+      margin: 0 auto 20px;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 38px;
+      padding: 0 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.62);
+      background: rgba(28, 70, 132, 0.28);
+      color: #ffffff;
+      font-size: 13px;
+      font-weight: 700;
+      backdrop-filter: blur(12px);
+      box-shadow:
+        0 10px 24px rgba(86, 140, 218, 0.14),
+        inset 0 1px 0 rgba(255, 255, 255, 0.28);
+      text-shadow: 0 1px 8px rgba(16, 46, 92, 0.42);
+    }
+
+    .eyebrow-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #5ee1ff;
+      box-shadow: 0 0 0 6px rgba(94, 225, 255, 0.16);
+    }
+
+    h1 {
+      margin: 0;
+      color: #173c74;
+      font-size: clamp(3rem, 7vw, 5.7rem);
+      line-height: 0.96;
+      letter-spacing: -0.075em;
+      font-weight: 760;
+      text-shadow:
+        0 2px 0 rgba(255, 255, 255, 0.52),
+        0 18px 42px rgba(255, 255, 255, 0.46),
+        0 18px 40px rgba(19, 57, 112, 0.10);
+    }
+
+    .hero-sub {
+      max-width: 700px;
+      margin: 22px auto 0;
+      color: #35527d;
+      font-size: clamp(1rem, 1.9vw, 1.35rem);
+      line-height: 1.65;
+      font-weight: 640;
+      text-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.76),
+        0 12px 28px rgba(255, 255, 255, 0.54);
+    }
+
+    .hero-actions {
+      margin-top: 30px;
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .hero-spacer {
+      height: 44px;
+    }
+
+    .interactive-demo-section {
+      position: relative;
+      z-index: 4;
+      margin-top: -112px;
+      padding: 0 0 48px;
+    }
+
+    .demo-section-title {
+      margin: 0 auto 18px;
+      color: #173760;
+      font-size: clamp(1.5rem, 3vw, 2.45rem);
+      line-height: 1.08;
+      font-weight: 950;
+      text-align: center;
+      letter-spacing: -0.04em;
+      text-shadow:
+        0 2px 0 rgba(255, 255, 255, 0.68),
+        0 18px 34px rgba(30, 70, 132, 0.16);
+    }
+
+    .demo-title-ask {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 1.08em;
+      padding: 0.02em 0.38em 0.08em;
+      border-radius: 999px;
+      color: #0b326f;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(226, 241, 255, 0.96) 100%);
+      border: 1px solid rgba(51, 116, 214, 0.22);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.82),
+        inset 0 -2px 0 rgba(60, 129, 236, 0.10),
+        0 10px 22px rgba(36, 99, 191, 0.16);
+      letter-spacing: -0.035em;
+      line-height: 1;
+      text-shadow: none;
+      vertical-align: -0.04em;
+    }
+
+    .interactive-demo-frame {
+      --demo-scale: 0.78;
+      position: relative;
+      margin: 0 auto;
+      width: min(100%, 1100px);
+      height: calc(760px * var(--demo-scale));
+    }
+
+    .interactive-demo-canvas {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      width: 1280px;
+      height: 760px;
+      border-radius: 30px;
+      overflow: hidden;
+      background: #d9e8f7;
+      border: 1px solid rgba(52, 93, 158, 0.24);
+      box-shadow:
+        0 0 0 8px rgba(45, 116, 255, 0.08),
+        0 18px 34px rgba(21, 58, 112, 0.22),
+        0 46px 96px rgba(37, 92, 176, 0.26);
+      transform: translateX(-50%) scale(var(--demo-scale));
+      transform-origin: top center;
+    }
+
+    .demo-stage {
+      position: absolute;
+      inset: 0;
+      background: #d9e8f7 url("./assets/walpaper-2.png") center center / 100% 100% no-repeat;
+      overflow: hidden;
+    }
+
+    .demo-stage::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(180deg, rgba(247, 251, 255, 0.10), rgba(8, 21, 45, 0.08)),
+        radial-gradient(circle at top left, rgba(255, 255, 255, 0.30), transparent 34%);
+    }
+
+    .interview-video-window {
+      position: absolute;
+      left: 50%;
+      top: 104px;
+      width: 880px;
+      overflow: hidden;
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.34);
+      background: #05070b;
+      box-shadow: 0 26px 70px rgba(18, 49, 97, 0.30);
+      transform: translateX(-50%);
+      z-index: 1;
+    }
+
+    .interview-video-window video {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    .demo-overlay {
+      position: absolute;
+      top: 42px;
+      left: 462px;
+      color: #ffffff;
+      user-select: none;
+      z-index: 2;
+    }
+
+    .demo-overlay.dragging {
+      cursor: grabbing;
+    }
+
+    .demo-mini-shell {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 46px;
+      padding: 7px;
+      border-radius: 999px;
+      background: rgba(17, 19, 24, 0.68);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: 0 18px 46px rgba(0, 0, 0, 0.34);
+      backdrop-filter: blur(18px);
+      cursor: grab;
+    }
+
+    .demo-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 32px;
+      padding: 0 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.09);
+      color: rgba(255, 255, 255, 0.92);
+      font-size: 13px;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    .demo-chip.warn {
+      color: #fde68a;
+    }
+
+    .demo-pulse {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 0 0 5px rgba(34, 197, 94, 0.16);
+    }
+
+    .demo-btn,
+    .demo-action-btn,
+    .demo-keyword-btn {
+      min-height: 34px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: rgba(255, 255, 255, 0.10);
+      color: #ffffff;
+      padding: 0 12px;
+      font-weight: 850;
+      cursor: pointer;
+    }
+
+    .demo-end-btn {
+      width: 34px;
+      min-width: 34px;
+      min-height: 34px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      background: #dc2626;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .demo-end-btn::before {
+      content: "";
+      width: 11px;
+      height: 11px;
+      border-radius: 2px;
+      background: #ffffff;
+      position: absolute;
+      inset: 0;
+      margin: auto;
+    }
+
+    .demo-expanded-shell {
+      display: none;
+      width: 560px;
+      height: 440px;
+      padding: 10px;
+      overflow: hidden;
+      background: transparent;
+    }
+
+    .demo-expanded-shell.active {
+      display: grid;
+    }
+
+    .demo-expanded-shell.with-response {
+      width: 900px;
+      grid-template-columns: minmax(320px, 0.82fr) minmax(360px, 1fr);
+      gap: 10px;
+      align-items: start;
+    }
+
+    .demo-overlay-panel {
+      display: grid;
+      gap: 10px;
+      width: 100%;
+      height: 100%;
+      max-height: 100%;
+      min-height: 0;
+      overflow-y: auto;
+      border-radius: 14px;
+      padding: 14px;
+      align-content: start;
+      grid-auto-rows: max-content;
+      background: rgba(17, 19, 24, 0.70);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: 0 18px 46px rgba(0, 0, 0, 0.34);
+      backdrop-filter: blur(18px);
+      cursor: grab;
+    }
+
+    .demo-overlay-panel.compact-when-response .demo-question-card,
+    .demo-overlay-panel.compact-when-response .demo-actions,
+    .demo-overlay-panel.compact-when-response .demo-keyword-empty-card {
+      display: none;
+    }
+
+    .demo-response-shell {
+      display: none;
+      width: 100%;
+      max-height: 100%;
+      overflow-y: auto;
+      padding: 14px;
+      border-radius: 14px;
+      background: rgba(17, 19, 24, 0.74);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: 0 18px 46px rgba(0, 0, 0, 0.34);
+      backdrop-filter: blur(18px);
+    }
+
+    .demo-response-shell.active {
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    .demo-overlay-top,
+    .demo-response-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .demo-kicker {
+      margin: 0 0 5px;
+      color: rgba(255, 255, 255, 0.58);
+      font-size: 12px;
+      font-weight: 850;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .demo-title {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.1;
+      font-weight: 950;
+      color: #ffffff;
+    }
+
+    .demo-sub {
+      margin: 0;
+      color: rgba(255, 255, 255, 0.76);
+      line-height: 1.4;
+    }
+
+    .demo-audio {
+      margin: 6px 0 0;
+      color: rgba(255, 255, 255, 0.58);
+      font-size: 12px;
+    }
+
+    .demo-card {
+      display: grid;
+      gap: 8px;
+      padding: 11px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.10);
+    }
+
+    .demo-card p,
+    .demo-response-shell li {
+      margin: 0;
+      color: rgba(255, 255, 255, 0.76);
+      line-height: 1.45;
+    }
+
+    .demo-overlay-panel .demo-card:first-of-type {
+      max-height: 112px;
+      overflow-y: auto;
+    }
+
+    .demo-actions {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .demo-action-btn {
+      min-height: 42px;
+      border-radius: 10px;
+      white-space: normal;
+    }
+
+    .demo-overlay-keywords {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .demo-overlay-keywords button {
+      min-height: 30px;
+      font-size: 12px;
+    }
+
+    .demo-ask-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+    }
+
+    .demo-ask-input {
+      min-height: 38px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: rgba(255, 255, 255, 0.09);
+      color: #ffffff;
+      padding: 0 14px;
+      outline: none;
+    }
+
+    .demo-ask-input::placeholder {
+      color: rgba(255, 255, 255, 0.50);
+    }
+
+    .demo-response-shell ul {
+      margin: 0;
+      padding-left: 18px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .demo-loading {
+      display: none;
+      gap: 8px;
+      align-items: center;
+      justify-content: flex-start;
+    }
+
+    .demo-loading.active {
+      display: flex;
+    }
+
+    .demo-loading span {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.82);
+      animation: demo-pulse-wave 1s infinite ease-in-out;
+    }
+
+    .demo-loading span:nth-child(2) { animation-delay: 0.15s; }
+    .demo-loading span:nth-child(3) { animation-delay: 0.30s; }
+
+    @keyframes demo-pulse-wave {
+      0%, 100% { opacity: 0.28; transform: translateY(0); }
+      50% { opacity: 1; transform: translateY(-2px); }
+    }
+
+    .how-section {
+      padding: 64px 0 88px;
+      background:
+        linear-gradient(180deg, #ffffff 0%, #f6faff 52%, #ffffff 100%);
+    }
+
+    .section-heading {
+      max-width: 860px;
+      margin: 0 auto 34px;
+      color: #173c74;
+      font-size: clamp(2.3rem, 5vw, 4.6rem);
+      line-height: 1.02;
+      font-weight: 760;
+      letter-spacing: -0.055em;
+      text-align: center;
+    }
+
+    .how-grid {
+      display: grid;
+      grid-template-columns: minmax(300px, 0.9fr) minmax(420px, 1.1fr);
+      gap: 24px;
+      align-items: stretch;
+    }
+
+    .how-panel {
+      min-height: 500px;
+      border-radius: 28px;
+      overflow: hidden;
+      position: relative;
+      border: 1px solid rgba(72, 119, 190, 0.18);
+      box-shadow: 0 28px 70px rgba(55, 109, 192, 0.13);
+    }
+
+    .how-panel.listen {
+      color: #ffffff;
+      background:
+        radial-gradient(circle at 78% 18%, rgba(255, 255, 255, 0.24), transparent 28%),
+        linear-gradient(155deg, #266bea 0%, #5faeff 52%, #1d61e7 100%);
+    }
+
+    .how-panel.help {
+      color: #15305b;
+      background:
+        radial-gradient(circle at 82% 12%, rgba(73, 148, 255, 0.12), transparent 26%),
+        linear-gradient(180deg, #f7fbff 0%, #edf3fb 100%);
+    }
+
+    .how-content {
+      position: relative;
+      z-index: 2;
+      padding: 38px 36px;
+      display: grid;
+      justify-items: center;
+      text-align: center;
+    }
+
+    .how-title {
+      max-width: 620px;
+      margin: 0;
+      font-size: clamp(1.75rem, 2.7vw, 2.32rem);
+      line-height: 1.12;
+      font-weight: 760;
+      letter-spacing: -0.035em;
+    }
+
+    .how-description {
+      max-width: 520px;
+      margin: 18px 0 0;
+      font-size: 1.05rem;
+      line-height: 1.6;
+      font-weight: 560;
+    }
+
+    .listen .how-description {
+      color: rgba(255, 255, 255, 0.86);
+    }
+
+    .help .how-description {
+      color: #5b7197;
+    }
+
+    .listen-visual {
+      position: absolute;
+      left: 42px;
+      right: 42px;
+      bottom: 40px;
+      display: grid;
+      justify-items: center;
+      gap: 16px;
+      z-index: 2;
+    }
+
+    .context-preview {
+      width: min(100%, 520px);
+      display: grid;
+      gap: 10px;
+      padding: 16px;
+      border-radius: 18px;
+      background: rgba(17, 19, 24, 0.34);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      box-shadow: 0 18px 42px rgba(14, 52, 120, 0.22);
+      backdrop-filter: blur(18px);
+    }
+
+    .context-preview strong {
+      color: rgba(255, 255, 255, 0.92);
+      font-size: 13px;
+    }
+
+    .context-line {
+      margin: 0;
+      color: rgba(255, 255, 255, 0.78);
+      line-height: 1.45;
+      font-size: 14px;
+    }
+
+    .recording-visual {
+      width: min(100%, 420px);
+      height: 74px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      opacity: 0.76;
+    }
+
+    .recording-visual span {
+      width: 5px;
+      height: 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.78);
+      animation: recording-wave 1.15s ease-in-out infinite;
+      box-shadow: 0 8px 18px rgba(21, 58, 112, 0.18);
+    }
+
+    .recording-visual span:nth-child(2n) { animation-delay: 0.12s; }
+    .recording-visual span:nth-child(3n) { animation-delay: 0.24s; }
+    .recording-visual span:nth-child(4n) { animation-delay: 0.36s; }
+    .recording-visual span:nth-child(5n) { animation-delay: 0.48s; }
+
+    @keyframes recording-wave {
+      0%, 100% {
+        height: 12px;
+        opacity: 0.42;
+        transform: translateY(0);
+      }
+
+      50% {
+        height: 44px;
+        opacity: 0.92;
+        transform: translateY(-2px);
+      }
+    }
+
+    .listen-mini {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      max-width: 100%;
+      padding: 8px;
+      border-radius: 999px;
+      background: rgba(17, 19, 24, 0.58);
+      border: 1px solid rgba(255, 255, 255, 0.20);
+      box-shadow: 0 20px 44px rgba(14, 52, 120, 0.32);
+      backdrop-filter: blur(18px);
+    }
+
+    .listen-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 34px;
+      padding: 0 11px;
+      border-radius: 999px;
+      color: rgba(255, 255, 255, 0.92);
+      background: rgba(255, 255, 255, 0.10);
+      font-size: 13px;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    .listen-chip.ok {
+      color: #fde68a;
+    }
+
+    .help-visual {
+      position: absolute;
+      left: 42px;
+      right: 42px;
+      bottom: 38px;
+      display: grid;
+      gap: 14px;
+      z-index: 2;
+    }
+
+    .help-overlay-preview {
+      display: grid;
+      gap: 12px;
+      padding: 18px;
+      border-radius: 18px;
+      color: #ffffff;
+      background: rgba(17, 19, 24, 0.72);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      box-shadow: 0 22px 54px rgba(26, 57, 104, 0.24);
+      backdrop-filter: blur(18px);
+    }
+
+    .preview-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: flex-start;
+    }
+
+    .preview-kicker {
+      margin: 0 0 6px;
+      color: rgba(255, 255, 255, 0.58);
+      font-size: 12px;
+      font-weight: 850;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .preview-title {
+      margin: 0;
+      font-size: 1.35rem;
+      line-height: 1.15;
+      font-weight: 850;
+      letter-spacing: -0.02em;
+    }
+
+    .preview-answer {
+      margin: 0;
+      color: rgba(255, 255, 255, 0.78);
+      font-size: 1.05rem;
+      line-height: 1.6;
+    }
+
+    .preview-keywords {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .preview-keywords span {
+      min-height: 30px;
+      padding: 0 11px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.10);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: rgba(255, 255, 255, 0.88);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .comic-section {
+      padding: 10px 0 92px;
+      background: #ffffff;
+    }
+
+    .comic-heading {
+      margin-bottom: 28px;
+    }
+
+    .comic-frame {
+      overflow: hidden;
+      border-radius: 28px;
+      border: 1px solid rgba(72, 119, 190, 0.16);
+      background: #f6faff;
+      box-shadow:
+        0 24px 54px rgba(55, 109, 192, 0.12),
+        0 0 0 8px rgba(232, 242, 255, 0.60);
+    }
+
+    .comic-frame img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    .compat-section {
+      padding: 0 0 96px;
+      background: #ffffff;
+    }
+
+    .compat-heading {
+      max-width: 760px;
+      margin-bottom: 30px;
+      font-size: clamp(2rem, 4vw, 3.7rem);
+    }
+
+    .compat-tools {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .compat-tool {
+      min-height: 118px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      padding: 24px;
+      border-radius: 26px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(242, 248, 255, 0.96) 100%);
+      border: 1px solid rgba(72, 119, 190, 0.16);
+      box-shadow:
+        0 20px 48px rgba(55, 109, 192, 0.10),
+        inset 0 1px 0 rgba(255, 255, 255, 0.80);
+    }
+
+    .compat-tool img {
+      width: 48px;
+      height: 48px;
+      object-fit: contain;
+      display: block;
+      filter: drop-shadow(0 8px 14px rgba(27, 68, 132, 0.12));
+    }
+
+    .compat-tool span {
+      color: #263857;
+      font-size: clamp(1.15rem, 2vw, 1.55rem);
+      font-weight: 760;
+      letter-spacing: -0.035em;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 900px) {
+      .how-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .interactive-demo-frame {
+        --demo-scale: 0.62;
+        height: calc(760px * var(--demo-scale));
+      }
+
+      .nav {
+        border-radius: 26px;
+        padding: 14px;
+        align-items: flex-start;
+      }
+
+      .nav-links {
+        display: none;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .container {
+        width: min(calc(100% - 24px), 1180px);
+      }
+
+      .site-header {
+        padding-top: 14px;
+      }
+
+      .interactive-demo-section {
+        margin-top: -72px;
+        padding-bottom: 36px;
+      }
+
+      .interactive-demo-frame {
+        --demo-scale: 1;
+        --mobile-overlay-scale: 1;
+        width: 100%;
+        height: auto;
+      }
+
+      .interactive-demo-canvas {
+        position: relative;
+        left: auto;
+        width: 100%;
+        height: auto;
+        min-height: 430px;
+        padding: 0 0 18px;
+        overflow: visible;
+        border-radius: 24px;
+        background: transparent;
+        border: 0;
+        box-shadow: none;
+        transform: none;
+      }
+
+      .demo-stage {
+        display: none;
+      }
+
+      .interview-video-window {
+        position: relative;
+        top: auto;
+        left: auto;
+        width: 100%;
+        border-radius: 20px;
+        transform: none;
+      }
+
+      .demo-overlay {
+        top: 8px;
+        left: 50%;
+        width: max-content;
+        transform: translateX(-50%) scale(var(--mobile-overlay-scale));
+        transform-origin: top center;
+      }
+
+      .demo-overlay.dragging {
+        cursor: default;
+      }
+
+      .demo-mini-shell {
+        cursor: default;
+      }
+
+      .demo-expanded-shell {
+        width: 560px;
+        height: 440px;
+        padding: 10px;
+        overflow: hidden;
+      }
+
+      .demo-expanded-shell.active {
+        display: grid;
+      }
+
+      .demo-expanded-shell.with-response {
+        width: 900px;
+        grid-template-columns: minmax(320px, 0.82fr) minmax(360px, 1fr);
+        gap: 10px;
+      }
+
+      .demo-overlay-panel,
+      .demo-response-shell {
+        max-height: 100%;
+        cursor: default;
+      }
+
+      .demo-overlay-panel.compact-when-response {
+        height: 100%;
+      }
+
+      .demo-overlay-panel.compact-when-response .demo-question-card,
+      .demo-overlay-panel.compact-when-response .demo-actions,
+      .demo-overlay-panel.compact-when-response .demo-keyword-empty-card {
+        display: none;
+      }
+
+      .demo-ask-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+      }
+
+      .demo-ask-row .demo-btn {
+        min-height: 38px;
+      }
+
+      .demo-response-shell.active {
+        width: 100%;
+      }
+
+      .demo-chip,
+      .demo-mini-shell .demo-btn,
+      .demo-mini-shell .demo-stop-btn {
+        white-space: nowrap;
+      }
+
+      .nav {
+        padding: 12px;
+      }
+
+      .cta-row {
+        display: none;
+      }
+
+      .floating-cta {
+        left: 12px;
+        right: 12px;
+      }
+
+      .floating-cta .btn {
+        width: 100%;
+      }
+
+      .hero {
+        padding: 72px 0 136px;
+      }
+
+      .hero-sub {
+        max-width: 560px;
+      }
+
+      .hero-actions {
+        flex-direction: column;
+      }
+
+      .hero-actions .btn {
+        width: 100%;
+      }
+
+      .hero-spacer {
+        height: 34px;
+      }
+
+      .how-section {
+        padding: 52px 0 68px;
+      }
+
+      .how-grid {
+        width: 100%;
+        min-width: 0;
+      }
+
+      .section-heading {
+        font-size: 2.55rem;
+        letter-spacing: -0.045em;
+      }
+
+      .how-panel {
+        min-height: 0;
+        border-radius: 24px;
+        display: grid;
+        gap: 22px;
+        padding: 28px 22px;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        overflow: hidden;
+      }
+
+      .how-content {
+        padding: 0;
+      }
+
+      .listen-visual,
+      .help-visual {
+        position: relative;
+        left: auto;
+        right: auto;
+        bottom: auto;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+      }
+
+      .listen-mini {
+        justify-self: center;
+        gap: 6px;
+        max-width: 100%;
+        padding: 7px;
+        overflow: hidden;
+      }
+
+      .listen-chip {
+        min-height: 30px;
+        padding: 0 9px;
+        font-size: 12px;
+      }
+
+      .help-overlay-preview {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        padding: 18px;
+      }
+
+      .preview-answer {
+        font-size: 1rem;
+        line-height: 1.55;
+      }
+
+      .preview-keywords {
+        max-width: 100%;
+      }
+
+      .comic-section {
+        padding: 0 0 68px;
+      }
+
+      .comic-frame {
+        border-radius: 22px;
+        box-shadow:
+          0 18px 42px rgba(55, 109, 192, 0.12),
+          0 0 0 6px rgba(232, 242, 255, 0.60);
+      }
+
+      .compat-section {
+        padding: 0 0 72px;
+      }
+
+      .compat-heading {
+        margin-bottom: 22px;
+      }
+
+      .compat-tools {
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+
+      .compat-tool {
+        min-height: 86px;
+        justify-content: flex-start;
+        padding: 18px 20px;
+        border-radius: 22px;
+      }
+
+      .compat-tool img {
+        width: 40px;
+        height: 40px;
+      }
+
+      .compat-tool span {
+        font-size: 1.25rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="hero-shell">
+      <header class="site-header">
+        <div class="container">
+          <nav class="nav" aria-label="Main navigation">
+            <a class="brand" href="#">
+              <img class="brand-mark" src="./assets/Logo-5.png" alt="Orviko logo" />
+              <span class="brand-name">Orviko</span>
+            </a>
+
+            <div class="nav-links">
+              <a href="#">Cara Kerja</a>
+              <a href="#">Contoh Hasil</a>
+              <a href="#">FAQ</a>
+            </div>
+
+            <div class="cta-row">
+              <a class="btn btn-primary" href="#download">
+                <span class="windows-icon" aria-hidden="true">
+                  <span></span><span></span><span></span><span></span>
+                </span>
+                Download untuk Windows
+              </a>
+            </div>
+          </nav>
+        </div>
+      </header>
+
+      <main class="hero">
+        <div class="container">
+          <div class="hero-inner">
+            <div class="eyebrow">
+              <span class="eyebrow-dot" aria-hidden="true"></span>
+              Desktop AI assistant untuk interview online
+            </div>
+
+            <h1>Jangan blank saat interview kerja</h1>
+            <p class="hero-sub">
+              Orviko membantu kamu menyusun jawaban yang lebih tenang, jelas, dan meyakinkan saat interview online berlangsung.
+            </p>
+
+            <div class="hero-actions">
+              <a class="btn btn-primary" href="#download">
+                <span class="windows-icon" aria-hidden="true">
+                  <span></span><span></span><span></span><span></span>
+                </span>
+                Download untuk Windows
+              </a>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="hero-spacer" aria-hidden="true"></div>
+      </main>
+    </section>
+
+    <section class="interactive-demo-section" aria-label="Interactive demo">
+      <div class="container">
+        <h2 class="demo-section-title">Klik <span class="demo-title-ask">Ask</span> untuk coba Orviko</h2>
+        <div class="interactive-demo-frame">
+          <div class="interactive-demo-canvas" id="demoCanvas">
+            <div class="demo-stage"></div>
+
+            <div class="interview-video-window" aria-hidden="true">
+              <video src="./assets/interview.mp4" autoplay muted loop playsinline></video>
+            </div>
+
+            <div class="demo-overlay" id="demoOverlay">
+              <div class="demo-mini-shell" id="demoMiniShell">
+                <span class="demo-chip"><span class="demo-pulse"></span> Listening 02:14</span>
+                <span class="demo-chip warn">System OK</span>
+                <button class="demo-btn" id="demoOpenBtn" type="button">Ask *</button>
+                <button class="demo-end-btn" aria-label="End interview" type="button"></button>
+              </div>
+
+              <div class="demo-expanded-shell" id="demoExpandedShell">
+                <section class="demo-overlay-panel" id="demoOverlayPanel">
+                  <div class="demo-overlay-top">
+                    <div>
+                      <p class="demo-kicker">Listening 02:14</p>
+                      <h2 class="demo-title">TECHNICAL Interview</h2>
+                      <p class="demo-sub">Tokopedia - Marketing Associate</p>
+                      <p class="demo-audio">Realtime listening via active system output</p>
+                    </div>
+                    <button class="demo-btn" id="demoHideBtn" type="button">Hide</button>
+                  </div>
+
+                  <div class="demo-card demo-question-card">
+                    <strong>Latest conversation focus</strong>
+                    <p id="demoFocusText">Bagaimana kamu memilih strategi kampanye yang paling efektif ketika data awal belum lengkap?</p>
+                  </div>
+
+                  <div class="demo-actions">
+                    <button class="demo-action-btn" data-kind="answer" type="button">Bantu Jawab</button>
+                    <button class="demo-action-btn" data-kind="followup" type="button">Bantu Follow-up</button>
+                    <button class="demo-action-btn" data-kind="explain" type="button">Jelaskan Maksudnya</button>
+                  </div>
+
+                  <div class="demo-overlay-keywords">
+                    <button class="demo-keyword-btn" data-kind="keyword" data-label="Campaign Strategy" type="button">Campaign Strategy</button>
+                    <button class="demo-keyword-btn" data-kind="keyword" data-label="Data Validation" type="button">Data Validation</button>
+                    <button class="demo-keyword-btn" data-kind="keyword" data-label="Decision Making" type="button">Decision Making</button>
+                  </div>
+
+                  <form class="demo-ask-row" id="demoAskForm">
+                    <input class="demo-ask-input" id="demoAskInput" placeholder="Tulis bantuan spesifik..." />
+                    <button class="demo-btn" type="submit">Ask</button>
+                  </form>
+                </section>
+
+                <aside class="demo-response-shell" id="demoResponseShell">
+                  <div class="demo-response-top">
+                    <div>
+                      <p class="demo-kicker">AI help</p>
+                      <h2 class="demo-title" id="demoResponseTitle">Generating help...</h2>
+                    </div>
+                    <button class="demo-btn" id="demoCloseResponseBtn" type="button">Close</button>
+                  </div>
+                  <div class="demo-loading" id="demoLoadingState">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                  </div>
+                  <ul id="demoResponseList"></ul>
+                </aside>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <section class="how-section" id="cara-kerja" aria-labelledby="how-title">
+      <div class="container">
+        <h2 class="section-heading" id="how-title">Cara Orviko membantumu saat interview</h2>
+
+        <div class="how-grid">
+          <article class="how-panel listen">
+            <div class="how-content">
+              <h3 class="how-title">Orviko mendengarkan percakapan saat meeting</h3>
+              <p class="how-description">
+                Orviko menangkap percakapan secara realtime untuk memahami konteks interview yang sedang berjalan.
+              </p>
+            </div>
+
+            <div class="listen-visual" aria-hidden="true">
+              <div class="recording-visual">
+                <span></span><span></span><span></span><span></span><span></span>
+                <span></span><span></span><span></span><span></span><span></span>
+                <span></span><span></span><span></span><span></span><span></span>
+                <span></span><span></span><span></span><span></span><span></span>
+              </div>
+
+              <div class="listen-mini">
+                <span class="listen-chip"><span class="demo-pulse"></span> Listening <span id="howListeningTimer">00:01</span></span>
+                <span class="listen-chip ok">System OK</span>
+                <span class="listen-chip">Ask *</span>
+              </div>
+
+              <div class="context-preview">
+                <strong>Latest conversation focus</strong>
+                <p class="context-line">Bagaimana kamu memilih strategi kampanye saat data awal belum lengkap?</p>
+              </div>
+            </div>
+          </article>
+
+          <article class="how-panel help">
+            <div class="how-content">
+              <h3 class="how-title">Saat butuh bantuan, Orviko merespons dengan cepat</h3>
+              <p class="how-description">
+                Saat kamu blank atau butuh arahan, Orviko langsung menampilkan bantuan yang ringkas dan cepat dibaca.
+              </p>
+            </div>
+
+            <div class="help-visual" aria-hidden="true">
+              <div class="help-overlay-preview">
+                <div class="preview-top">
+                  <div>
+                    <p class="preview-kicker">AI help</p>
+                    <h3 class="preview-title">Bantu Jawab</h3>
+                  </div>
+                </div>
+
+                <p class="preview-answer">
+                  Saya biasanya mulai dari objective campaign dulu, lalu cek data minimum seperti target audience, channel historis, budget, dan KPI utama.
+                </p>
+
+                <div class="preview-keywords">
+                  <span>Campaign Strategy</span>
+                  <span>Data Validation</span>
+                  <span>Decision Making</span>
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="comic-section" aria-labelledby="comic-title">
+      <div class="container">
+        <h2 class="section-heading comic-heading" id="comic-title">Ilustrasi Penggunaan Orviko</h2>
+
+        <div class="comic-frame">
+          <picture>
+            <source srcset="./assets/Komik-Mobile.png" media="(max-width: 640px)" />
+            <img src="./assets/Komik-Desktop.png" alt="Ilustrasi penggunaan Orviko saat interview online" loading="lazy" />
+          </picture>
+        </div>
+      </div>
+    </section>
+
+    <section class="compat-section" aria-labelledby="compat-title">
+      <div class="container">
+        <h2 class="section-heading compat-heading" id="compat-title">Orviko bisa kamu gunakan dimanapun</h2>
+
+        <div class="compat-tools" aria-label="Platform interview online yang didukung Orviko">
+          <div class="compat-tool">
+            <img src="./assets/Zoom.png" alt="" loading="lazy" />
+            <span>Zoom</span>
+          </div>
+
+          <div class="compat-tool">
+            <img src="./assets/Google Meet.png" alt="" loading="lazy" />
+            <span>Google Meet</span>
+          </div>
+
+          <div class="compat-tool">
+            <img src="./assets/Microsoft Teams.png" alt="" loading="lazy" />
+            <span>Microsoft Teams</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="floating-cta" id="floatingCta" aria-hidden="true">
+      <a class="btn btn-primary" href="#download">
+        <span class="windows-icon" aria-hidden="true">
+          <span></span><span></span><span></span><span></span>
+        </span>
+        Download untuk Windows
+      </a>
+    </div>
+
+  </div>
+
+  <script>
+    const demoCanvas = document.getElementById("demoCanvas");
+    const demoOverlay = document.getElementById("demoOverlay");
+    const demoMiniShell = document.getElementById("demoMiniShell");
+    const demoExpandedShell = document.getElementById("demoExpandedShell");
+    const demoOverlayPanel = document.getElementById("demoOverlayPanel");
+    const demoResponseShell = document.getElementById("demoResponseShell");
+    const demoLoadingState = document.getElementById("demoLoadingState");
+    const demoResponseTitle = document.getElementById("demoResponseTitle");
+    const demoResponseList = document.getElementById("demoResponseList");
+    const demoFocusText = document.getElementById("demoFocusText");
+    const demoAskForm = document.getElementById("demoAskForm");
+    const demoAskInput = document.getElementById("demoAskInput");
+    const demoFrame = document.querySelector(".interactive-demo-frame");
+    const interviewVideoWindow = document.querySelector(".interview-video-window");
+    const howListeningTimer = document.getElementById("howListeningTimer");
+    const floatingCta = document.getElementById("floatingCta");
+    const primaryDownloadButtons = document.querySelectorAll(".cta-row .btn-primary, .hero-actions .btn-primary");
+    const baseDemoWidth = 1280;
+    const baseDemoHeight = 760;
+    const maxDemoScale = 0.78;
+    const mobileDemoQuery = window.matchMedia("(max-width: 640px)");
+
+    function syncDemoScale() {
+      if (!demoFrame) return;
+
+      if (mobileDemoQuery.matches) {
+        demoFrame.style.setProperty("--demo-scale", "1");
+
+        const availableWidth = Math.max(demoFrame.clientWidth - 24, 1);
+        const activeShell = demoExpandedShell.classList.contains("active") ? demoExpandedShell : demoMiniShell;
+        const mobileMaxOverlayWidth = 900;
+        const overlayScale = Math.min(0.52, availableWidth / mobileMaxOverlayWidth);
+        const boundedOverlayScale = Math.max(0.32, overlayScale);
+        demoFrame.style.setProperty("--mobile-overlay-scale", boundedOverlayScale.toFixed(3));
+
+        const videoHeight = interviewVideoWindow?.offsetHeight || 0;
+        const overlayHeight = (activeShell.offsetHeight || demoOverlay?.offsetHeight || 0) * boundedOverlayScale;
+        const isExpanded = demoExpandedShell.classList.contains("active");
+        const safeHeight = isExpanded
+          ? Math.max(videoHeight + 28, overlayHeight + 24)
+          : Math.max(videoHeight + 28, 360);
+
+        demoFrame.style.height = `${Math.ceil(safeHeight)}px`;
+        demoCanvas.style.minHeight = `${Math.ceil(safeHeight)}px`;
+        demoCanvas.style.height = "auto";
+        demoOverlay.style.left = "";
+        demoOverlay.style.top = "";
+        return;
+      }
+
+      demoCanvas.style.minHeight = "";
+      demoCanvas.style.height = "";
+      demoFrame.style.removeProperty("--mobile-overlay-scale");
+      const nextScale = Math.min(maxDemoScale, demoFrame.clientWidth / baseDemoWidth);
+      demoFrame.style.setProperty("--demo-scale", nextScale.toFixed(4));
+      demoFrame.style.height = `${baseDemoHeight * nextScale}px`;
+    }
+
+    function scheduleDemoScaleSync() {
+      window.requestAnimationFrame(syncDemoScale);
+    }
+
+    function syncDemoOverlayBounds(preferCenter = false) {
+      if (mobileDemoQuery.matches) return;
+
+      const activeWidth = demoExpandedShell.classList.contains("with-response") ? 900 : 560;
+      const activeHeight = demoExpandedShell.classList.contains("active") ? 440 : demoMiniShell.offsetHeight;
+      const currentLeft = Number.parseFloat(demoOverlay.style.left) || demoOverlay.offsetLeft;
+      const currentTop = Number.parseFloat(demoOverlay.style.top) || demoOverlay.offsetTop;
+      const centeredLeft = (baseDemoWidth - activeWidth) / 2;
+      const nextLeft = preferCenter ? centeredLeft : currentLeft;
+      const clampedLeft = Math.max(0, Math.min(baseDemoWidth - activeWidth, nextLeft));
+      const clampedTop = Math.max(0, Math.min(baseDemoHeight - activeHeight, currentTop));
+
+      demoOverlay.style.left = `${clampedLeft}px`;
+      demoOverlay.style.top = `${clampedTop}px`;
+    }
+
+    syncDemoScale();
+
+    if (window.ResizeObserver && demoFrame) {
+      const demoResizeObserver = new ResizeObserver(syncDemoScale);
+      demoResizeObserver.observe(demoFrame);
+    }
+
+    window.addEventListener("resize", syncDemoScale);
+    interviewVideoWindow?.querySelector("video")?.addEventListener("loadedmetadata", syncDemoScale);
+    mobileDemoQuery.addEventListener("change", syncDemoScale);
+
+    const demoResponses = {
+      answer: {
+        title: "Bantu Jawab",
+        points: [
+          "Saya biasanya mulai dari objective campaign dulu, lalu cek data minimum seperti target audience, channel historis, budget, dan KPI utama.",
+          "Kalau data awal belum lengkap, saya buat hipotesis yang paling masuk akal, validasi cepat lewat eksperimen kecil, lalu bandingkan hasilnya dengan baseline.",
+          "Dengan cara itu, keputusan tetap berbasis data, tapi tidak menunggu semua informasi sempurna sebelum campaign bisa bergerak."
+        ]
+      },
+      followup: {
+        title: "Bantu Follow-up",
+        points: [
+          "Apakah tim lebih mengutamakan kecepatan eksperimen atau akurasi insight di tahap awal?",
+          "Data minimum apa yang biasanya dianggap cukup sebelum strategi dijalankan?",
+          "Apakah ada KPI utama yang paling menentukan keputusan kampanye di tim ini?"
+        ]
+      },
+      explain: {
+        title: "Jelaskan Maksudnya",
+        points: [
+          "Interviewer sedang menguji cara kamu mengambil keputusan saat informasinya belum ideal.",
+          "Yang diuji bukan cuma strategi kampanye, tapi juga judgment dan validasi asumsi.",
+          "Angle jawaban terbaik: jelaskan langkah prioritas, validasi cepat, lalu iterasi."
+        ]
+      }
+    };
+
+    function showDemoMini() {
+      demoMiniShell.style.display = "flex";
+      demoExpandedShell.classList.remove("active");
+      demoExpandedShell.classList.remove("with-response");
+      demoOverlayPanel.classList.remove("compact-when-response");
+      demoResponseShell.classList.remove("active");
+      demoResponseList.innerHTML = "";
+      demoLoadingState.classList.remove("active");
+      scheduleDemoScaleSync();
+      window.requestAnimationFrame(() => syncDemoOverlayBounds());
+    }
+
+    function showDemoExpanded() {
+      demoMiniShell.style.display = "none";
+      demoExpandedShell.classList.add("active");
+      scheduleDemoScaleSync();
+      window.requestAnimationFrame(() => syncDemoOverlayBounds());
+    }
+
+    function renderDemoResponse(title, points) {
+      demoResponseTitle.textContent = title;
+      demoResponseList.innerHTML = "";
+      points.forEach((point) => {
+        const li = document.createElement("li");
+        li.textContent = point;
+        demoResponseList.appendChild(li);
+      });
+    }
+
+    function simulateDemoResponse(title, points) {
+      showDemoExpanded();
+      demoExpandedShell.classList.add("with-response");
+      demoOverlayPanel.classList.add("compact-when-response");
+      demoResponseShell.classList.add("active");
+      demoResponseTitle.textContent = "Generating help...";
+      demoResponseList.innerHTML = "";
+      demoLoadingState.classList.add("active");
+      scheduleDemoScaleSync();
+      window.requestAnimationFrame(() => syncDemoOverlayBounds(true));
+
+      window.setTimeout(() => {
+        demoLoadingState.classList.remove("active");
+        renderDemoResponse(title, points);
+        scheduleDemoScaleSync();
+        window.requestAnimationFrame(() => syncDemoOverlayBounds());
+      }, 550);
+    }
+
+    document.getElementById("demoOpenBtn").addEventListener("click", showDemoExpanded);
+    document.getElementById("demoHideBtn").addEventListener("click", showDemoMini);
+    document.getElementById("demoCloseResponseBtn").addEventListener("click", () => {
+      demoExpandedShell.classList.remove("with-response");
+      demoOverlayPanel.classList.remove("compact-when-response");
+      demoResponseShell.classList.remove("active");
+      demoResponseList.innerHTML = "";
+      demoLoadingState.classList.remove("active");
+      scheduleDemoScaleSync();
+      window.requestAnimationFrame(() => syncDemoOverlayBounds());
+    });
+
+    document.querySelectorAll(".demo-action-btn[data-kind='answer'], .demo-action-btn[data-kind='followup'], .demo-action-btn[data-kind='explain']").forEach((button) => {
+      button.addEventListener("click", () => {
+        const kind = button.getAttribute("data-kind");
+        const data = demoResponses[kind];
+        simulateDemoResponse(data.title, data.points);
+      });
+    });
+
+    document.querySelectorAll(".demo-keyword-btn[data-kind='keyword']").forEach((button) => {
+      button.addEventListener("click", () => {
+        const label = button.getAttribute("data-label") || "Keyword";
+        simulateDemoResponse(`Keyword: ${label}`, [
+          `${label} adalah topik yang sedang relevan dengan arah pertanyaan interviewer.`,
+          "Gunakan keyword ini untuk mengaitkan jawaban ke konteks terbaru.",
+          "Jawab singkat, lalu beri contoh keputusan yang konkret."
+        ]);
+      });
+    });
+
+    demoAskForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const value = demoAskInput.value.trim();
+      if (!value) return;
+      simulateDemoResponse("Ask", [
+        `Dummy jawaban untuk: "${value}".`,
+        "Saya sengaja buat singkat, cepat discan, dan siap dibaca.",
+        "Kalau ini runtime asli, isi response akan mengikuti transcript terbaru."
+      ]);
+      demoAskInput.value = "";
+    });
+
+    const demoDragState = {
+      active: false,
+      offsetX: 0,
+      offsetY: 0
+    };
+
+    function getDemoScale() {
+      return Number.parseFloat(getComputedStyle(demoFrame).getPropertyValue("--demo-scale")) || 1;
+    }
+
+    function getDemoPoint(event) {
+      const rect = demoCanvas.getBoundingClientRect();
+      const scale = getDemoScale();
+      return {
+        x: (event.clientX - rect.left) / scale,
+        y: (event.clientY - rect.top) / scale
+      };
+    }
+
+    function beginDemoDrag(event) {
+      if (mobileDemoQuery.matches) {
+        return;
+      }
+
+      if (event.target.closest("button, input")) {
+        return;
+      }
+
+      const point = getDemoPoint(event);
+      demoDragState.active = true;
+      demoDragState.offsetX = point.x - demoOverlay.offsetLeft;
+      demoDragState.offsetY = point.y - demoOverlay.offsetTop;
+      demoOverlay.classList.add("dragging");
+    }
+
+    function moveDemoDrag(event) {
+      if (!demoDragState.active) return;
+
+      const point = getDemoPoint(event);
+      const activeWidth = demoExpandedShell.classList.contains("with-response") ? 900 : 560;
+      const activeHeight = 440;
+      const nextLeft = Math.max(0, Math.min(1280 - activeWidth, point.x - demoDragState.offsetX));
+      const nextTop = Math.max(0, Math.min(760 - activeHeight, point.y - demoDragState.offsetY));
+      demoOverlay.style.left = `${nextLeft}px`;
+      demoOverlay.style.top = `${nextTop}px`;
+    }
+
+    function endDemoDrag() {
+      demoDragState.active = false;
+      demoOverlay.classList.remove("dragging");
+    }
+
+    demoMiniShell.addEventListener("pointerdown", beginDemoDrag);
+    demoExpandedShell.addEventListener("pointerdown", beginDemoDrag);
+    demoResponseShell.addEventListener("pointerdown", beginDemoDrag);
+    window.addEventListener("pointermove", moveDemoDrag);
+    window.addEventListener("pointerup", endDemoDrag);
+
+    demoFocusText.textContent = "Bagaimana kamu memilih strategi kampanye yang paling efektif ketika data awal belum lengkap?";
+
+    let howListeningSecond = 1;
+    window.setInterval(() => {
+      if (!howListeningTimer) return;
+
+      howListeningSecond = howListeningSecond >= 30 ? 1 : howListeningSecond + 1;
+      howListeningTimer.textContent = `00:${String(howListeningSecond).padStart(2, "0")}`;
+    }, 1000);
+
+    if (floatingCta && primaryDownloadButtons.length) {
+      const visibleDownloadButtons = new Set();
+
+      function syncFloatingCta() {
+        const shouldShow = visibleDownloadButtons.size === 0;
+        floatingCta.classList.toggle("visible", shouldShow);
+        floatingCta.setAttribute("aria-hidden", String(!shouldShow));
+      }
+
+      const downloadObserver = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            visibleDownloadButtons.add(entry.target);
+          } else {
+            visibleDownloadButtons.delete(entry.target);
+          }
+        });
+
+        syncFloatingCta();
+      }, { threshold: 0.08 });
+
+      primaryDownloadButtons.forEach((button) => downloadObserver.observe(button));
+      syncFloatingCta();
+    }
+
+  </script>
+</body>
+</html>

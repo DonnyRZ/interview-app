@@ -52,11 +52,8 @@ export async function surfaceRealtimeKeywords(
     const result = await runOpenAiJsonAction({
       spec: surfaceRealtimeKeywordsSpec,
       input: {
-        companyName: input.realtimeContext.applicationContext.companyName,
-        roleTitle: input.realtimeContext.applicationContext.roleTitle,
-        stageType: input.realtimeContext.stageContext.stageType,
         transcriptSegment,
-        domainProfile: input.realtimeContext.domainProfile
+        realtimeContext: input.realtimeContext
       },
       outputSchema: surfaceRealtimeKeywordsResultSchema
     });

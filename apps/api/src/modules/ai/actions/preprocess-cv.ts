@@ -13,11 +13,15 @@ export const preprocessCvSpec: ActionSpec<PreprocessCvInput> = {
   task: [
     "Baca file CV yang diberikan.",
     "Ekstrak hanya informasi kandidat yang didukung oleh isi CV.",
-    "Buat konteks ringkas yang bisa dipakai ulang untuk bantuan interview pada application berikutnya."
+    "Buat konteks ringkas yang bisa dipakai ulang untuk bantuan interview pada application berikutnya.",
+    "Pisahkan pengalaman kerja per company, pendidikan, organisasi, dan magang agar runtime interview bisa memilih bukti yang tepat."
   ].join("\n"),
   policyRules: [
     "Jangan mengarang nama perusahaan, gelar, tanggal, skill, atau pencapaian yang tidak didukung oleh CV.",
     "Jika bukti tidak ada atau ambigu, isi missingInputs atau warnings daripada menebak.",
+    "Untuk setiap pengalaman kerja, usahakan isi company, posisi, range tanggal, durasi, project, tanggung jawab, impact, dan tools/teknologi jika ada.",
+    "Jika CV tidak menyebut project, impact, durasi, organisasi, pendidikan, atau magang, biarkan field terkait kosong dan tulis warning bila penting.",
+    "Jangan mengubah pengalaman menjadi cerita dramatis. Simpan fakta sebagai data mentah yang bisa dipakai runtime.",
     "Buat readyContext praktis untuk bantuan interview live, bukan biografi publik.",
     "Gunakan bahasa Indonesia untuk semua field natural-language karena UI produk saat ini berbahasa Indonesia.",
     "Semua field yang dicontohkan sebagai array wajib dikembalikan sebagai array JSON, walaupun hanya berisi satu item atau kosong.",
@@ -30,6 +34,45 @@ export const preprocessCvSpec: ActionSpec<PreprocessCvInput> = {
     "candidateSummary": "string",
     "skills": ["string"],
     "relevantExperience": ["string"],
+    "experiences": [
+      {
+        "companyName": "string",
+        "roleTitle": "string",
+        "dateRange": "string",
+        "duration": "string",
+        "projects": ["string"],
+        "responsibilities": ["string"],
+        "impact": ["string"],
+        "technologies": ["string"]
+      }
+    ],
+    "education": [
+      {
+        "institution": "string",
+        "degree": "string",
+        "major": "string",
+        "dateRange": "string",
+        "notes": ["string"]
+      }
+    ],
+    "organizations": [
+      {
+        "organizationName": "string",
+        "roleTitle": "string",
+        "dateRange": "string",
+        "responsibilities": ["string"]
+      }
+    ],
+    "internships": [
+      {
+        "companyName": "string",
+        "roleTitle": "string",
+        "dateRange": "string",
+        "duration": "string",
+        "responsibilities": ["string"],
+        "projects": ["string"]
+      }
+    ],
     "strengthsForInterview": ["string"],
     "risks": ["string"],
     "readyContext": "string"

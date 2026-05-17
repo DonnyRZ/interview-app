@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Orviko - Harga Paket</title>
+  <style>
+    :root {
+      --bg: #07080b;
+      --bg-soft: #0d1017;
+      --panel: rgba(255,255,255,0.06);
+      --panel-strong: rgba(255,255,255,0.10);
+      --line: rgba(255,255,255,0.10);
+      --line-soft: rgba(255,255,255,0.08);
+      --text: #f4f7fb;
+      --muted: #9aa5b8;
+      --muted-2: #6f7a8f;
+      --blue: #8db4ff;
+      --cyan: #94edff;
+      --green: #89f8bc;
+      --gold: #ffd791;
+      --shadow: 0 28px 90px rgba(0,0,0,0.48);
+      --radius: 28px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 20% 0%, rgba(66, 120, 255, 0.18), transparent 34%),
+        radial-gradient(circle at 80% 8%, rgba(143, 233, 255, 0.12), transparent 30%),
+        linear-gradient(180deg, #07080b 0%, #090b10 42%, #07080b 100%);
+      overflow-x: hidden;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .noise {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: .28;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.18'/%3E%3C/svg%3E");
+      mix-blend-mode: overlay;
+      z-index: 0;
+    }
+
+    .page {
+      position: relative;
+      z-index: 1;
+    }
+
+    .container {
+      width: min(1180px, calc(100% - 40px));
+      margin: 0 auto;
+    }
+
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      backdrop-filter: blur(20px);
+      background: rgba(7, 8, 11, 0.68);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .nav-inner {
+      height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 720;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-mark {
+      width: 38px;
+      height: 38px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      color: #e9f1ff;
+      background:
+        linear-gradient(145deg, rgba(255,255,255,0.16), rgba(255,255,255,0.02)),
+        radial-gradient(circle at 30% 20%, rgba(255,255,255,0.32), transparent 30%),
+        #11141b;
+      border: 1px solid rgba(255,255,255,0.20);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 12px 34px rgba(0,0,0,.38);
+      font-size: 17px;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 26px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .nav-links a:hover { color: var(--text); }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      min-height: 48px;
+      padding: 0 18px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.14);
+      background: rgba(255,255,255,0.065);
+      color: var(--text);
+      font-weight: 650;
+      font-size: 14px;
+      box-shadow: 0 12px 28px rgba(0,0,0,.20);
+      transition: transform .2s ease, background .2s ease, border .2s ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      background: rgba(255,255,255,0.10);
+      border-color: rgba(255,255,255,0.20);
+    }
+
+    .btn-primary {
+      color: #08101d;
+      background: linear-gradient(135deg, #eef4ff, #98beff 46%, #79eaff);
+      border-color: rgba(255,255,255,0.30);
+      box-shadow: 0 18px 48px rgba(91, 146, 255, .24);
+    }
+
+    .windows-icon {
+      width: 16px;
+      height: 16px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 2px;
+      flex: 0 0 auto;
+    }
+
+    .windows-icon span {
+      display: block;
+      background: currentColor;
+      border-radius: 1px;
+    }
+
+    .hero {
+      padding: 88px 0 44px;
+      text-align: center;
+    }
+
+    .eyebrow {
+      width: fit-content;
+      margin: 0 auto 18px;
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      padding: 9px 13px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.12);
+      color: #c6d3e8;
+      background: rgba(255,255,255,.055);
+      font-size: 13px;
+    }
+
+    .pulse {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--green);
+      box-shadow: 0 0 0 6px rgba(131,247,182,.10), 0 0 20px rgba(131,247,182,.55);
+    }
+
+    h1 {
+      margin: 0 auto;
+      max-width: 920px;
+      font-size: clamp(42px, 7vw, 82px);
+      line-height: .96;
+      letter-spacing: -0.075em;
+      font-weight: 780;
+    }
+
+    .gradient-text {
+      background: linear-gradient(90deg, #ffffff, #bcd0ff 45%, #9af0ff);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: #eef5ff;
+    }
+
+    .hero-sub {
+      max-width: 760px;
+      margin: 24px auto 0;
+      color: var(--muted);
+      font-size: clamp(17px, 2.1vw, 20px);
+      line-height: 1.6;
+    }
+
+    .hero-actions {
+      margin-top: 34px;
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .hero-note {
+      margin-top: 16px;
+      color: var(--muted-2);
+      font-size: 13px;
+    }
+
+    .section {
+      padding: 84px 0;
+    }
+
+    #pricing {
+      padding-top: 36px;
+    }
+
+    .section-head {
+      text-align: center;
+      max-width: 760px;
+      margin: 0 auto 42px;
+    }
+
+    .section-kicker {
+      color: var(--cyan);
+      font-size: 13px;
+      font-weight: 760;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: clamp(30px, 5vw, 56px);
+      line-height: 1;
+      letter-spacing: -0.055em;
+    }
+
+    .section-desc {
+      margin: 16px auto 0;
+      color: var(--muted);
+      font-size: 17px;
+      line-height: 1.6;
+    }
+
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .pricing-card {
+      position: relative;
+      overflow: hidden;
+      min-height: 560px;
+      border-radius: 30px;
+      padding: 28px;
+      background: linear-gradient(180deg, var(--panel-strong), var(--panel));
+      border: 1px solid var(--line-soft);
+      box-shadow: 0 18px 60px rgba(0,0,0,.22);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .pricing-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at top right, rgba(143,233,255,.10), transparent 38%);
+      pointer-events: none;
+    }
+
+    .pricing-card.featured {
+      border-color: rgba(143,233,255,.24);
+      background:
+        radial-gradient(circle at 50% 0%, rgba(143,233,255,.14), transparent 38%),
+        linear-gradient(180deg, rgba(122,167,255,.18), rgba(255,255,255,.06));
+      box-shadow: 0 28px 90px rgba(44, 93, 190, .24);
+    }
+
+    .badge-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      min-height: 28px;
+      margin-bottom: 18px;
+    }
+
+    .plan-badge,
+    .plan-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.055);
+      color: #d8e4f6;
+    }
+
+    .plan-tag.hot {
+      color: #09111e;
+      background: linear-gradient(135deg, #edf4ff, #95bcff);
+      border-color: rgba(255,255,255,.22);
+    }
+
+    .plan-tag.gold {
+      color: #1b1302;
+      background: linear-gradient(135deg, #fff1ca, #ffd88d);
+      border-color: rgba(255,216,141,.30);
+    }
+
+    .plan-name {
+      margin: 0;
+      font-size: 28px;
+      letter-spacing: 0;
+    }
+
+    .price {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      margin: 28px 0 0;
+    }
+
+    .price strong {
+      font-size: 48px;
+      line-height: .95;
+      letter-spacing: 0;
+    }
+
+    .price span {
+      color: var(--muted);
+      font-size: 18px;
+      margin-bottom: 8px;
+    }
+
+    .feature-spotlight {
+      margin-top: 18px;
+      padding-top: 18px;
+      border-top: 1px solid rgba(255,255,255,.08);
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .feature-spotlight-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      font-size: 14px;
+      color: #08111d;
+      background: linear-gradient(135deg, #edf5ff, #8fd7ff);
+      box-shadow: 0 10px 24px rgba(122,167,255,.20);
+    }
+
+    .feature-spotlight-copy {
+      min-width: 0;
+    }
+
+    .feature-spotlight-title {
+      display: block;
+      color: #eef5ff;
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1.45;
+      letter-spacing: -0.01em;
+    }
+
+    .feature-spotlight-sub {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .feature-list {
+      list-style: none;
+      padding: 0;
+      margin: 30px 0 0;
+      padding-top: 24px;
+      border-top: 1px solid rgba(255,255,255,.09);
+      display: grid;
+      gap: 20px;
+    }
+
+    .feature-list li {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      color: #eef5ff;
+      font-size: 19px;
+      font-weight: 650;
+      line-height: 1.35;
+    }
+
+    .feature-list li::before {
+      content: "•";
+      color: transparent;
+      width: 30px;
+      height: 30px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      font-size: 15px;
+      font-weight: 800;
+      background:
+        linear-gradient(135deg, rgba(255,255,255,.28), rgba(255,255,255,.08)),
+        rgba(122,167,255,.20);
+      border: 1px solid rgba(255,255,255,.10);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.20);
+    }
+
+    .feature-list li.gold-feature {
+      color: var(--gold);
+    }
+
+    .feature-list li.gold-feature::before {
+      color: #211700;
+      background:
+        linear-gradient(135deg, #fff2c8, #ffd791),
+        rgba(255,216,141,.24);
+      border-color: rgba(255,216,141,.30);
+      box-shadow: 0 10px 24px rgba(255,216,141,.14);
+    }
+
+    .card-note {
+      margin-top: 18px;
+      padding-top: 16px;
+      border-top: 1px solid rgba(255,255,255,.08);
+      color: var(--muted-2);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .pricing-card .btn {
+      margin-top: auto;
+      width: 100%;
+    }
+
+    .compare-shell {
+      border-radius: 32px;
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.04));
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1.2fr repeat(3, 1fr);
+    }
+
+    .compare-grid > div {
+      min-height: 76px;
+      padding: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      border-right: 1px solid rgba(255,255,255,.06);
+      border-bottom: 1px solid rgba(255,255,255,.06);
+      color: #d8e3f5;
+      font-size: 14px;
+      background: rgba(255,255,255,.02);
+    }
+
+    .compare-grid > div.row-head {
+      justify-content: flex-start;
+      text-align: left;
+      color: var(--muted);
+      font-weight: 600;
+      background: rgba(255,255,255,.035);
+    }
+
+    .compare-grid > div.top-head {
+      background: rgba(122,167,255,.10);
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .check {
+      color: var(--green);
+      font-weight: 700;
+    }
+
+    .muted-cell {
+      color: var(--muted-2);
+    }
+
+    .compare-gold {
+      color: var(--gold) !important;
+      font-weight: 700;
+    }
+
+    .compare-gold-row {
+      color: var(--gold) !important;
+      background: rgba(255,216,141,.07) !important;
+    }
+
+    .trust-band {
+      position: relative;
+      overflow: hidden;
+      border-radius: 36px;
+      padding: 34px;
+      background:
+        radial-gradient(circle at 80% 20%, rgba(143,233,255,.15), transparent 30%),
+        linear-gradient(135deg, rgba(122,167,255,.13), rgba(255,255,255,.055));
+      border: 1px solid rgba(255,255,255,.12);
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+    }
+
+    .trust-item strong {
+      display: block;
+      font-size: 18px;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+    }
+
+    .trust-item span {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .faq {
+      max-width: 860px;
+      margin: 0 auto;
+      display: grid;
+      gap: 12px;
+    }
+
+    details {
+      border-radius: 20px;
+      background: rgba(255,255,255,.055);
+      border: 1px solid rgba(255,255,255,.08);
+      padding: 18px 20px;
+    }
+
+    summary {
+      cursor: pointer;
+      font-weight: 700;
+      letter-spacing: -0.015em;
+    }
+
+    details p {
+      margin: 12px 0 0;
+      color: var(--muted);
+      line-height: 1.6;
+      font-size: 15px;
+    }
+
+    .final-cta {
+      text-align: center;
+      padding: 80px 28px;
+      border-radius: 42px;
+      background:
+        radial-gradient(circle at 50% 0%, rgba(143,233,255,.18), transparent 34%),
+        linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.045));
+      border: 1px solid rgba(255,255,255,.12);
+      box-shadow: var(--shadow);
+    }
+
+    .final-cta h2 {
+      max-width: 760px;
+      margin: 0 auto;
+    }
+
+    footer {
+      padding: 42px 0 54px;
+      color: var(--muted-2);
+      font-size: 14px;
+    }
+
+    .footer-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      border-top: 1px solid rgba(255,255,255,.08);
+      padding-top: 22px;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 18px;
+    }
+
+    @media (max-width: 1080px) {
+      .pricing-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 780px) {
+      .nav-links { display: none; }
+      .hero { padding-top: 64px; }
+      .pricing-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 640px) {
+      .container { width: min(100% - 28px, 1180px); }
+      .hero-actions { flex-direction: column; }
+      .btn { width: 100%; }
+      .compare-shell { overflow-x: auto; }
+      .compare-grid { min-width: 640px; }
+      .footer-inner {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="noise"></div>
+  <div class="page">
+    <nav class="nav">
+      <div class="container nav-inner">
+        <a href="#" class="brand" aria-label="Orviko home">
+          <span class="brand-mark">O</span>
+          <span>Orviko</span>
+        </a>
+        <div class="nav-links">
+          <a href="#pricing">Harga</a>
+          <a href="#compare">Bandingkan</a>
+          <a href="#faq">FAQ</a>
+          <a href="#download">Download</a>
+        </div>
+        <a class="btn btn-primary" href="#download"><span class="windows-icon" aria-hidden="true"><span></span><span></span><span></span><span></span></span> Download for Windows</a>
+      </div>
+    </nav>
+
+    <main>
+      <section class="hero">
+        <div class="container">
+          <div class="eyebrow"><span class="pulse"></span> Paket bulanan untuk persiapan interview</div>
+          <h1>Pilih paket yang sesuai dengan <span class="gradient-text">berapa sering kamu interview</span>.</h1>
+          <p class="hero-sub">Kalau kamu cuma mau coba, ada paket ringan. Kalau kamu sudah mulai rutin interview, ada paket yang pas. Kalau kamu ingin paling bebas tanpa hitung-hitungan sesi, pilih Pro.</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="#pricing"><span class="windows-icon" aria-hidden="true"><span></span><span></span><span></span><span></span></span> Lihat harga</a>
+            <a class="btn" href="#compare">Bandingkan paket</a>
+          </div>
+          <div class="hero-note">Semua paket tetap memakai Orviko yang sama. Bedanya ada di banyaknya sesi yang bisa kamu pakai dalam sebulan.</div>
+        </div>
+      </section>
+
+      <section class="section" id="pricing">
+        <div class="container">
+          <div class="pricing-grid">
+            <article class="pricing-card">
+              <div class="badge-row">
+                <span class="plan-badge">Paling ringan</span>
+              </div>
+              <h3 class="plan-name">Mini</h3>
+              <div class="price"><strong>Rp29rb</strong><span>/bulan</span></div>
+              <ul class="feature-list">
+                <li>3 kali sesi interview</li>
+                <li>Upload CV</li>
+                <li>Masukkan lowongan</li>
+                <li>Contekan jawaban saat interview</li>
+              </ul>
+              <a class="btn" href="#download">Pilih paket ini</a>
+            </article>
+
+            <article class="pricing-card featured">
+              <div class="badge-row">
+                <span class="plan-badge">Hemat</span>
+                <span class="plan-tag hot">Rekomendasi</span>
+              </div>
+              <h3 class="plan-name">Starter</h3>
+              <div class="price"><strong>Rp98rb</strong><span>/bulan</span></div>
+              <ul class="feature-list">
+                <li>Semua di Mini</li>
+                <li>12 kali sesi interview</li>
+                <li class="gold-feature">Orviko Tidak Terdeteksi</li>
+                <li class="gold-feature">Mode Aman Screen Share</li>
+              </ul>
+              <a class="btn btn-primary" href="#download">Pilih paket ini</a>
+            </article>
+
+            <article class="pricing-card">
+              <div class="badge-row">
+                <span class="plan-badge">Paling bebas</span>
+              </div>
+              <h3 class="plan-name">Pro</h3>
+              <div class="price"><strong>Rp359rb</strong><span>/bulan</span></div>
+              <ul class="feature-list">
+                <li>Semua fitur di Starter</li>
+                <li>Unlimited interview</li>
+              </ul>
+              <a class="btn" href="#download">Pilih paket ini</a>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="compare">
+        <div class="container">
+          <div class="section-head">
+            <div class="section-kicker">Bandingkan</div>
+            <h2>Lihat paket mana yang paling cocok untuk ritme kamu.</h2>
+            <p class="section-desc">Perbedaan utamanya bukan fitur inti yang dipotong-potong, tapi seberapa lega paket itu untuk kebutuhan interview kamu dalam satu bulan.</p>
+          </div>
+
+          <div class="compare-shell">
+            <div class="compare-grid">
+              <div class="top-head row-head">Hal yang dibandingkan</div>
+              <div class="top-head">Mini</div>
+              <div class="top-head">Starter</div>
+              <div class="top-head">Pro</div>
+
+              <div class="row-head">Harga per bulan</div>
+              <div>Rp29rb</div>
+              <div>Rp98rb</div>
+              <div>Rp359rb</div>
+
+              <div class="row-head">Jumlah sesi</div>
+              <div>3 sesi</div>
+              <div>12 sesi</div>
+              <div>Tak terbatas</div>
+
+              <div class="row-head compare-gold-row">Mode Aman Screen Share</div>
+              <div class="muted-cell">-</div>
+              <div class="compare-gold">Ya</div>
+              <div class="compare-gold">Ya</div>
+
+              <div class="row-head">Bantuan jawaban saat live</div>
+              <div class="check">Ya</div>
+              <div class="check">Ya</div>
+              <div class="check">Ya</div>
+
+              <div class="row-head">Bisa menyesuaikan dengan CV dan lowongan</div>
+              <div class="check">Ya</div>
+              <div class="check">Ya</div>
+              <div class="check">Ya</div>
+
+              <div class="row-head">Cocok untuk siapa</div>
+              <div class="muted-cell">Yang baru mau coba</div>
+              <div class="muted-cell">Yang mulai rutin interview</div>
+              <div class="muted-cell">Yang ingin paling bebas</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="faq">
+        <div class="container">
+          <div class="section-head">
+            <div class="section-kicker">FAQ</div>
+            <h2>Pertanyaan umum sebelum pilih paket</h2>
+          </div>
+          <div class="faq">
+            <details open>
+              <summary>Kalau saya baru pertama kali pakai, mulai dari mana?</summary>
+              <p>Kalau kamu cuma ingin lihat dulu cara kerjanya, mulai dari Mini. Kalau kamu sudah tahu akan ada beberapa interview dalam waktu dekat, Starter atau Pro biasanya lebih nyaman.</p>
+            </details>
+            <details>
+              <summary>Kalau saya sedang aktif banget cari kerja, paket mana yang paling aman?</summary>
+              <p>Biasanya Starter cukup untuk ritme yang mulai rutin. Kalau kamu ingin paling bebas tanpa memikirkan batas sesi, pilih Pro.</p>
+            </details>
+            <details>
+              <summary>Apakah paket yang lebih murah fiturnya dipotong banyak?</summary>
+              <p>Tidak. Fitur inti tetap ada. Yang paling berbeda adalah seberapa banyak sesi yang bisa kamu pakai dalam sebulan.</p>
+            </details>
+            <details>
+              <summary>Apa maksud tak terbatas dengan penggunaan wajar?</summary>
+              <p>Artinya paket Pro dibuat untuk terasa sangat lega, tetapi tetap dipakai secara normal oleh satu kandidat, bukan untuk pola penggunaan yang tidak wajar.</p>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="download">
+        <div class="container">
+          <div class="final-cta">
+            <div class="section-kicker">Mulai</div>
+            <h2>Pilih paket yang cukup untuk ritme interview kamu sekarang.</h2>
+            <p class="section-desc">Tidak harus langsung ambil yang paling mahal. Yang penting, kamu punya ruang yang cukup untuk menjawab interview dengan lebih tenang sepanjang bulan ini.</p>
+            <div class="hero-actions">
+              <a class="btn btn-primary" href="#"><span class="windows-icon" aria-hidden="true"><span></span><span></span><span></span><span></span></span> Download for Windows</a>
+              <a class="btn" href="#pricing">Lihat paket lagi</a>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="container footer-inner">
+        <div class="brand"><span class="brand-mark">O</span><span>Orviko</span></div>
+        <div class="footer-links">
+          <a href="#pricing">Harga</a>
+          <a href="#compare">Bandingkan</a>
+          <a href="#faq">FAQ</a>
+          <a href="#download">Download</a>
+        </div>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>

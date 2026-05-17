@@ -61,3 +61,7 @@ desktop.ini
 # Project Specific
 storage/cvs/*
 !storage/cvs/.gitkeep
+storage/*.log
+outputs/
+temp/
+audio-sample/

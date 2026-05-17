@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Overlay Mockup</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --panel: rgba(17, 19, 24, 0.86);
+      --panel-soft: rgba(255, 255, 255, 0.09);
+      --line: rgba(255, 255, 255, 0.16);
+      --line-strong: rgba(255, 255, 255, 0.18);
+      --text: #ffffff;
+      --text-soft: rgba(255, 255, 255, 0.76);
+      --text-muted: rgba(255, 255, 255, 0.58);
+      --green: #22c55e;
+      --yellow: #fde68a;
+      --shadow: 0 18px 46px rgba(0, 0, 0, 0.34);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+    }
+
+    body {
+      position: relative;
+    }
+
+    .stage {
+      position: absolute;
+      inset: 0;
+      background: #d9e8f7 url("./assets/walpaper.jpg") center center / cover no-repeat;
+      overflow: hidden;
+    }
+
+    .stage::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: transparent;
+    }
+
+    .stage::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: transparent;
+    }
+
+    .overlay {
+      position: absolute;
+      top: 24px;
+      left: 24px;
+      color: var(--text);
+      user-select: none;
+    }
+
+    .overlay.dragging {
+      cursor: grabbing;
+    }
+
+    .mini-shell {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 46px;
+      padding: 7px;
+      border-radius: 999px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+      cursor: grab;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 32px;
+      padding: 0 10px;
+      border-radius: 999px;
+      background: var(--panel-soft);
+      color: rgba(255, 255, 255, 0.92);
+      font-size: 13px;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    .chip.warn {
+      color: var(--yellow);
+    }
+
+    .pulse {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 0 5px rgba(34, 197, 94, 0.16);
+    }
+
+    .btn,
+    .action-btn,
+    .keyword-btn {
+      min-height: 34px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.10);
+      color: #ffffff;
+      padding: 0 12px;
+      font-weight: 850;
+      cursor: pointer;
+    }
+
+    .end-btn {
+      width: 34px;
+      min-width: 34px;
+      min-height: 34px;
+      border-radius: 999px;
+      border: 1px solid var(--line-strong);
+      background: #dc2626;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .end-btn::before {
+      content: "";
+      width: 11px;
+      height: 11px;
+      border-radius: 2px;
+      background: #ffffff;
+      position: absolute;
+      inset: 0;
+      margin: auto;
+    }
+
+    .expanded-shell {
+      display: none;
+      width: 560px;
+      height: 440px;
+      padding: 10px;
+      overflow: hidden;
+      background: transparent;
+    }
+
+    .expanded-shell.active {
+      display: grid;
+    }
+
+    .expanded-shell.with-response {
+      width: 900px;
+      grid-template-columns: minmax(320px, 0.82fr) minmax(360px, 1fr);
+      gap: 10px;
+      align-items: start;
+    }
+
+    .overlay-panel {
+      display: grid;
+      gap: 10px;
+      width: 100%;
+      height: 100%;
+      max-height: 100%;
+      min-height: 0;
+      overflow-y: auto;
+      border-radius: 14px;
+      padding: 14px;
+      align-content: start;
+      grid-auto-rows: max-content;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+      cursor: grab;
+    }
+
+    .overlay-panel.compact-when-response .question-card,
+    .overlay-panel.compact-when-response .actions,
+    .overlay-panel.compact-when-response .keyword-empty-card {
+      display: none;
+    }
+
+    .response-shell {
+      display: none;
+      width: 100%;
+      max-height: 100%;
+      overflow-y: auto;
+      padding: 14px;
+      border-radius: 14px;
+      background: rgba(17, 19, 24, 0.90);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+    }
+
+    .response-shell.active {
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    .overlay-top,
+    .response-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .kicker {
+      margin: 0 0 5px;
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 850;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .title {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.1;
+      font-weight: 950;
+      color: #ffffff;
+    }
+
+    .sub {
+      margin: 0;
+      color: var(--text-soft);
+      line-height: 1.4;
+    }
+
+    .audio {
+      margin: 6px 0 0;
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+
+    .card {
+      display: grid;
+      gap: 8px;
+      padding: 11px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.10);
+    }
+
+    .card p,
+    .response-shell li {
+      margin: 0;
+      color: var(--text-soft);
+      line-height: 1.45;
+    }
+
+    .overlay-panel .card:first-of-type {
+      max-height: 112px;
+      overflow-y: auto;
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .action-btn {
+      min-height: 42px;
+      border-radius: 10px;
+      white-space: normal;
+    }
+
+    .overlay-keywords {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .overlay-keywords button {
+      min-height: 30px;
+      font-size: 12px;
+    }
+
+    .ask-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+    }
+
+    .ask-input {
+      min-height: 38px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.09);
+      color: #ffffff;
+      padding: 0 14px;
+      outline: none;
+    }
+
+    .ask-input::placeholder {
+      color: rgba(255, 255, 255, 0.50);
+    }
+
+    .response-shell ul {
+      margin: 0;
+      padding-left: 18px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .loading {
+      display: none;
+      gap: 8px;
+      align-items: center;
+      justify-content: flex-start;
+    }
+
+    .loading.active {
+      display: flex;
+    }
+
+    .loading span {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.82);
+      animation: pulse 1s infinite ease-in-out;
+    }
+
+    .loading span:nth-child(2) { animation-delay: 0.15s; }
+    .loading span:nth-child(3) { animation-delay: 0.30s; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.28; transform: translateY(0); }
+      50% { opacity: 1; transform: translateY(-2px); }
+    }
+  </style>
+</head>
+<body>
+  <div class="stage"></div>
+
+  <div class="overlay" id="overlay">
+    <div class="mini-shell" id="miniShell">
+      <span class="chip"><span class="pulse"></span> Listening 02:14</span>
+      <span class="chip warn">System OK</span>
+      <button class="btn" id="openBtn">Ask *</button>
+      <button class="end-btn" aria-label="End interview"></button>
+    </div>
+
+    <div class="expanded-shell" id="expandedShell">
+      <section class="overlay-panel" id="overlayPanel">
+        <div class="overlay-top">
+          <div>
+            <p class="kicker">Listening 02:14</p>
+            <h2 class="title">TECHNICAL Interview</h2>
+            <p class="sub">Tokopedia - Marketing Associate</p>
+            <p class="audio">Realtime listening via active system output</p>
+          </div>
+          <button class="btn" id="hideBtn">Hide</button>
+        </div>
+
+        <div class="card question-card">
+          <strong>Latest conversation focus</strong>
+          <p id="focusText">Bagaimana kamu memilih strategi kampanye yang paling efektif ketika data awal belum lengkap?</p>
+        </div>
+
+        <div class="actions">
+          <button class="action-btn" data-kind="answer">Bantu Jawab</button>
+          <button class="action-btn" data-kind="followup">Bantu Follow-up</button>
+          <button class="action-btn" data-kind="explain">Jelaskan Maksudnya</button>
+        </div>
+
+        <div class="overlay-keywords">
+          <button class="keyword-btn" data-kind="keyword" data-label="Campaign Strategy">Campaign Strategy</button>
+          <button class="keyword-btn" data-kind="keyword" data-label="Data Validation">Data Validation</button>
+          <button class="keyword-btn" data-kind="keyword" data-label="Decision Making">Decision Making</button>
+        </div>
+
+        <form class="ask-row" id="askForm">
+          <input class="ask-input" id="askInput" placeholder="Tulis bantuan spesifik..." />
+          <button class="btn" type="submit">Ask</button>
+        </form>
+
+      </section>
+
+      <aside class="response-shell" id="responseShell">
+        <div class="response-top">
+          <div>
+            <p class="kicker">AI help</p>
+            <h2 class="title" id="responseTitle">Generating help...</h2>
+          </div>
+          <button class="btn" id="closeResponseBtn">Close</button>
+        </div>
+        <div class="loading" id="loadingState">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+        <ul id="responseList"></ul>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    const overlay = document.getElementById("overlay");
+    const miniShell = document.getElementById("miniShell");
+    const expandedShell = document.getElementById("expandedShell");
+    const overlayPanel = document.getElementById("overlayPanel");
+    const responseShell = document.getElementById("responseShell");
+    const loadingState = document.getElementById("loadingState");
+    const responseTitle = document.getElementById("responseTitle");
+    const responseList = document.getElementById("responseList");
+    const focusText = document.getElementById("focusText");
+    const askForm = document.getElementById("askForm");
+    const askInput = document.getElementById("askInput");
+
+    const dummyResponses = {
+      answer: {
+        title: "Konteks Belum Tertangkap",
+        points: [
+          "Konteks percakapan terbaru belum tertangkap.",
+          "Tunggu lawan bicara selesai berbicara sebentar, lalu klik bantuan lagi.",
+          "Saya tidak akan memakai konteks lama jika audio terbaru belum masuk."
+        ]
+      },
+      followup: {
+        title: "Bantu Follow-up",
+        points: [
+          "Apakah tim lebih mengutamakan kecepatan eksperimen atau akurasi insight di tahap awal?",
+          "Data minimum apa yang biasanya dianggap cukup sebelum strategi dijalankan?",
+          "Apakah ada KPI utama yang paling menentukan keputusan kampanye di tim ini?"
+        ]
+      },
+      explain: {
+        title: "Jelaskan Maksudnya",
+        points: [
+          "Interviewer sedang menguji cara kamu mengambil keputusan saat informasinya belum ideal.",
+          "Yang diuji bukan cuma strategi kampanye, tapi juga judgment dan validasi asumsi.",
+          "Angle jawaban terbaik: jelaskan langkah prioritas, validasi cepat, lalu iterasi."
+        ]
+      }
+    };
+
+    function showMini() {
+      miniShell.style.display = "flex";
+      expandedShell.classList.remove("active");
+      expandedShell.classList.remove("with-response");
+      overlayPanel.classList.remove("compact-when-response");
+      responseShell.classList.remove("active");
+      responseList.innerHTML = "";
+      loadingState.classList.remove("active");
+    }
+
+    function showExpanded() {
+      miniShell.style.display = "none";
+      expandedShell.classList.add("active");
+    }
+
+    function renderResponse(title, points) {
+      responseTitle.textContent = title;
+      responseList.innerHTML = "";
+      points.forEach((point) => {
+        const li = document.createElement("li");
+        li.textContent = point;
+        responseList.appendChild(li);
+      });
+    }
+
+    function simulateResponse(title, points) {
+      showExpanded();
+      expandedShell.classList.add("with-response");
+      overlayPanel.classList.add("compact-when-response");
+      responseShell.classList.add("active");
+      responseTitle.textContent = "Generating help...";
+      responseList.innerHTML = "";
+      loadingState.classList.add("active");
+
+      window.setTimeout(() => {
+        loadingState.classList.remove("active");
+        renderResponse(title, points);
+      }, 550);
+    }
+
+    document.getElementById("openBtn").addEventListener("click", showExpanded);
+    document.getElementById("hideBtn").addEventListener("click", showMini);
+    document.getElementById("closeResponseBtn").addEventListener("click", () => {
+      expandedShell.classList.remove("with-response");
+      overlayPanel.classList.remove("compact-when-response");
+      responseShell.classList.remove("active");
+      responseList.innerHTML = "";
+      loadingState.classList.remove("active");
+    });
+
+    document.querySelectorAll("[data-kind='answer'], [data-kind='followup'], [data-kind='explain']").forEach((button) => {
+      button.addEventListener("click", () => {
+        const kind = button.getAttribute("data-kind");
+        const data = dummyResponses[kind];
+        simulateResponse(data.title, data.points);
+      });
+    });
+
+    document.querySelectorAll("[data-kind='keyword']").forEach((button) => {
+      button.addEventListener("click", () => {
+        const label = button.getAttribute("data-label") || "Keyword";
+        simulateResponse(`Keyword: ${label}`, [
+          `${label} adalah topik yang sedang relevan dengan arah pertanyaan interviewer.`,
+          "Gunakan keyword ini untuk mengaitkan jawaban ke konteks terbaru.",
+          "Jawab singkat, lalu beri contoh keputusan yang konkret."
+        ]);
+      });
+    });
+
+    askForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const value = askInput.value.trim();
+      if (!value) return;
+      simulateResponse("Ask", [
+        `Dummy jawaban untuk: "${value}".`,
+        "Saya sengaja buat singkat, cepat discan, dan siap dibaca.",
+        "Kalau ini runtime asli, isi response akan mengikuti transcript terbaru."
+      ]);
+      askInput.value = "";
+    });
+
+    const dragState = {
+      active: false,
+      offsetX: 0,
+      offsetY: 0
+    };
+
+    function beginDrag(event) {
+      if (event.target.closest("button, input")) {
+        return;
+      }
+      dragState.active = true;
+      dragState.offsetX = event.clientX - overlay.offsetLeft;
+      dragState.offsetY = event.clientY - overlay.offsetTop;
+      overlay.classList.add("dragging");
+    }
+
+    function moveDrag(event) {
+      if (!dragState.active) return;
+      const activeWidth = expandedShell.classList.contains("with-response") ? 900 : 560;
+      const activeHeight = 440;
+      const nextLeft = Math.max(0, Math.min(window.innerWidth - activeWidth, event.clientX - dragState.offsetX));
+      const nextTop = Math.max(0, Math.min(window.innerHeight - activeHeight, event.clientY - dragState.offsetY));
+      overlay.style.left = `${nextLeft}px`;
+      overlay.style.top = `${nextTop}px`;
+    }
+
+    function endDrag() {
+      dragState.active = false;
+      overlay.classList.remove("dragging");
+    }
+
+    miniShell.addEventListener("pointerdown", beginDrag);
+    expandedShell.addEventListener("pointerdown", beginDrag);
+    responseShell.addEventListener("pointerdown", beginDrag);
+    window.addEventListener("pointermove", moveDrag);
+    window.addEventListener("pointerup", endDrag);
+
+    focusText.textContent = "Bagaimana kamu memilih strategi kampanye yang paling efektif ketika data awal belum lengkap?";
+  </script>
+</body>
+</html>
