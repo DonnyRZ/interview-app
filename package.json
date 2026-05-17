@@ -10,7 +10,9 @@
   "scripts": {
     "dev:api": "npm --workspace @interview-app/api run dev",
     "dev:desktop": "npm --workspace @interview-app/desktop run dev",
-    "build": "npm --workspace @interview-app/shared run build && npm --workspace @interview-app/api run build && npm --workspace @interview-app/desktop run build",
+    "dev:web": "npm --workspace @interview-app/web run dev",
+    "build:web": "npm --workspace @interview-app/web run build",
+    "build": "npm --workspace @interview-app/shared run build && npm --workspace @interview-app/api run build && npm --workspace @interview-app/desktop run build && npm --workspace @interview-app/web run build",
     "typecheck": "npm --workspace @interview-app/shared run build && npm --workspace @interview-app/api run typecheck && npm --workspace @interview-app/desktop run typecheck",
     "db:migrate": "npm --workspace @interview-app/api run db:migrate",
     "db:seed:dev": "npm --workspace @interview-app/api run db:seed:dev"

@@ -16,7 +16,7 @@ internal static class Program
     private const int StgmRead = 0;
     private const double SignalThreshold = 0.015;
     private const double PeakTieTolerance = 0.003;
-    private const int StreamRescanSilenceMs = 3000;
+    private const int StreamRescanSilenceMs = 12000;
     private const int StreamPrebufferMs = 2000;
     private const int StreamTailSilenceMs = 300;
     private const string RenderDevicesRegistryPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Render";

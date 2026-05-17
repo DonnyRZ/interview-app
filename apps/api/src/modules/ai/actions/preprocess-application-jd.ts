@@ -9,9 +9,9 @@ export type PreprocessApplicationJdInput = {
 
 export const preprocessApplicationJdSpec: ActionSpec<PreprocessApplicationJdInput> = {
   actionId: "preprocess_application_context",
-  version: "2026-05-04.v2",
+  version: "2026-05-10.v3",
   goal: "Mengubah company, role, job description, dan konteks CV aktif menjadi profil domain/niche untuk interview live.",
-  role: "Kamu adalah mesin analisis domain interview untuk aplikasi kerja.",
+  role: "Kamu adalah analis konteks interview untuk aplikasi kerja lintas bidang.",
   task: [
     "Analisis company, role, job description, dan konteks CV aktif yang tersedia.",
     "Pisahkan tanggung jawab utama, requirement utama, dan nice-to-have agar runtime bisa memilih konteks yang tepat.",
@@ -23,6 +23,8 @@ export const preprocessApplicationJdSpec: ActionSpec<PreprocessApplicationJdInpu
     "Jangan menyatakan fakta tentang company kecuali fakta itu ada di payload yang diberikan.",
     "Kamu boleh memakai CV aktif untuk memahami kecocokan kandidat, tetapi domain/niche utama harus dipimpin oleh role dan job description.",
     "Jika job description terlalu pendek, set status menjadi partial dan buat domainProfile yang konservatif, bukan ekspansi agresif dari CV.",
+    "Domain profile harus role-neutral: jangan default ke kosakata bidang tertentu jika role/JD/CV tidak mendukungnya.",
+    "Untuk role non-teknis atau operasional, domainProfile boleh memakai responsibility, proses kerja, standar kualitas, keselamatan, layanan, koordinasi, inventory, atau compliance yang eksplisit relevan.",
     "Seed concepts hanya contoh konsep in-scope untuk membantu runtime relevance, bukan chip keyword final yang pasti tampil.",
     "Seed concepts maksimal 5 item, setiap item maksimal 2-4 kata.",
     "Responsibilities berisi tugas utama role dari JD, bukan interpretasi bebas.",
