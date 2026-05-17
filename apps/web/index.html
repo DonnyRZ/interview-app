@@ -1,0 +1,398 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Orviko Landing Mockup</title>
+  <link rel="stylesheet" href="/src/styles.css" />
+</head>
+<body>
+  <div class="page">
+    <section class="hero-shell">
+      <header class="site-header">
+        <div class="container">
+          <nav class="nav" aria-label="Main navigation">
+            <a class="brand" href="#">
+              <img class="brand-mark" src="./assets/Logo-5.png" alt="Orviko logo" />
+              <span class="brand-name">Orviko</span>
+            </a>
+
+            <div class="nav-links">
+              <a href="#cara-kerja">Cara Kerja</a>
+              <a href="#contoh-hasil">Contoh Hasil</a>
+              <a href="#faq">FAQ</a>
+            </div>
+
+            <div class="cta-row">
+              <a class="btn btn-primary" href="#download">
+                <span class="windows-icon" aria-hidden="true">
+                  <span></span><span></span><span></span><span></span>
+                </span>
+                Download untuk Windows
+              </a>
+            </div>
+          </nav>
+        </div>
+      </header>
+
+      <main class="hero">
+        <div class="container">
+          <div class="hero-inner">
+            <div class="eyebrow">
+              <span class="eyebrow-dot" aria-hidden="true"></span>
+              Desktop AI assistant untuk interview online
+            </div>
+
+            <h1>Jangan blank saat interview kerja</h1>
+            <p class="hero-sub">
+              Orviko membantu kamu menyusun jawaban yang lebih tenang, jelas, dan meyakinkan saat interview online berlangsung.
+            </p>
+
+            <div class="hero-actions">
+              <a class="btn btn-primary" href="#download">
+                <span class="windows-icon" aria-hidden="true">
+                  <span></span><span></span><span></span><span></span>
+                </span>
+                Download untuk Windows
+              </a>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="hero-spacer" aria-hidden="true"></div>
+      </main>
+    </section>
+
+    <section class="interactive-demo-section" id="contoh-hasil" aria-label="Interactive demo">
+      <div class="container">
+        <h2 class="demo-section-title">Klik <span class="demo-title-ask">Ask</span> untuk coba Orviko</h2>
+        <div class="interactive-demo-frame">
+          <div class="interactive-demo-canvas" id="demoCanvas">
+            <div class="demo-stage"></div>
+
+            <div class="interview-video-window" aria-hidden="true">
+              <video src="./assets/interview.mp4" autoplay muted loop playsinline></video>
+            </div>
+
+            <div class="demo-overlay" id="demoOverlay">
+              <div class="demo-mini-shell" id="demoMiniShell">
+                <span class="demo-chip"><span class="demo-pulse"></span> Listening 02:14</span>
+                <span class="demo-chip warn">System OK</span>
+                <button class="demo-btn" id="demoOpenBtn" type="button">Ask *</button>
+                <button class="demo-end-btn" aria-label="End interview" type="button"></button>
+              </div>
+
+              <div class="demo-expanded-shell" id="demoExpandedShell">
+                <section class="demo-overlay-panel" id="demoOverlayPanel">
+                  <div class="demo-overlay-top">
+                    <div>
+                      <p class="demo-kicker">Listening 02:14</p>
+                      <h2 class="demo-title">TECHNICAL Interview</h2>
+                      <p class="demo-sub">Tokopedia - Marketing Associate</p>
+                      <p class="demo-audio">Realtime listening via active system output</p>
+                    </div>
+                    <button class="demo-btn" id="demoHideBtn" type="button">Hide</button>
+                  </div>
+
+                  <div class="demo-card demo-question-card">
+                    <strong>Latest conversation focus</strong>
+                    <p id="demoFocusText">Bagaimana kamu memilih strategi kampanye yang paling efektif ketika data awal belum lengkap?</p>
+                  </div>
+
+                  <div class="demo-actions">
+                    <button class="demo-action-btn" data-kind="answer" type="button">Bantu Jawab</button>
+                    <button class="demo-action-btn" data-kind="followup" type="button">Bantu Follow-up</button>
+                    <button class="demo-action-btn" data-kind="explain" type="button">Jelaskan Maksudnya</button>
+                  </div>
+
+                  <div class="demo-overlay-keywords">
+                    <button class="demo-keyword-btn" data-kind="keyword" data-label="Campaign Strategy" type="button">Campaign Strategy</button>
+                    <button class="demo-keyword-btn" data-kind="keyword" data-label="Data Validation" type="button">Data Validation</button>
+                    <button class="demo-keyword-btn" data-kind="keyword" data-label="Decision Making" type="button">Decision Making</button>
+                  </div>
+
+                  <form class="demo-ask-row" id="demoAskForm">
+                    <input class="demo-ask-input" id="demoAskInput" placeholder="Tulis bantuan spesifik..." />
+                    <button class="demo-btn" type="submit">Ask</button>
+                  </form>
+                </section>
+
+                <aside class="demo-response-shell" id="demoResponseShell">
+                  <div class="demo-response-top">
+                    <div>
+                      <p class="demo-kicker">AI help</p>
+                      <h2 class="demo-title" id="demoResponseTitle">Generating help...</h2>
+                    </div>
+                    <button class="demo-btn" id="demoCloseResponseBtn" type="button">Close</button>
+                  </div>
+                  <div class="demo-loading" id="demoLoadingState">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                  </div>
+                  <ul id="demoResponseList"></ul>
+                </aside>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <section class="how-section" id="cara-kerja" aria-labelledby="how-title">
+      <div class="container">
+        <h2 class="section-heading" id="how-title">Cara Orviko membantumu saat interview</h2>
+
+        <div class="how-grid">
+          <article class="how-panel listen">
+            <div class="how-content">
+              <h3 class="how-title">Orviko mendengarkan percakapan saat meeting</h3>
+              <p class="how-description">
+                Orviko menangkap percakapan secara realtime untuk memahami konteks interview yang sedang berjalan.
+              </p>
+            </div>
+
+            <div class="listen-visual" aria-hidden="true">
+              <div class="recording-visual">
+                <span></span><span></span><span></span><span></span><span></span>
+                <span></span><span></span><span></span><span></span><span></span>
+                <span></span><span></span><span></span><span></span><span></span>
+                <span></span><span></span><span></span><span></span><span></span>
+              </div>
+
+              <div class="listen-mini">
+                <span class="listen-chip"><span class="demo-pulse"></span> Listening <span id="howListeningTimer">00:01</span></span>
+                <span class="listen-chip ok">System OK</span>
+                <span class="listen-chip">Ask *</span>
+              </div>
+
+              <div class="context-preview">
+                <strong>Latest conversation focus</strong>
+                <p class="context-line">Bagaimana kamu memilih strategi kampanye saat data awal belum lengkap?</p>
+              </div>
+            </div>
+          </article>
+
+          <article class="how-panel help">
+            <div class="how-content">
+              <h3 class="how-title">Saat butuh bantuan, Orviko merespons dengan cepat</h3>
+              <p class="how-description">
+                Saat kamu blank atau butuh arahan, Orviko langsung menampilkan bantuan yang ringkas dan cepat dibaca.
+              </p>
+            </div>
+
+            <div class="help-visual" aria-hidden="true">
+              <div class="help-overlay-preview">
+                <div class="preview-top">
+                  <div>
+                    <p class="preview-kicker">AI help</p>
+                    <h3 class="preview-title">Bantu Jawab</h3>
+                  </div>
+                </div>
+
+                <p class="preview-answer">
+                  Saya biasanya mulai dari objective campaign dulu, lalu cek data minimum seperti target audience, channel historis, budget, dan KPI utama.
+                </p>
+
+                <div class="preview-keywords">
+                  <span>Campaign Strategy</span>
+                  <span>Data Validation</span>
+                  <span>Decision Making</span>
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="comic-section" aria-labelledby="comic-title">
+      <div class="container">
+        <h2 class="section-heading comic-heading" id="comic-title">Ilustrasi Penggunaan Orviko</h2>
+
+        <div class="comic-frame">
+          <picture>
+            <source srcset="./assets/Komik-Mobile.png" media="(max-width: 640px)" />
+            <img src="./assets/Komik-Desktop.png" alt="Ilustrasi penggunaan Orviko saat interview online" loading="lazy" />
+          </picture>
+        </div>
+      </div>
+    </section>
+
+    <section class="pressure-section" aria-labelledby="pressure-title">
+      <div class="container">
+        <div class="pressure-intro">
+          <h2 class="section-heading" id="pressure-title">Dibuat untuk momen interview yang menegangkan</h2>
+          <p>
+            Saat kamu blank, Orviko memberi bantuan yang cepat dibaca tanpa mengganggu alur interview.
+          </p>
+        </div>
+
+        <div class="pressure-stats" aria-label="Keunggulan Orviko saat interview live">
+          <article class="pressure-stat">
+            <strong>~800ms</strong>
+            <span>Target response time setelah klik bantuan</span>
+          </article>
+          <article class="pressure-stat">
+            <strong>3 poin</strong>
+            <span>Jawaban singkat, bukan paragraf panjang</span>
+          </article>
+          <article class="pressure-stat">
+            <strong>Konteks live</strong>
+            <span>Memahami CV, job desc, dan percakapan terbaru</span>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="compat-section" aria-labelledby="compat-title">
+      <div class="container">
+        <h2 class="section-heading compat-heading" id="compat-title">Orviko bisa kamu gunakan pada platform apapun</h2>
+
+        <div class="compat-showcase" aria-label="Platform interview online yang didukung Orviko">
+          <div class="compat-visual">
+            <img src="./assets/interview-2.png" alt="Ilustrasi Orviko digunakan saat interview online" loading="lazy" />
+          </div>
+
+          <div class="compat-pill zoom">
+            <span class="compat-logo zoom"><img src="./assets/Zoom.png" alt="" loading="lazy" /></span>
+            <span>Zoom</span>
+          </div>
+
+          <div class="compat-pill meet">
+            <span class="compat-logo meet"><img src="./assets/Google Meet.png" alt="" loading="lazy" /></span>
+            <span>Google Meet</span>
+          </div>
+
+          <div class="compat-pill teams">
+            <span class="compat-logo teams"><img src="./assets/Microsoft Teams.png" alt="" loading="lazy" /></span>
+            <span>Microsoft Teams</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="faq-section" id="faq" aria-labelledby="faq-title">
+      <div class="container">
+        <h2 class="faq-heading" id="faq-title">Frequently asked questions</h2>
+
+        <div class="faq-list">
+          <details class="faq-item">
+            <summary>
+              <span>Kenapa Orviko real-time, bukan AI notetaker biasa?</span>
+            </summary>
+            <p>
+              Orviko dirancang untuk membantu saat interview sedang berlangsung, bukan hanya merangkum setelah meeting selesai.
+              Bantuan muncul saat kamu klik, dalam format singkat yang mudah dibaca ketika tekanan sedang tinggi.
+            </p>
+          </details>
+
+          <details class="faq-item">
+            <summary>
+              <span>Untuk siapa Orviko dibuat?</span>
+            </summary>
+            <p>
+              Orviko dibuat untuk kandidat yang ingin lebih siap saat interview online, terutama ketika perlu mengingat konteks CV,
+              job description, dan percakapan terbaru tanpa kehilangan fokus.
+            </p>
+          </details>
+
+          <details class="faq-item">
+            <summary>
+              <span>Apakah Orviko menjawab otomatis saat interview?</span>
+            </summary>
+            <p>
+              Tidak. User tetap memegang kontrol. Orviko hanya menampilkan bantuan ketika kamu menekan tombol seperti Bantu Jawab,
+              Bantu Follow-up, Jelaskan Maksudnya, atau mengirim pertanyaan manual.
+            </p>
+          </details>
+
+          <details class="faq-item">
+            <summary>
+              <span>Apakah Orviko bisa dipakai di Zoom, Google Meet, dan Microsoft Teams?</span>
+            </summary>
+            <p>
+              Ya. Orviko dirancang untuk mendampingi interview online di platform meeting umum seperti Zoom, Google Meet,
+              dan Microsoft Teams.
+            </p>
+          </details>
+
+          <details class="faq-item">
+            <summary>
+              <span>Apa yang dipahami Orviko saat interview berjalan?</span>
+            </summary>
+            <p>
+              Orviko menggunakan konteks dari CV, role yang dilamar, job description, dan percakapan terbaru agar bantuan yang muncul
+              tetap relevan dengan situasi interview.
+            </p>
+          </details>
+
+          <details class="faq-item">
+            <summary>
+              <span>Apakah jawaban Orviko panjang?</span>
+            </summary>
+            <p>
+              Tidak. Orviko memprioritaskan jawaban singkat, biasanya dalam beberapa poin, supaya cepat discan dan tidak mengganggu
+              alur interview.
+            </p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <section class="final-cta-section" id="download" aria-labelledby="final-cta-title">
+      <div class="container">
+        <div class="final-cta-inner">
+          <p class="final-cta-kicker">Orviko untuk Windows</p>
+          <h2 id="final-cta-title">Siap interview dengan lebih tenang?</h2>
+          <p>
+            Download Orviko dan siapkan bantuan realtime sebelum interview online berikutnya.
+          </p>
+          <a class="btn btn-primary" href="#download">
+            <span class="windows-icon" aria-hidden="true">
+              <span></span><span></span><span></span><span></span>
+            </span>
+            Download untuk Windows
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <footer class="site-footer">
+      <div class="container">
+        <div class="footer-inner">
+          <a class="footer-brand" href="#">
+            <img class="brand-mark" src="./assets/Logo-2.png" alt="Orviko logo" loading="lazy" />
+            <span>Orviko</span>
+          </a>
+
+          <p>Desktop AI assistant untuk interview online.</p>
+
+          <nav class="footer-links" aria-label="Footer navigation">
+            <a href="#cara-kerja">Cara Kerja</a>
+            <a href="#contoh-hasil">Contoh Hasil</a>
+            <a href="#faq">FAQ</a>
+          </nav>
+
+          <span class="footer-copy">© 2026 Orviko. All rights reserved.</span>
+        </div>
+      </div>
+    </footer>
+
+    <div class="floating-cta" id="floatingCta" aria-hidden="true">
+      <a class="btn btn-primary" href="#download">
+        <span class="windows-icon" aria-hidden="true">
+          <span></span><span></span><span></span><span></span>
+        </span>
+        Download untuk Windows
+      </a>
+    </div>
+
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
+
