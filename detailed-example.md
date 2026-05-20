@@ -1,4 +1,4 @@
-# Contoh Detail
+# Contoh Help Button
 
 ## Adegan 1 (08.45)
 Saya buka link zoom meeting, menunggu meeting dimulai pukul 09.00
@@ -92,3 +92,36 @@ Kandidat klik “Pertanyaan Follow-up”
 
 Ouput MVP:
 Saya melihat pada poin nice to have job posting, bagus jika ada pengalaman di Rumah Sakit. Kebetulan saya punya pengalaman sebagai Data Scietist Bundamedik. Kalau boleh tau, produk apa yang sedang digarap untuk rumah sakit ya?
+
+# Contoh Bantuan Keywords
+Keywords diambil dari kata/topik penting yang disebut interviewer, bukan dari “jenis pertanyaan”
+
+## Contoh 1
+Interviewer:
+“Saya dulu handle campaign TikTok Ads untuk produk skincare.”
+
+Keywords: campaign, TikTok Ads, skincare
+
+## Contoh 2
+Interviewer:
+“Biasanya saya lihat dulu CAC dan conversion rate sebelum scale budget.”
+
+Keywords: CAC, conversion rate, scale budget
+
+## Contoh 3
+Interviewer:
+“Kalau konten organik, saya lebih fokus ke hook dan retention.”
+
+Keywords: konten organik, hook, retention
+
+## Contoh 4
+Interviewer:
+“Di perusahaan sebelumnya, masalah terbesar kami adalah leads banyak tapi kualitasnya rendah.”
+
+Keywords: leads, lead quality
+
+## Contoh 5
+Interviewer:
+“Saya pernah pegang campaign Ramadan, tapi ROAS-nya kurang bagus.”
+
+Keywords: campaign Ramadan, ROAS

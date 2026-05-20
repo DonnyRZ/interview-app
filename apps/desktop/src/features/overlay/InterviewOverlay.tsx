@@ -1,6 +1,5 @@
 import { FormEvent, PointerEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { RealtimeContext } from "@interview-app/shared";
-import { buildKeywordSourceText, buildLocalRuntimeKeywords } from "./runtime-rules/runtime-keyword-rules.js";
 import {
   buildNoFreshContextResponse,
   buildNoKeywordResponse,
@@ -15,6 +14,7 @@ import { buildRealtimeActionPrompt } from "./runtime-rules/realtime-action-promp
 import {
   areSameTranscript,
   buildConversationWindow,
+  buildKeywordSourceText,
   chooseMostCompleteTranscript,
   deriveLatestConversationFocus,
   isDomainRelatedText,
@@ -51,10 +51,36 @@ type ConversationTurn = {
   sequence: number;
 };
 
+type StableConversationSnapshot = {
+  focus: string;
+  windowText: string;
+  capturedAt: string;
+  sourceVersion: number;
+};
+
+type RuntimeKeywordRequestPayload = {
+  requestKey: string;
+  fingerprint: string;
+  generation: number;
+  transcriptSegment: string;
+};
+
+type ActiveRealtimeResponse = {
+  requestId: number;
+  action: RealtimeOverlayAction["action"];
+  responseId?: string;
+};
+
+type ActiveKeywordRealtimeResponse = {
+  requestKey: string;
+  fingerprint: string;
+  generation: number;
+  responseId?: string;
+};
+
 const waitingFocusText = "Menunggu konteks percakapan interviewer.";
 const conversationMemoryMs = 120_000;
-const actionFreshConversationMs = 30_000;
-const audioTranscriptGraceMs = 2_500;
+const runtimeKeywordThrottleMs = 350;
 
 const fallbackContext: OverlayContext = {
   companyName: "Interview",
@@ -71,13 +97,22 @@ export function InterviewOverlay() {
   const [recentHelp, setRecentHelp] = useState<HelpResponse[]>([]);
   const [activeResponse, setActiveResponse] = useState<HelpResponse | null>(null);
   const [latestFocus, setLatestFocus] = useState(waitingFocusText);
-  const [conversationWindow, setConversationWindow] = useState("");
-  const [lastTranscriptAt, setLastTranscriptAt] = useState("");
+  const [stableConversationVersion, setStableConversationVersion] = useState(0);
+  const [keywordTranscriptVersion, setKeywordTranscriptVersion] = useState(0);
   const [runtimeKeywordStatus, setRuntimeKeywordStatus] = useState<RuntimeKeywordStatus>("idle");
   const contextRef = useRef<OverlayContext>(fallbackContext);
   const activeRequestRef = useRef(0);
+  const activeRealtimeResponseRef = useRef<ActiveRealtimeResponse | null>(null);
+  const activeKeywordResponseRef = useRef<ActiveKeywordRealtimeResponse | null>(null);
+  const activeResponseFinalRef = useRef(false);
   const runtimeKeywordRequestRef = useRef("");
+  const runtimeKeywordTimerRef = useRef<number | null>(null);
+  const runtimeKeywordInFlightRef = useRef(false);
+  const runtimeKeywordPendingRef = useRef<RuntimeKeywordRequestPayload | null>(null);
+  const runtimeKeywordLastRequestedKeyRef = useRef("");
+  const runtimeKeywordGenerationRef = useRef(0);
   const streamingResponseRef = useRef("");
+  const keywordStreamingResponseRef = useRef("");
   const realtimeSocketRef = useRef<WebSocket | null>(null);
   const realtimeStatusRef = useRef("");
   const recentTranscriptRef = useRef<string[]>([]);
@@ -86,12 +121,15 @@ export function InterviewOverlay() {
   const transcriptOrderRef = useRef<string[]>([]);
   const transcriptDeltaItemsRef = useRef(new Map<string, { text: string; previousItemId?: string; capturedAt: string }>());
   const interimTranscriptRef = useRef<ConversationTurn | null>(null);
+  const lastTranscriptEventFingerprintRef = useRef("");
   const transcriptSequenceRef = useRef(0);
   const pendingSpeechRef = useRef(false);
   const currentSpeechStartedAtRef = useRef(0);
-  const latestAudioSignalAtRef = useRef(0);
   const latestFocusRef = useRef(waitingFocusText);
   const conversationWindowRef = useRef("");
+  const lastStableConversationRef = useRef<StableConversationSnapshot | null>(null);
+  const stableConversationSourceVersionRef = useRef(0);
+  const keywordTranscriptVersionRef = useRef(0);
 
   function applyContext(payload: unknown) {
     if (!payload || typeof payload !== "object") return;
@@ -104,6 +142,9 @@ export function InterviewOverlay() {
       ...(isNewRound ? fallbackContext : contextRef.current),
       ...nextContext
     };
+    if (!Object.prototype.hasOwnProperty.call(nextContext, "latestTranscriptEvent")) {
+      delete mergedContext.latestTranscriptEvent;
+    }
 
     contextRef.current = mergedContext;
     setContext(mergedContext);
@@ -114,25 +155,31 @@ export function InterviewOverlay() {
 
     if (isNewRound) {
       activeRequestRef.current += 1;
-      runtimeKeywordRequestRef.current = "";
+      cancelActiveRealtimeResponse();
+      activeResponseFinalRef.current = false;
+      clearRuntimeKeywordRequests();
       recentTranscriptRef.current = [];
       conversationTurnsRef.current = [];
       transcriptItemsRef.current = new Map();
       transcriptOrderRef.current = [];
       transcriptDeltaItemsRef.current = new Map();
       interimTranscriptRef.current = null;
+      lastTranscriptEventFingerprintRef.current = "";
       transcriptSequenceRef.current = 0;
       pendingSpeechRef.current = false;
       currentSpeechStartedAtRef.current = 0;
-      latestAudioSignalAtRef.current = 0;
       latestFocusRef.current = waitingFocusText;
       conversationWindowRef.current = "";
+      lastStableConversationRef.current = null;
+      stableConversationSourceVersionRef.current = 0;
+      keywordTranscriptVersionRef.current = 0;
       setActiveResponse(null);
       setRecentHelp([]);
       setSeconds(0);
       setLatestFocus(waitingFocusText);
-      setConversationWindow("");
-      setLastTranscriptAt("");
+      setStableConversationVersion(0);
+      setKeywordTranscriptVersion(0);
+      setRuntimeKeywordStatus("idle");
       setMode("mini");
     }
   }
@@ -175,9 +222,6 @@ export function InterviewOverlay() {
         const nextStatus = typeof event.status === "string" ? event.status : "";
         const nextMessage = typeof event.message === "string" ? event.message : "";
         const deviceLabel = typeof event.deviceLabel === "string" ? event.deviceLabel : undefined;
-        if (nextStatus === "ready") {
-          latestAudioSignalAtRef.current = Date.now();
-        }
         setContext((current) => {
           const nextContext = {
             ...current,
@@ -309,38 +353,18 @@ export function InterviewOverlay() {
   }, []);
 
   useEffect(() => {
-    if (!context.realtimeContext) {
-      return;
-    }
-
-    if (!hasFreshConversationContext() || !latestFocus.trim() || latestFocus === waitingFocusText) {
+    const snapshot = getKeywordConversationSnapshot({ maxAgeMs: conversationMemoryMs });
+    if (!context.realtimeContext || !snapshot || !isRealtimeLive(context)) {
       if (context.runtimeKeywords?.length) {
         syncRuntimeKeywords([]);
       }
-      runtimeKeywordRequestRef.current = "";
+      clearRuntimeKeywordRequests();
       setRuntimeKeywordStatus("idle");
       return;
     }
 
-    const recentTranscript = conversationWindow || getRecentTranscriptText();
-    const keywordSourceText = buildKeywordSourceText(latestFocus, recentTranscript);
-    const requestKey = `${context.interviewRoundId || "draft"}::${latestFocus.trim()}::${keywordSourceText.slice(-240)}`;
-    if (runtimeKeywordRequestRef.current === requestKey) {
-      return;
-    }
-
-    runtimeKeywordRequestRef.current = requestKey;
-    setRuntimeKeywordStatus("loading");
-    syncRuntimeKeywords([]);
-
-    const nextKeywords = buildLocalRuntimeKeywords(latestFocus, context, keywordSourceText);
-    syncRuntimeKeywords(nextKeywords);
-    setRuntimeKeywordStatus(nextKeywords.length ? "ready" : "empty");
-
-    if (nextKeywords.length) {
-      setMode((current) => current === "mini" ? "expanded" : current);
-    }
-  }, [context.interviewRoundId, context.realtimeContext, context.runtimeKeywords, latestFocus, conversationWindow, lastTranscriptAt]);
+    queueRuntimeKeywordRequest(snapshot);
+  }, [context.interviewRoundId, context.realtimeContext, context.realtimeStatus, stableConversationVersion, keywordTranscriptVersion]);
 
   function beginDrag(event: PointerEvent<HTMLElement>) {
     const target = event.target as HTMLElement;
@@ -358,12 +382,16 @@ export function InterviewOverlay() {
       }
 
       activeRequestRef.current += 1;
+      cancelActiveRealtimeResponse();
+      activeResponseFinalRef.current = false;
       return "mini";
     });
   }
 
   function closeResponse() {
     activeRequestRef.current += 1;
+    cancelActiveRealtimeResponse();
+    activeResponseFinalRef.current = false;
     setActiveResponse(null);
     setMode("expanded");
   }
@@ -385,6 +413,106 @@ export function InterviewOverlay() {
       });
       return nextContext;
     });
+  }
+
+  function clearRuntimeKeywordRequests() {
+    cancelActiveKeywordResponse();
+
+    if (runtimeKeywordTimerRef.current) {
+      window.clearTimeout(runtimeKeywordTimerRef.current);
+      runtimeKeywordTimerRef.current = null;
+    }
+
+    runtimeKeywordPendingRef.current = null;
+    runtimeKeywordInFlightRef.current = false;
+    runtimeKeywordRequestRef.current = "";
+    runtimeKeywordLastRequestedKeyRef.current = "";
+    runtimeKeywordGenerationRef.current += 1;
+    activeKeywordResponseRef.current = null;
+    keywordStreamingResponseRef.current = "";
+  }
+
+  function queueRuntimeKeywordRequest(snapshot: StableConversationSnapshot) {
+    const keywordSourceText = buildKeywordSourceText(snapshot.focus, snapshot.windowText);
+    if (!keywordSourceText.trim()) {
+      setRuntimeKeywordStatus(contextRef.current.runtimeKeywords?.length ? "ready" : "empty");
+      return;
+    }
+
+    const fingerprint = buildKeywordRequestFingerprint(keywordSourceText);
+    const requestKey = `${contextRef.current.interviewRoundId || "draft"}::${fingerprint}`;
+    if (
+      runtimeKeywordLastRequestedKeyRef.current === requestKey
+      || runtimeKeywordPendingRef.current?.requestKey === requestKey
+    ) {
+      return;
+    }
+
+    runtimeKeywordPendingRef.current = {
+      requestKey,
+      fingerprint,
+      generation: runtimeKeywordGenerationRef.current,
+      transcriptSegment: keywordSourceText
+    };
+    runtimeKeywordRequestRef.current = requestKey;
+    syncRuntimeKeywords([]);
+    setRuntimeKeywordStatus("loading");
+
+    scheduleRuntimeKeywordFlush();
+  }
+
+  function scheduleRuntimeKeywordFlush(delayMs = runtimeKeywordThrottleMs) {
+    if (runtimeKeywordInFlightRef.current || runtimeKeywordTimerRef.current) {
+      return;
+    }
+
+    runtimeKeywordTimerRef.current = window.setTimeout(() => {
+      runtimeKeywordTimerRef.current = null;
+      void flushRuntimeKeywordRequest();
+    }, delayMs);
+  }
+
+  function getPendingRuntimeKeywordRequest() {
+    return runtimeKeywordPendingRef.current;
+  }
+
+  async function flushRuntimeKeywordRequest() {
+    if (runtimeKeywordInFlightRef.current) {
+      return;
+    }
+
+    const payload = runtimeKeywordPendingRef.current;
+    if (!payload) {
+      return;
+    }
+
+    runtimeKeywordPendingRef.current = null;
+    runtimeKeywordInFlightRef.current = true;
+    runtimeKeywordLastRequestedKeyRef.current = payload.requestKey;
+    const generation = payload.generation;
+
+    if (activeRealtimeResponseRef.current || realtimeStatusRef.current === "responding") {
+      runtimeKeywordInFlightRef.current = false;
+      scheduleRuntimeKeywordFlush(700);
+      return;
+    }
+
+    keywordStreamingResponseRef.current = "";
+    activeKeywordResponseRef.current = {
+      requestKey: payload.requestKey,
+      fingerprint: payload.fingerprint,
+      generation
+    };
+
+    const sent = sendRealtimeKeywordRequest(payload);
+    if (!sent) {
+      if (runtimeKeywordGenerationRef.current === generation && runtimeKeywordRequestRef.current === payload.requestKey) {
+        activeKeywordResponseRef.current = null;
+        keywordStreamingResponseRef.current = "";
+        runtimeKeywordInFlightRef.current = false;
+        setRuntimeKeywordStatus(contextRef.current.runtimeKeywords?.length ? "ready" : "error");
+      }
+    }
   }
 
   function isCurrentRequest(requestId: number) {
@@ -461,6 +589,9 @@ export function InterviewOverlay() {
   }
 
   function closeRealtimeClient(reportClose = true) {
+    activeRequestRef.current += 1;
+    cancelActiveRealtimeResponse();
+    cancelActiveKeywordResponse();
     const socket = realtimeSocketRef.current;
     realtimeSocketRef.current = null;
     if (socket) {
@@ -473,6 +604,7 @@ export function InterviewOverlay() {
 
     if (reportClose) {
       streamingResponseRef.current = "";
+      activeResponseFinalRef.current = false;
     }
   }
 
@@ -490,6 +622,27 @@ export function InterviewOverlay() {
     }
 
     const type = typeof event.type === "string" ? event.type : "";
+    if (type === "response.created") {
+      const responseId = getRealtimeResponseId(event);
+      const active = activeRealtimeResponseRef.current;
+      if (active && isCurrentRequest(active.requestId) && responseId) {
+        activeRealtimeResponseRef.current = {
+          ...active,
+          responseId
+        };
+        return;
+      }
+
+      const activeKeyword = activeKeywordResponseRef.current;
+      if (activeKeyword && responseId) {
+        activeKeywordResponseRef.current = {
+          ...activeKeyword,
+          responseId
+        };
+      }
+      return;
+    }
+
     if (type === "input_audio_buffer.speech_started") {
       pendingSpeechRef.current = true;
       currentSpeechStartedAtRef.current = Date.now();
@@ -573,6 +726,9 @@ export function InterviewOverlay() {
         pendingSpeechRef.current = false;
         currentSpeechStartedAtRef.current = 0;
         updateRealtimeStatus("listening", "Konteks siap dari transcript terbaru.");
+      } else {
+        pendingSpeechRef.current = false;
+        currentSpeechStartedAtRef.current = 0;
       }
       return;
     }
@@ -580,6 +736,11 @@ export function InterviewOverlay() {
     if (type === "response.output_text.delta") {
       const delta = typeof event.delta === "string" ? event.delta : "";
       if (!delta) return;
+      if (isActiveKeywordResponseEvent(event)) {
+        keywordStreamingResponseRef.current += delta;
+        return;
+      }
+      if (!isActiveRealtimeResponseEvent(event)) return;
 
       streamingResponseRef.current += delta;
       const points = formatRealtimeResponsePoints(streamingResponseRef.current);
@@ -592,6 +753,13 @@ export function InterviewOverlay() {
 
     if (type === "response.output_text.done") {
       const textDone = typeof event.text === "string" ? event.text.trim() : "";
+      if (isActiveKeywordResponseEvent(event)) {
+        if (textDone && !keywordStreamingResponseRef.current.trim()) {
+          keywordStreamingResponseRef.current = textDone;
+        }
+        return;
+      }
+      if (!isActiveRealtimeResponseEvent(event)) return;
       if (textDone && !streamingResponseRef.current.trim()) {
         streamingResponseRef.current = textDone;
       }
@@ -599,6 +767,13 @@ export function InterviewOverlay() {
     }
 
     if (type === "response.done") {
+      if (isActiveKeywordResponseEvent(event)) {
+        const finalText = extractRealtimeResponseText(event) || keywordStreamingResponseRef.current.trim();
+        finishRealtimeKeywordResponse(finalText);
+        return;
+      }
+
+      if (!isActiveRealtimeResponseEvent(event)) return;
       const finalText = extractRealtimeResponseText(event) || streamingResponseRef.current.trim();
       setActiveResponse((current) => current
         ? { ...current, points: formatRealtimeResponsePoints(finalText) }
@@ -608,6 +783,8 @@ export function InterviewOverlay() {
           points: formatRealtimeResponsePoints(finalText)
         });
       streamingResponseRef.current = "";
+      activeResponseFinalRef.current = true;
+      activeRealtimeResponseRef.current = null;
       const audioReady = contextRef.current.audioStatus === "ready";
       const nextStatus = audioReady ? "listening" : "connected";
       const nextMessage = audioReady
@@ -625,6 +802,17 @@ export function InterviewOverlay() {
     if (type === "error") {
       const error = event.error && typeof event.error === "object" ? event.error as Record<string, unknown> : {};
       const message = typeof error.message === "string" ? error.message : "Realtime API error.";
+      if (activeKeywordResponseRef.current && !activeRealtimeResponseRef.current) {
+        activeKeywordResponseRef.current = null;
+        keywordStreamingResponseRef.current = "";
+        runtimeKeywordInFlightRef.current = false;
+        setRuntimeKeywordStatus(contextRef.current.runtimeKeywords?.length ? "ready" : "error");
+        if (getPendingRuntimeKeywordRequest()) {
+          scheduleRuntimeKeywordFlush(700);
+        }
+        return;
+      }
+
       updateRealtimeStatus("error", message);
       setActiveResponse(buildRealtimeUnavailableResponse(message));
       setMode("response");
@@ -645,10 +833,166 @@ export function InterviewOverlay() {
     return true;
   }
 
+  function sendRealtimeKeywordRequest(payload: RuntimeKeywordRequestPayload) {
+    const snapshot = getKeywordConversationSnapshot({ maxAgeMs: conversationMemoryMs });
+    const itemSent = sendRealtimeClientEvent({
+      type: "conversation.item.create",
+      item: {
+        type: "message",
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: buildRealtimeActionPrompt({
+              action: "surface_keywords",
+              latestQuestion: snapshot?.focus || latestFocusRef.current,
+              recentTranscript: payload.transcriptSegment
+            })
+          }
+        ]
+      }
+    });
+    const responseSent = sendRealtimeClientEvent({
+      type: "response.create",
+      response: {
+        output_modalities: ["text"],
+        max_output_tokens: 80
+      }
+    });
+
+    return itemSent && responseSent;
+  }
+
+  function getRealtimeResponseId(event: Record<string, unknown>) {
+    if (typeof event.response_id === "string" && event.response_id.trim()) {
+      return event.response_id.trim();
+    }
+
+    const response = event.response && typeof event.response === "object"
+      ? event.response as Record<string, unknown>
+      : null;
+    return typeof response?.id === "string" && response.id.trim() ? response.id.trim() : "";
+  }
+
+  function isActiveRealtimeResponseEvent(event: Record<string, unknown>) {
+    const active = activeRealtimeResponseRef.current;
+    if (!active || !isCurrentRequest(active.requestId)) {
+      return false;
+    }
+
+    const responseId = getRealtimeResponseId(event);
+    if (active.responseId && responseId) {
+      return active.responseId === responseId;
+    }
+
+    if (active.responseId && !responseId) {
+      return realtimeStatusRef.current === "responding";
+    }
+
+    if (!active.responseId && responseId) {
+      activeRealtimeResponseRef.current = {
+        ...active,
+        responseId
+      };
+    }
+
+    return realtimeStatusRef.current === "responding";
+  }
+
+  function isActiveKeywordResponseEvent(event: Record<string, unknown>) {
+    const active = activeKeywordResponseRef.current;
+    if (!active || runtimeKeywordGenerationRef.current !== active.generation) {
+      return false;
+    }
+
+    const responseId = getRealtimeResponseId(event);
+    if (active.responseId && responseId) {
+      return active.responseId === responseId;
+    }
+
+    if (!active.responseId && responseId) {
+      activeKeywordResponseRef.current = {
+        ...active,
+        responseId
+      };
+      return true;
+    }
+
+    return !activeRealtimeResponseRef.current;
+  }
+
+  function finishRealtimeKeywordResponse(text: string) {
+    const active = activeKeywordResponseRef.current;
+    if (!active) {
+      return;
+    }
+
+    const pendingRequest = getPendingRuntimeKeywordRequest();
+    const hasNewerPending = Boolean(
+      pendingRequest
+      && pendingRequest.generation === active.generation
+      && pendingRequest.fingerprint !== active.fingerprint
+    );
+    const stillLatest = runtimeKeywordRequestRef.current === active.requestKey && !hasNewerPending;
+    activeKeywordResponseRef.current = null;
+    keywordStreamingResponseRef.current = "";
+    runtimeKeywordInFlightRef.current = false;
+
+    if (runtimeKeywordGenerationRef.current === active.generation && stillLatest) {
+      const nextKeywords = parseRealtimeKeywordTerms(text);
+      syncRuntimeKeywords(nextKeywords);
+      setRuntimeKeywordStatus(nextKeywords.length ? "ready" : hasRealtimeKeywordContract(text) ? "empty" : "error");
+      if (nextKeywords.length) {
+        setMode((current) => current === "mini" ? "expanded" : current);
+      }
+    }
+
+    if (getPendingRuntimeKeywordRequest()?.generation === active.generation) {
+      scheduleRuntimeKeywordFlush(0);
+    }
+  }
+
+  function cancelActiveRealtimeResponse() {
+    const active = activeRealtimeResponseRef.current;
+    const responseId = active?.responseId;
+    const shouldCancel = Boolean(active) || realtimeStatusRef.current === "responding";
+    if (shouldCancel) {
+      sendRealtimeClientEvent(responseId
+        ? { type: "response.cancel", response_id: responseId }
+        : { type: "response.cancel" });
+    }
+
+    activeRealtimeResponseRef.current = null;
+    streamingResponseRef.current = "";
+  }
+
+  function cancelActiveKeywordResponse() {
+    const active = activeKeywordResponseRef.current;
+    if (!active) {
+      return;
+    }
+
+    if (active.responseId) {
+      sendRealtimeClientEvent({ type: "response.cancel", response_id: active.responseId });
+    } else {
+      sendRealtimeClientEvent({ type: "response.cancel" });
+    }
+
+    activeKeywordResponseRef.current = null;
+    keywordStreamingResponseRef.current = "";
+    runtimeKeywordInFlightRef.current = false;
+  }
+
   function registerTranscriptEvent(event: OverlayTranscriptEvent) {
     if (!event.transcriptText || event.speaker === "candidate" || event.speaker === "system") {
       return null;
     }
+
+    const fingerprint = buildTranscriptEventFingerprint(event);
+    if (lastTranscriptEventFingerprintRef.current === fingerprint) {
+      return null;
+    }
+    lastTranscriptEventFingerprintRef.current = fingerprint;
 
     return registerTranscriptText({
       text: event.transcriptText,
@@ -762,12 +1106,43 @@ export function InterviewOverlay() {
 
     conversationWindowRef.current = nextWindow;
     latestFocusRef.current = nextFocus;
-    setConversationWindow(nextWindow);
     setLatestFocus(nextFocus);
-    setLastTranscriptAt(latestTurn?.capturedAt || "");
+    publishKeywordTranscriptVersion(nextFocus, nextWindow, latestTurn);
+    if (!interimTurn) {
+      publishStableConversation(nextFocus, nextWindow, latestTurn);
+    }
     void window.interviewDesktop?.updateOverlayContext?.({
       latestQuestion: nextFocus
     });
+  }
+
+  function publishKeywordTranscriptVersion(focus: string, windowText: string, latestTurn?: ConversationTurn) {
+    const normalizedFocus = focus.trim();
+    if (!latestTurn || !windowText.trim() || !normalizedFocus || normalizedFocus === waitingFocusText) {
+      return;
+    }
+
+    const nextVersion = keywordTranscriptVersionRef.current + 1;
+    keywordTranscriptVersionRef.current = nextVersion;
+    setKeywordTranscriptVersion(nextVersion);
+  }
+
+  function publishStableConversation(focus: string, windowText: string, latestTurn?: ConversationTurn) {
+    const normalizedFocus = focus.trim();
+    const normalizedWindow = windowText.trim();
+    if (!latestTurn || !normalizedWindow || !normalizedFocus || normalizedFocus === waitingFocusText) {
+      return;
+    }
+
+    const sourceVersion = stableConversationSourceVersionRef.current + 1;
+    stableConversationSourceVersionRef.current = sourceVersion;
+    lastStableConversationRef.current = {
+      focus: normalizedFocus,
+      windowText: normalizedWindow,
+      capturedAt: latestTurn.capturedAt,
+      sourceVersion
+    };
+    setStableConversationVersion(sourceVersion);
   }
 
   function getRecentTranscriptText() {
@@ -780,51 +1155,78 @@ export function InterviewOverlay() {
     return joined.slice(joined.length - maxLength).trim();
   }
 
-  function hasFreshConversationContext() {
-    return Boolean(getFreshConversationSnapshot({
-      maxAgeMs: conversationMemoryMs,
-      blockIfAudioOutrunsTranscript: false
-    }));
+  function getKeywordConversationSnapshot(options: {
+    maxAgeMs?: number;
+  } = {}) {
+    const latestInterimTurn = interimTranscriptRef.current;
+    if (latestInterimTurn) {
+      const interimWindow = buildConversationWindow([
+        ...conversationTurnsRef.current.filter((turn) => turn.itemId !== latestInterimTurn.itemId).slice(-9),
+        latestInterimTurn
+      ]);
+      const interimFocus = deriveLatestConversationFocus(interimWindow, latestInterimTurn.text, contextRef.current)
+        || latestInterimTurn.text;
+      const interimSnapshot = buildConversationSnapshot(interimFocus, interimWindow, latestInterimTurn, options.maxAgeMs);
+      if (interimSnapshot) {
+        return interimSnapshot;
+      }
+    }
+
+    return getStableConversationSnapshot(options);
   }
 
-  function getTurnCapturedAfter(turn: ConversationTurn | null | undefined, startedAtMs: number) {
-    if (!turn) {
+  function buildConversationSnapshot(
+    focus: string,
+    windowText: string,
+    turn: ConversationTurn,
+    maxAgeMs?: number
+  ): StableConversationSnapshot | null {
+    const normalizedFocus = focus.trim();
+    const normalizedWindow = windowText.trim();
+    if (!normalizedFocus || normalizedFocus === waitingFocusText || !normalizedWindow) {
       return null;
     }
 
     const capturedTime = new Date(turn.capturedAt).getTime();
-    return Number.isFinite(capturedTime) && capturedTime >= startedAtMs ? turn : null;
+    if (!Number.isFinite(capturedTime)) {
+      return null;
+    }
+
+    if (typeof maxAgeMs === "number" && Date.now() - capturedTime > maxAgeMs) {
+      return null;
+    }
+
+    return {
+      focus: normalizedFocus,
+      windowText: normalizedWindow,
+      capturedAt: turn.capturedAt,
+      sourceVersion: stableConversationSourceVersionRef.current
+    };
   }
 
-  function getFreshConversationSnapshot(options: {
+  function getStableConversationSnapshot(options: {
     maxAgeMs?: number;
-    blockIfAudioOutrunsTranscript?: boolean;
+    blockPendingSpeech?: boolean;
   } = {}) {
-    const maxAgeMs = options.maxAgeMs ?? actionFreshConversationMs;
-    const blockIfAudioOutrunsTranscript = options.blockIfAudioOutrunsTranscript ?? true;
-    const speechStartedAt = currentSpeechStartedAtRef.current;
-    const latestInterimTurn = interimTranscriptRef.current;
-    const latestFinalTurn = conversationTurnsRef.current.at(-1);
-    const latestTurn = pendingSpeechRef.current && speechStartedAt
-      ? getTurnCapturedAfter(latestInterimTurn, speechStartedAt) || getTurnCapturedAfter(latestFinalTurn, speechStartedAt)
-      : latestInterimTurn || latestFinalTurn;
-    if (!latestTurn) {
+    const snapshot = lastStableConversationRef.current;
+    if (!snapshot) {
       return null;
     }
 
-    const capturedTime = new Date(latestTurn.capturedAt).getTime();
-    if (!Number.isFinite(capturedTime) || Date.now() - capturedTime > maxAgeMs) {
+    const capturedTime = new Date(snapshot.capturedAt).getTime();
+    if (!Number.isFinite(capturedTime)) {
       return null;
     }
 
-    if (pendingSpeechRef.current && speechStartedAt && capturedTime < speechStartedAt) {
+    if (typeof options.maxAgeMs === "number" && Date.now() - capturedTime > options.maxAgeMs) {
       return null;
     }
 
     if (
-      blockIfAudioOutrunsTranscript
-      && latestAudioSignalAtRef.current
-      && latestAudioSignalAtRef.current > capturedTime + audioTranscriptGraceMs
+      options.blockPendingSpeech
+      && pendingSpeechRef.current
+      && currentSpeechStartedAtRef.current
+      && capturedTime < currentSpeechStartedAtRef.current
     ) {
       return null;
     }
@@ -833,24 +1235,23 @@ export function InterviewOverlay() {
       return null;
     }
 
-    const windowText = getRecentTranscriptText();
-    if (!windowText.trim()) {
+    if (!snapshot.windowText.trim()) {
       return null;
     }
 
-    return {
-      focus: latestFocusRef.current !== waitingFocusText ? latestFocusRef.current : latestTurn.text,
-      windowText,
-      capturedAt: latestTurn.capturedAt
-    };
+    return snapshot;
   }
 
   async function sendRealtimeActionToSocket(payload: RealtimeOverlayAction) {
-    if (realtimeStatusRef.current === "responding") {
-      sendRealtimeClientEvent({ type: "response.cancel" });
-    }
+    cancelActiveKeywordResponse();
+    cancelActiveRealtimeResponse();
 
     streamingResponseRef.current = "";
+    activeResponseFinalRef.current = false;
+    activeRealtimeResponseRef.current = {
+      requestId: payload.requestId,
+      action: payload.action
+    };
     updateRealtimeStatus("responding", "Realtime sedang membuat bantuan...");
     void window.interviewDesktop?.reportRealtimeClientEvent?.({
       type: "responding",
@@ -893,12 +1294,15 @@ export function InterviewOverlay() {
   }
 
   async function requestHelp(type: string, triggerText?: string) {
-    if (activeResponse?.kind === "help") {
+    if (activeResponse?.kind === "help" && activeResponseFinalRef.current) {
       setRecentHelp((items) => [activeResponse, ...items].slice(0, 5));
     }
 
     const requestId = activeRequestRef.current + 1;
     activeRequestRef.current = requestId;
+    cancelActiveKeywordResponse();
+    cancelActiveRealtimeResponse();
+    activeResponseFinalRef.current = false;
     setMode("loading");
 
     if (!isRealtimeLive(context)) {
@@ -918,7 +1322,7 @@ export function InterviewOverlay() {
 
     const shouldRequireConversation = type === "answer" || type === "followup" || type === "explain" || type === "keyword";
     if (shouldRequireConversation && pendingSpeechRef.current) {
-      if (!getFreshConversationSnapshot()) {
+      if (!getStableConversationSnapshot({ blockPendingSpeech: true })) {
         window.setTimeout(() => {
           if (!isCurrentRequest(requestId)) return;
           void sendHelpAction(requestId, type, triggerText);
@@ -932,10 +1336,7 @@ export function InterviewOverlay() {
 
   async function sendHelpAction(requestId: number, type: string, triggerText?: string) {
     const shouldRequireConversation = type === "answer" || type === "followup" || type === "explain" || type === "keyword";
-    const freshContext = getFreshConversationSnapshot({
-      maxAgeMs: actionFreshConversationMs,
-      blockIfAudioOutrunsTranscript: true
-    });
+    const freshContext = getStableConversationSnapshot({ blockPendingSpeech: shouldRequireConversation });
 
     if (shouldRequireConversation && !freshContext) {
       if (!isCurrentRequest(requestId)) return;
@@ -1178,5 +1579,43 @@ function sameKeywordTerms(left: string[], right: string[]) {
   }
 
   return left.every((term, index) => term === right[index]);
+}
+
+function buildTranscriptEventFingerprint(event: OverlayTranscriptEvent) {
+  return [
+    event.itemId || "local",
+    event.capturedAt || "",
+    normalizeRuntimeFingerprintText(event.transcriptText || "")
+  ].join("::");
+}
+
+function buildKeywordRequestFingerprint(value: string) {
+  const normalized = normalizeRuntimeFingerprintText(value);
+  return normalized.length <= 360 ? normalized : normalized.slice(normalized.length - 360);
+}
+
+function parseRealtimeKeywordTerms(text: string) {
+  const keywordLine = text
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .find((line) => /^KEYWORDS\s*:/i.test(line));
+  if (!keywordLine) {
+    return [];
+  }
+
+  const [, rawKeywords = ""] = keywordLine.split(/KEYWORDS\s*:/i);
+  return rawKeywords
+    .split("|")
+    .map((term) => term.replace(/^[-*\u2022]\s*/, "").trim())
+    .filter(Boolean)
+    .slice(0, 3);
+}
+
+function hasRealtimeKeywordContract(text: string) {
+  return /^KEYWORDS\s*:/im.test(text);
+}
+
+function normalizeRuntimeFingerprintText(value: string) {
+  return value.replace(/\s+/g, " ").trim().toLowerCase();
 }
 

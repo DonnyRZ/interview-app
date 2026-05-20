@@ -139,6 +139,7 @@ export async function registerInterviewRoutes(app: FastifyInstance) {
       const keywordResult = await surfaceRealtimeKeywords(body.data);
       return surfaceRealtimeKeywordsResponseSchema.parse(keywordResult);
     });
+
   }
 
   app.post("/:id/end", async (request, reply) => {
