@@ -50,6 +50,17 @@ export function buildConversationWindow(turns: Array<{ text: string }>) {
   return joined.slice(joined.length - maxLength).trim();
 }
 
+export function buildKeywordSourceText(latestQuestion: string, recentTranscript: string) {
+  const normalizedQuestion = latestQuestion.trim();
+  const transcriptSegments = recentTranscript
+    .split(/\n+/)
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+    .slice(-4);
+  const parts = [...transcriptSegments, normalizedQuestion].filter(Boolean);
+  return Array.from(new Set(parts)).join("\n").trim();
+}
+
 export function deriveLatestConversationFocus(windowText: string, latestSegment: string, context: TranscriptFocusContext) {
   const questionLikeFocus = deriveContextFromTranscriptWindow(windowText, latestSegment, context);
   if (questionLikeFocus) {
