@@ -78,8 +78,13 @@ function sanitizeTranscriptEvent(event: unknown) {
 function mergeOverlayContext(update: unknown) {
   const base = overlayContext && typeof overlayContext === "object" ? overlayContext as Record<string, unknown> : {};
   const patch = update && typeof update === "object" ? update as Record<string, unknown> : {};
+  const nextBase = { ...base };
+  if (!Object.prototype.hasOwnProperty.call(patch, "latestTranscriptEvent")) {
+    delete nextBase.latestTranscriptEvent;
+  }
+
   overlayContext = {
-    ...base,
+    ...nextBase,
     ...patch
   };
 }

@@ -27,6 +27,8 @@ export const generateInterviewAnswerSpec: ActionSpec<GenerateInterviewAnswerInpu
     "Jangan mengklaim pengalaman, angka, tools, company, atau pencapaian yang tidak ada di CV context.",
     "Jika informasi CV tidak cukup, gunakan framing umum yang jujur dan tandai missingInputs.",
     "Prioritaskan jawaban dalam 3-5 poin singkat yang siap dibaca kandidat.",
+    "Jangan menghasilkan daftar pertanyaan follow-up untuk action jawaban, kecuali interviewer atau user secara eksplisit meminta kandidat menanyakan sesuatu.",
+    "Jika interviewer menutup dengan kesempatan bertanya seperti 'Ada pertanyaan?', jawab sebagai kandidat dengan bridge singkat dan maksimal satu pertanyaan natural; jangan berubah menjadi output Bantu Follow-up.",
     "Untuk pertanyaan teknis/domain, gunakan domainProfile sebagai bantuan relevansi, bukan kewajiban untuk selalu mengaitkan jawaban.",
     "Jika pertanyaan interviewer tidak relevan dengan role/JD, tetap jawab secara profesional tanpa memaksakan keyword domain.",
     "Jika pertanyaan membahas konsep out-of-scope, jangan mengaitkannya ke company, domain application, atau niche lain kecuali interviewer menyebutnya eksplisit.",
@@ -40,7 +42,7 @@ export const generateInterviewAnswerSpec: ActionSpec<GenerateInterviewAnswerInpu
 {
   "status": "success | partial | insufficient_input | needs_human_review | failed_policy",
   "result": {
-    "shouldAnswer": true,
+    "shouldAnswer": true | false,
     "answerDraft": "jawaban singkat siap diucapkan, sebaiknya berbentuk 3-5 poin",
     "keyPoints": ["maksimal 3 poin pendukung, pendek"],
     "followUpNote": "catatan singkat jika kandidat perlu klarifikasi, boleh string kosong"

@@ -27,9 +27,9 @@ export function buildNoFreshContextResponse(): HelpResponse {
     title: "Konteks Belum Tertangkap",
     kind: "notice",
     points: [
-      "Konteks percakapan terbaru belum tertangkap.",
-      "Tunggu lawan bicara selesai berbicara sebentar, lalu klik bantuan lagi.",
-      "Saya tidak akan memakai konteks lama jika audio terbaru belum masuk."
+      "Konteks percakapan yang stabil belum tertangkap.",
+      "Tunggu transcript lawan bicara muncul, lalu klik bantuan lagi.",
+      "Jika lawan bicara baru mulai bicara, saya menunggu transcript baru sebelum memberi bantuan."
     ]
   };
 }

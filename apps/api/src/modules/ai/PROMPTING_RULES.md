@@ -99,8 +99,12 @@ Untuk interview near real-time:
 - CV + JD diproses sebelum interview menjadi domain/niche context.
 - Saat interview berjalan, transcript hanya menjadi runtime payload.
 - Keyword atau bantuan interview harus diputuskan oleh action khusus yang membaca transcript + domain profile.
-- Runtime keyword chips bersifat opsional dan evidence-based. Jangan memunculkan chip hanya dari seed/domain profile jika transcript terbaru belum memunculkan atau menyiratkan konsep konkret.
+- Runtime keyword chips bersifat transcript-first term extraction: ambil kata/topik penting yang disebut interviewer terbaru, bukan jenis pertanyaan, seed concept, atau label kompetensi generik.
+- Runtime keyword chips bersifat opsional dan evidence-based. Jangan memunculkan chip hanya dari CV, JD, seed/domain profile jika transcript terbaru belum memunculkan atau menyiratkan konsep konkret.
+- CV/JD/domain profile hanya boleh menjadi filter atau ranking ringan untuk keyword chips, bukan sumber chip utama.
 - Prompt dan heuristic keyword harus role-neutral; jangan default ke vocabulary satu bidang tertentu ketika role/JD/CV tidak mendukungnya.
+- Jangan hardcode contoh spesifik dari dokumen, mockup, seed, test case, brand, platform, metric, domain, company, atau role ke prompt/heuristic produksi. Contoh hanya boleh menjadi test fixture atau acceptance scenario.
+- Prompt dan heuristic produksi boleh menyebut kategori umum seperti platform, metric, acronym, product term, atau problem phrase, tetapi jangan menjadikan contoh spesifik sebagai whitelist, regex khusus, vocabulary prior, atau pattern produksi.
 - Overlay live saat ini boleh mengirim trigger/action text pendek ke Realtime session melalui `realtime-action-prompt.ts`, tetapi tidak boleh menjadi tempat prompt besar atau preprocessing logic.
 - Default arah jangka panjang tetap: stable AI rules dikelola di backend/module AI, runtime payload tetap data.
 

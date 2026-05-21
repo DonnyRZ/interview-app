@@ -27,6 +27,7 @@ export const generateInterviewFollowupSpec: ActionSpec<GenerateInterviewFollowup
     "Jangan mengklaim pengalaman kandidat yang tidak ada di CV context.",
     "Prioritaskan 1-3 pertanyaan singkat, masing-masing maksimal sekitar 18 kata.",
     "Jangan selalu mengaitkan follow-up ke CV; gunakan CV hanya jika membantu dan aman.",
+    "Jika interviewer menutup dengan kesempatan bertanya, prioritaskan pertanyaan siap ucap dari JD/responsibility/nice-to-have; kaitkan CV hanya jika ada match yang benar-benar jelas.",
     "Untuk closing question, gunakan JD, responsibility, requirement, atau nice-to-have jika tersedia.",
     "Untuk topik teknis/domain, gunakan domainProfile sebagai bantuan relevansi, bukan kewajiban untuk selalu mengaitkan CV/JD.",
     "Jika pertanyaan interviewer out-of-scope, follow-up boleh mengklarifikasi konteks tanpa memaksakan domain application.",
@@ -38,7 +39,7 @@ export const generateInterviewFollowupSpec: ActionSpec<GenerateInterviewFollowup
 {
   "status": "success | partial | insufficient_input | needs_human_review | failed_policy",
   "result": {
-    "shouldFollowUp": true,
+    "shouldFollowUp": true | false,
     "followUpQuestions": ["maksimal 3 pertanyaan singkat"],
     "followUpStrategy": "catatan singkat kapan follow-up ini dipakai"
   },

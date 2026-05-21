@@ -150,46 +150,6 @@ export const preprocessApplicationJdResultSchema = z.object({
   evidence: evidenceArraySchema
 });
 
-const surfacedKeywordSchema = z.object({
-  term: z.string(),
-  whyRelevant: textSchema,
-  explanationHint: textSchema
-});
-
-const surfacedKeywordArraySchema = z.preprocess((value) => {
-  if (value == null) {
-    return [];
-  }
-
-  if (!Array.isArray(value)) {
-    return value;
-  }
-
-  return value.map((item) => {
-    if (typeof item === "string") {
-      return {
-        term: item,
-        whyRelevant: "",
-        explanationHint: ""
-      };
-    }
-
-    return item;
-  });
-}, z.array(surfacedKeywordSchema).max(3));
-
-export const surfaceRealtimeKeywordsResultSchema = z.object({
-  status: aiStatusSchema,
-  result: z.object({
-    shouldExpandOverlay: z.boolean().default(false),
-    keywords: surfacedKeywordArraySchema
-  }),
-  warnings: stringArraySchema,
-  missingInputs: stringArraySchema,
-  confidence: aiConfidenceSchema,
-  evidence: evidenceArraySchema
-});
-
 export const generateInterviewAnswerResultSchema = z.object({
   status: aiStatusSchema,
   result: z.object({
@@ -243,10 +203,50 @@ export const generateInterviewKeywordHelpResultSchema = z.object({
   evidence: evidenceArraySchema
 });
 
+const surfacedKeywordSchema = z.object({
+  term: z.string(),
+  whyRelevant: textSchema,
+  explanationHint: textSchema
+});
+
+const surfacedKeywordArraySchema = z.preprocess((value) => {
+  if (value == null) {
+    return [];
+  }
+
+  if (!Array.isArray(value)) {
+    return value;
+  }
+
+  return value.map((item) => {
+    if (typeof item === "string") {
+      return {
+        term: item,
+        whyRelevant: "",
+        explanationHint: ""
+      };
+    }
+
+    return item;
+  });
+}, z.array(surfacedKeywordSchema).max(3));
+
+export const surfaceRealtimeKeywordsResultSchema = z.object({
+  status: aiStatusSchema,
+  result: z.object({
+    shouldExpandOverlay: z.boolean().default(false),
+    keywords: surfacedKeywordArraySchema
+  }),
+  warnings: stringArraySchema,
+  missingInputs: stringArraySchema,
+  confidence: aiConfidenceSchema,
+  evidence: evidenceArraySchema
+});
+
 export type PreprocessCvResult = z.infer<typeof preprocessCvResultSchema>;
 export type PreprocessApplicationJdResult = z.infer<typeof preprocessApplicationJdResultSchema>;
-export type SurfaceRealtimeKeywordsResult = z.infer<typeof surfaceRealtimeKeywordsResultSchema>;
 export type GenerateInterviewAnswerResult = z.infer<typeof generateInterviewAnswerResultSchema>;
 export type GenerateInterviewFollowupResult = z.infer<typeof generateInterviewFollowupResultSchema>;
 export type GenerateInterviewExplanationResult = z.infer<typeof generateInterviewExplanationResultSchema>;
 export type GenerateInterviewKeywordHelpResult = z.infer<typeof generateInterviewKeywordHelpResultSchema>;
+export type SurfaceRealtimeKeywordsResult = z.infer<typeof surfaceRealtimeKeywordsResultSchema>;

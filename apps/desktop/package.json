@@ -17,6 +17,7 @@
     "package:win:beta": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/windows-beta-cert/package-beta.ps1 -Target package",
     "dist:win": "npm run build && electron-builder --win nsis --config electron-builder.config.cjs",
     "dist:win:beta": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/windows-beta-cert/package-beta.ps1 -Target dist",
+    "test:keywords": "tsx scripts/test-runtime-keywords.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.electron.json --noEmit",
     "preview": "vite preview --host 127.0.0.1 --port 4173"
   },

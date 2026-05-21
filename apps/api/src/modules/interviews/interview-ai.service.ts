@@ -39,6 +39,8 @@ export type SurfaceRealtimeKeywordsServiceInput = {
   realtimeContext: RealtimeContext;
 };
 
+const realtimeKeywordTimeoutMs = 6_000;
+
 export async function surfaceRealtimeKeywords(
   input: SurfaceRealtimeKeywordsServiceInput
 ): Promise<SurfaceRealtimeKeywordsResult> {
@@ -49,14 +51,14 @@ export async function surfaceRealtimeKeywords(
   }
 
   try {
-    const result = await runOpenAiJsonAction({
+    const result = await withTimeout(runOpenAiJsonAction({
       spec: surfaceRealtimeKeywordsSpec,
       input: {
         transcriptSegment,
         realtimeContext: input.realtimeContext
       },
       outputSchema: surfaceRealtimeKeywordsResultSchema
-    });
+    }), realtimeKeywordTimeoutMs);
 
     return normalizeRealtimeKeywords({
       ...result.output,
@@ -280,7 +282,7 @@ function normalizeInterviewKeywordHelp(result: GenerateInterviewKeywordHelpResul
 
 function buildFallbackRealtimeKeywords(warning: string): SurfaceRealtimeKeywordsResult {
   return {
-    status: "partial",
+    status: "failed_policy",
     result: {
       shouldExpandOverlay: false,
       keywords: []
@@ -381,6 +383,21 @@ function buildFallbackInterviewKeywordHelp(
 function compactList(items: string[], maxItems: number, maxCharacters: number) {
   return Array.from(new Set(items.map((item) => truncateText(item, maxCharacters)).filter(Boolean)))
     .slice(0, maxItems);
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(`Timed out after ${timeoutMs}ms`)), timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
 }
 
 function truncateText(value: string, maxCharacters: number) {
