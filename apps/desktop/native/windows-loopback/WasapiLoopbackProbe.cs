@@ -91,7 +91,34 @@ internal static class Program
                     WriteDeviceJson("selected_device", "ok", currentSession.Device, currentSession.LastPeak, "Selected active system audio output.");
                 }
 
-                double packetPeak = currentSession.DrainStream(writer);
+                double packetPeak;
+                try
+                {
+                    packetPeak = currentSession.DrainStream(writer);
+                }
+                catch (Exception error)
+                {
+                    if (!IsRecoverableStreamError(error))
+                    {
+                        throw;
+                    }
+
+                    try
+                    {
+                        writer.Flush();
+                    }
+                    catch
+                    {
+                        // If flushing fails during stream recovery, continue with a fresh writer.
+                    }
+
+                    currentSession.Dispose();
+                    currentSession = null;
+                    writer = null;
+                    WriteJson("status", "waiting_for_audio", 0, "System audio stream interrupted. Rescanning active outputs. " + error.Message);
+                    Thread.Sleep(200);
+                    continue;
+                }
                 if (packetPeak > SignalThreshold)
                 {
                     lastSignalMs = stopwatch.ElapsedMilliseconds;
@@ -127,6 +154,11 @@ internal static class Program
             if (currentSession != null) currentSession.Dispose();
             ReleaseCom(enumerator);
         }
+    }
+
+    private static bool IsRecoverableStreamError(Exception error)
+    {
+        return error is COMException || error is InvalidOperationException;
     }
 
     private static int RunProbe(int durationMs, int intervalMs, bool debug)

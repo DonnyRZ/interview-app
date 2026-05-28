@@ -22,10 +22,26 @@ ai/
   action-runner.ts
   action-schemas.ts
   actions/
-    generate-interview-answer.ts
-    preprocess-cv.ts
-    preprocess-application-jd.ts
-    surface-realtime-keywords.ts
+    response/
+      generate-meeting-response.ts
+      meeting-response-router.ts
+      qna/
+      convo/
+    followup/
+      generate-meeting-followup.ts
+    explanation/
+      generate-meeting-explanation.ts
+    keywords/
+      surface-meeting-keywords.ts
+      generate-meeting-keyword-help.ts
+    preprocessing/
+      preprocess-user-profile.ts
+      preprocess-meeting-context.ts
+    realtime/
+      realtime-meeting-session.ts
+      realtime-meeting-transcription.ts
+    shared/
+      meeting-context-format.ts
 ```
 
 `action-specs.ts` hanya menjadi public export/barrel. Jangan jadikan file ini tempat menumpuk semua prompt.
@@ -62,11 +78,11 @@ Jangan menaruh prompt/instruksi model di:
 
 Pengecualian sementara:
 
-- `apps/api/src/modules/ai/actions/realtime-interview-session.ts` dan `apps/api/src/modules/ai/actions/realtime-interview-transcription.ts` boleh berupa builder instruksi Realtime, bukan `ActionSpec`, karena konfigurasi Realtime session/client secret tidak berjalan lewat `action-runner.ts`.
-- Prompt Realtime backend tetap harus berada di `ai/actions/`, bukan di `openai.client.ts`, route, atau service interview.
+- `apps/api/src/modules/ai/actions/realtime/realtime-meeting-session.ts` dan `apps/api/src/modules/ai/actions/realtime/realtime-meeting-transcription.ts` boleh berupa builder instruksi Realtime, bukan `ActionSpec`, karena konfigurasi Realtime session/client secret tidak berjalan lewat `action-runner.ts`.
+- Prompt Realtime backend tetap harus berada di `ai/actions/`, bukan di `openai.client.ts`, route, atau service meeting/interview legacy.
 - `apps/desktop/src/features/overlay/realtime-action-prompt.ts` boleh memiliki action instruction pendek untuk live Realtime trigger selama runtime live masih langsung berbicara dengan OpenAI Realtime WebSocket dari desktop.
 - React component seperti `InterviewOverlay.tsx` tidak boleh menampung prompt/instruksi model; component hanya boleh memanggil builder prompt yang sudah dipisahkan.
-- Instruksi di `realtime-action-prompt.ts` harus terbatas pada action live seperti `BANTU_JAWAB`, `BANTU_FOLLOWUP`, `JELASKAN_MAKSUDNYA`, `EXPLAIN_KEYWORD`, dan `ASK`.
+- Instruksi di `realtime-action-prompt.ts` harus terbatas pada action live seperti `JAWAB_PERTANYAAN`, `TANGGAPI`, `BANTU_FOLLOWUP`, `JELASKAN_MAKSUDNYA`, `EXPLAIN_KEYWORD`, dan `ASK`.
 - Jangan menambahkan prompt preprocessing CV/JD, summary, scoring, atau business logic AI baru ke overlay/desktop.
 - Jika realtime action prompt makin besar atau kompleks, pindahkan ke modul bersama/backend agar governance prompt kembali terpusat.
 

@@ -1,6 +1,7 @@
 import {
   activeCvResponseSchema,
   cvListResponseSchema,
+  deleteCvResponseSchema,
   retryCvProcessingResponseSchema,
   setActiveCvResponseSchema,
   uploadCvResponseSchema
@@ -11,6 +12,7 @@ import { mapCv } from "./cv.mapper.js";
 import {
   getActiveCvForDevUser,
   getCvListForDevUser,
+  deleteCvForDevUser,
   retryCvProcessingForDevUser,
   setActiveCvForDevUser,
   uploadCvForDevUser
@@ -82,5 +84,27 @@ export async function registerCvRoutes(app: FastifyInstance) {
     return retryCvProcessingResponseSchema.parse({
       cv: mapCv(cv)
     });
+  });
+
+  app.delete("/:id", async (request, reply) => {
+    const params = cvParamsSchema.safeParse(request.params);
+    if (!params.success) {
+      return reply.code(400).send({ message: "Invalid CV id" });
+    }
+
+    try {
+      const deletedCv = await deleteCvForDevUser(params.data.id);
+      if (!deletedCv) {
+        return reply.code(404).send({ message: "CV not found" });
+      }
+
+      return deleteCvResponseSchema.parse({
+        ok: true,
+        deletedCvId: deletedCv.id
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to delete CV";
+      return reply.code(400).send({ message });
+    }
   });
 }

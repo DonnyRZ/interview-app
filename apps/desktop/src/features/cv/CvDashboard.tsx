@@ -1,14 +1,13 @@
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { Application, Cv, InterviewRound, InterviewStage } from "@interview-app/shared";
+import orvikoLogo from "../../assets/orviko-logo.png";
 import { createApplication, deleteApplication as deleteApplicationRequest, getApplications } from "../applications/application-api.js";
-import { endInterview, getInterviewRounds, startInterview } from "../interviews/interview-api.js";
-import { getActiveCv, getCvList, retryCvProcessing, setActiveCv, uploadCv } from "./cv-api.js";
+import { deleteInterviewRound, endInterview, getInterviewRounds, startInterview } from "../interviews/interview-api.js";
+import { deleteCv, getActiveCv, getCvList, retryCvProcessing, setActiveCv, uploadCv } from "./cv-api.js";
 
 type LoadState = "idle" | "loading" | "uploading" | "processingApplication" | "error";
 type WorkspaceView = "dashboard" | "createApplication" | "applicationDetail" | "interview";
-type AudioReadinessStatus = "unsupported" | "loading" | "ready" | "noDevice" | "error";
-type AudioSignalStatus = "untested" | "checking" | "ok" | "silent" | "error";
 type SystemAudioProbeStatus = "unsupported" | "missing" | "idle" | "checking" | "ok" | "silent" | "error" | "stopped";
 
 type OverlayEndPayload = {
@@ -17,23 +16,7 @@ type OverlayEndPayload = {
   transcriptText?: string;
 };
 
-const DEV_TRANSCRIPT_SAMPLES = [
-  "Bagaimana kamu memilih pendekatan yang paling cocok untuk problem utama di role ini?",
-  "Kalau data atau requirement penting belum lengkap, approach kamu apa sebelum membuat keputusan?",
-  "Bisa jelaskan konsep teknis dasar yang relevan dengan pekerjaan ini memakai contoh dari pengalamanmu?",
-  "Coba jelaskan proses kerja yang paling penting untuk menghasilkan impact di role ini."
-] as const;
-
-const AUDIO_DEVICE_STORAGE_KEY = "interview-app:selected-audio-input-id";
-const SYSTEM_AUDIO_DEVICE_KEYWORDS = [
-  "stereo mix",
-  "what u hear",
-  "loopback",
-  "virtual cable",
-  "vb-audio",
-  "cable output",
-  "monitor of"
-];
+const DEFAULT_MEETING_STAGE: InterviewStage = "OTHER";
 
 export function CvDashboard() {
   const [activeCv, setActiveCvState] = useState<Cv | null>(null);
@@ -42,24 +25,13 @@ export function CvDashboard() {
   const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
   const [interviewRounds, setInterviewRounds] = useState<InterviewRound[]>([]);
   const [activeInterviewRound, setActiveInterviewRound] = useState<InterviewRound | null>(null);
-  const [selectedStage, setSelectedStage] = useState<InterviewStage>("HR");
   const [status, setStatus] = useState<LoadState>("idle");
-  const [message, setMessage] = useState("Connect backend API, lalu upload CV pertama untuk mulai membuat profile context.");
+  const [message, setMessage] = useState("Hubungkan backend API, lalu upload profil pertama untuk mulai membuat referensi user.");
   const [view, setView] = useState<WorkspaceView>("dashboard");
-  const [audioDevices, setAudioDevices] = useState<InterviewAudioInputDevice[]>([]);
-  const [selectedAudioDeviceId, setSelectedAudioDeviceId] = useState("");
-  const [audioStatus, setAudioStatus] = useState<AudioReadinessStatus>("loading");
-  const [audioMessage, setAudioMessage] = useState("Mengecek audio input yang tersedia di device ini.");
-  const [audioSignalStatus, setAudioSignalStatus] = useState<AudioSignalStatus>("untested");
-  const [audioSignalLevel, setAudioSignalLevel] = useState(0);
-  const [audioSignalMessage, setAudioSignalMessage] = useState("Belum dites. Klik test signal untuk memastikan audio benar-benar masuk.");
   const [systemAudioSupport, setSystemAudioSupport] = useState<SystemAudioSupport | null>(null);
   const [systemAudioStatus, setSystemAudioStatus] = useState<SystemAudioProbeStatus>("unsupported");
   const [systemAudioLevel, setSystemAudioLevel] = useState(0);
-  const [systemAudioMessage, setSystemAudioMessage] = useState("System audio probe belum dicek.");
-  const [devTranscriptMessage, setDevTranscriptMessage] = useState("Belum ada transcript dev yang dikirim.");
-  const audioProbeCleanupRef = useRef<(() => void) | null>(null);
-
+  const [systemAudioMessage, setSystemAudioMessage] = useState("Audio meeting belum dicek.");
   async function refreshCvs(options: { silent?: boolean } = {}) {
     if (!options.silent) {
       setStatus("loading");
@@ -77,18 +49,16 @@ export function CvDashboard() {
       setMessage(getCvStatusMessage(activeResponse.cv));
     } catch (error) {
       setStatus("error");
-      setMessage(error instanceof Error ? error.message : "Gagal memuat CV.");
+      setMessage(error instanceof Error ? error.message : "Gagal memuat profil.");
     }
   }
 
   useEffect(() => {
     void refreshWorkspace();
-    void refreshAudioDevices();
     void refreshSystemAudioSupport();
     const unsubscribeSystemProbe = window.interviewDesktop?.onSystemAudioProbeEvent?.(handleSystemAudioProbeEvent);
 
     return () => {
-      stopAudioProbe();
       void window.interviewDesktop?.stopSystemAudioProbe?.();
       unsubscribeSystemProbe?.();
     };
@@ -117,73 +87,6 @@ export function CvDashboard() {
     ]);
   }
 
-  async function refreshAudioDevices() {
-    if (!window.interviewDesktop?.listAudioInputDevices) {
-      setAudioDevices([]);
-      setSelectedAudioDeviceId("");
-      setAudioStatus("unsupported");
-      setAudioMessage("Audio discovery hanya tersedia di Electron desktop.");
-      resetAudioSignal("Audio signal hanya bisa dites di Electron desktop.");
-      return;
-    }
-
-    setAudioStatus("loading");
-    setAudioMessage("Mengecek audio input yang tersedia di device ini.");
-
-    try {
-      const devices = await window.interviewDesktop.listAudioInputDevices();
-      setAudioDevices(devices);
-
-      if (!devices.length) {
-        setSelectedAudioDeviceId("");
-        setAudioStatus("noDevice");
-        setAudioMessage("Belum ada audio input terdeteksi. Hubungkan mic/headset atau cek Windows sound settings.");
-        resetAudioSignal("Belum ada audio input untuk dites.");
-        return;
-      }
-
-      const savedDeviceId = window.localStorage.getItem(AUDIO_DEVICE_STORAGE_KEY) || "";
-      const nextDevice = devices.find((device) => device.deviceId === savedDeviceId)
-        || devices.find((device) => device.isDefault)
-        || devices[0];
-      if (!nextDevice) {
-        setSelectedAudioDeviceId("");
-        setAudioStatus("noDevice");
-        setAudioMessage("Belum ada audio input terdeteksi. Hubungkan mic/headset atau cek Windows sound settings.");
-        resetAudioSignal("Belum ada audio input untuk dites.");
-        return;
-      }
-
-      setSelectedAudioDeviceId(nextDevice.deviceId);
-      window.localStorage.setItem(AUDIO_DEVICE_STORAGE_KEY, nextDevice.deviceId);
-      setAudioStatus("ready");
-      setAudioMessage("Audio source sudah dipilih untuk session ini. Capture/transcription belum aktif di tahap ini.");
-      resetAudioSignal("Belum dites. Klik test signal untuk memastikan audio benar-benar masuk.");
-    } catch (error) {
-      setAudioDevices([]);
-      setSelectedAudioDeviceId("");
-      setAudioStatus("error");
-      setAudioMessage(error instanceof Error ? error.message : "Gagal membaca daftar audio input.");
-      resetAudioSignal("Audio signal belum bisa dites karena device discovery gagal.");
-    }
-  }
-
-  function handleAudioDeviceChange(deviceId: string) {
-    setSelectedAudioDeviceId(deviceId);
-    if (deviceId) {
-      window.localStorage.setItem(AUDIO_DEVICE_STORAGE_KEY, deviceId);
-      setAudioStatus("ready");
-      setAudioMessage("Audio source sudah dipilih untuk session ini. Capture/transcription belum aktif di tahap ini.");
-      resetAudioSignal("Device berubah. Klik test signal untuk validasi ulang.");
-      return;
-    }
-
-    window.localStorage.removeItem(AUDIO_DEVICE_STORAGE_KEY);
-    setAudioStatus("noDevice");
-    setAudioMessage("Pilih audio source sebelum mulai validasi listening.");
-    resetAudioSignal("Pilih audio source sebelum test signal.");
-  }
-
   async function refreshSystemAudioSupport() {
     if (!window.interviewDesktop?.checkSystemAudioSupport) {
       setSystemAudioSupport(null);
@@ -202,32 +105,32 @@ export function CvDashboard() {
       setSystemAudioSupport(null);
       setSystemAudioStatus("error");
       setSystemAudioLevel(0);
-      setSystemAudioMessage(error instanceof Error ? error.message : "Gagal mengecek WASAPI loopback support.");
+      setSystemAudioMessage(error instanceof Error ? error.message : "Audio meeting belum bisa dicek.");
     }
   }
 
   async function startSystemAudioProbe() {
     if (!window.interviewDesktop?.startSystemAudioProbe) {
       setSystemAudioStatus("unsupported");
-      setSystemAudioMessage("System audio probe hanya tersedia di Electron desktop.");
+      setSystemAudioMessage("Pengecekan audio hanya tersedia di aplikasi desktop.");
       return;
     }
 
     setSystemAudioStatus("checking");
     setSystemAudioLevel(0);
-    setSystemAudioMessage("Menjalankan WASAPI loopback probe pada active system output...");
+    setSystemAudioMessage("Sedang mengecek audio meeting...");
 
     try {
       const response = await window.interviewDesktop.startSystemAudioProbe();
       if (!response.ok) {
         setSystemAudioStatus("error");
         setSystemAudioLevel(0);
-        setSystemAudioMessage(response.message || "Gagal memulai WASAPI loopback probe.");
+        setSystemAudioMessage(response.message || "Audio meeting belum bisa dicek.");
       }
     } catch (error) {
       setSystemAudioStatus("error");
       setSystemAudioLevel(0);
-      setSystemAudioMessage(error instanceof Error ? error.message : "Gagal memulai WASAPI loopback probe.");
+      setSystemAudioMessage(error instanceof Error ? error.message : "Audio meeting belum bisa dicek.");
     }
   }
 
@@ -239,7 +142,7 @@ export function CvDashboard() {
     const nextLevel = Number.isFinite(event.level) ? Math.max(0, Math.min(1, event.level)) : 0;
     const deviceSuffix = event.deviceLabel ? ` (${event.deviceLabel})` : "";
     setSystemAudioLevel(nextLevel);
-    setSystemAudioMessage(`${event.message || "System audio probe update."}${deviceSuffix}`);
+    setSystemAudioMessage(`${event.message || "Status audio meeting diperbarui."}${deviceSuffix}`);
 
     if (event.status === "started" || event.status === "checking") {
       setSystemAudioStatus("checking");
@@ -262,103 +165,6 @@ export function CvDashboard() {
     }
   }
 
-  function resetAudioSignal(nextMessage: string) {
-    stopAudioProbe();
-    setAudioSignalStatus("untested");
-    setAudioSignalLevel(0);
-    setAudioSignalMessage(nextMessage);
-  }
-
-  function stopAudioProbe() {
-    audioProbeCleanupRef.current?.();
-    audioProbeCleanupRef.current = null;
-  }
-
-  async function validateSelectedAudioSignal() {
-    if (!selectedAudioDeviceId) {
-      setAudioSignalStatus("error");
-      setAudioSignalLevel(0);
-      setAudioSignalMessage("Pilih audio source sebelum test signal.");
-      return;
-    }
-
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setAudioSignalStatus("error");
-      setAudioSignalLevel(0);
-      setAudioSignalMessage("Browser/Electron runtime belum mendukung getUserMedia.");
-      return;
-    }
-
-    stopAudioProbe();
-    setAudioSignalStatus("checking");
-    setAudioSignalLevel(0);
-    setAudioSignalMessage("Membuka stream lokal sebentar untuk membaca level audio...");
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: selectedAudioDeviceId === "default" ? true : { deviceId: { exact: selectedAudioDeviceId } },
-        video: false
-      });
-      const audioContext = new AudioContext();
-      const source = audioContext.createMediaStreamSource(stream);
-      const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 2048;
-      source.connect(analyser);
-
-      const data = new Uint8Array(analyser.fftSize);
-      let peakLevel = 0;
-      let stopped = false;
-
-      const cleanup = () => {
-        if (stopped) return;
-        stopped = true;
-        stream.getTracks().forEach((track) => track.stop());
-        void audioContext.close();
-      };
-      audioProbeCleanupRef.current = cleanup;
-
-      const startedAt = performance.now();
-      const sample = () => {
-        if (stopped) return;
-
-        analyser.getByteTimeDomainData(data);
-        let total = 0;
-        for (const value of data) {
-          const normalized = (value - 128) / 128;
-          total += normalized * normalized;
-        }
-
-        const rms = Math.sqrt(total / data.length);
-        peakLevel = Math.max(peakLevel, rms);
-        setAudioSignalLevel(Math.min(1, rms * 8));
-
-        if (performance.now() - startedAt < 1800) {
-          window.requestAnimationFrame(sample);
-          return;
-        }
-
-        cleanup();
-        audioProbeCleanupRef.current = null;
-        if (peakLevel > 0.015) {
-          setAudioSignalStatus("ok");
-          setAudioSignalLevel(Math.min(1, peakLevel * 8));
-          setAudioSignalMessage("Audio signal terdeteksi. Device ini valid untuk tahap listening berikutnya.");
-        } else {
-          setAudioSignalStatus("silent");
-          setAudioSignalLevel(0);
-          setAudioSignalMessage("Stream berhasil dibuka, tapi belum ada sinyal audio yang terdeteksi.");
-        }
-      };
-
-      sample();
-    } catch (error) {
-      stopAudioProbe();
-      setAudioSignalStatus("error");
-      setAudioSignalLevel(0);
-      setAudioSignalMessage(error instanceof Error ? error.message : "Gagal membuka stream audio dari device terpilih.");
-    }
-  }
-
   async function refreshApplications() {
     try {
       const response = await getApplications();
@@ -366,7 +172,7 @@ export function CvDashboard() {
       setSelectedApplication((current) => current ? response.applications.find((item) => item.id === current.id) || null : null);
     } catch (error) {
       setStatus("error");
-      setMessage(error instanceof Error ? error.message : "Gagal memuat applications.");
+      setMessage(error instanceof Error ? error.message : "Gagal memuat konteks meeting.");
     }
   }
 
@@ -376,7 +182,7 @@ export function CvDashboard() {
       setInterviewRounds(response.interviewRounds);
     } catch (error) {
       setStatus("error");
-      setMessage(error instanceof Error ? error.message : "Gagal memuat interview rounds.");
+      setMessage(error instanceof Error ? error.message : "Gagal memuat sesi meeting.");
     }
   }
 
@@ -393,16 +199,16 @@ export function CvDashboard() {
     if (!file) return;
 
     setStatus("uploading");
-    setMessage(`Uploading ${file.name}...`);
+    setMessage(`Mengupload ${file.name}...`);
 
     try {
       const response = await uploadCv(file);
       setActiveCvState(response.cv);
       await refreshCvs();
-      setMessage(`${response.cv.fileName} berhasil diupload. AI sedang memproses CV sebelum bisa dipakai membuat application.`);
+      setMessage(`${response.cv.fileName} berhasil diupload. AI sedang memproses profil sebelum bisa dipakai membuat konteks meeting.`);
     } catch (error) {
       setStatus("error");
-      setMessage(error instanceof Error ? error.message : "Upload CV gagal.");
+      setMessage(error instanceof Error ? error.message : "Upload profil gagal.");
     }
   }
 
@@ -411,10 +217,10 @@ export function CvDashboard() {
     try {
       const response = await setActiveCv(cvId);
       await refreshCvs();
-      setMessage(`${response.cv.fileName} sekarang menjadi CV aktif.`);
+      setMessage(`${response.cv.fileName} sekarang menjadi profil aktif.`);
     } catch (error) {
       setStatus("error");
-      setMessage(error instanceof Error ? error.message : "Gagal mengganti CV aktif.");
+      setMessage(error instanceof Error ? error.message : "Gagal mengganti profil aktif.");
     }
   }
 
@@ -428,7 +234,26 @@ export function CvDashboard() {
       setMessage(`${response.cv.fileName} sedang diproses ulang oleh AI.`);
     } catch (error) {
       setStatus("error");
-      setMessage(error instanceof Error ? error.message : "Gagal retry AI processing CV.");
+      setMessage(error instanceof Error ? error.message : "Gagal retry AI processing profil.");
+    }
+  }
+
+  async function handleDeleteCv(cv: Cv) {
+    const activeNote = cv.isActive ? " Profil terbaru lain akan otomatis menjadi profil aktif jika tersedia." : "";
+    const confirmed = window.confirm(`Hapus profil "${cv.fileName}"? File upload dan hasil AI processing profil ini akan dihapus.${activeNote}`);
+    if (!confirmed) {
+      return;
+    }
+
+    setStatus("loading");
+    try {
+      await deleteCv(cv.id);
+      await refreshCvs();
+      setStatus("idle");
+      setMessage(`${cv.fileName} berhasil dihapus.`);
+    } catch (error) {
+      setStatus("error");
+      setMessage(error instanceof Error ? error.message : "Gagal menghapus profil.");
     }
   }
 
@@ -442,13 +267,13 @@ export function CvDashboard() {
 
     if (!companyName || !roleTitle) {
       setStatus("error");
-      setMessage("Company dan role wajib diisi.");
+      setMessage("Nama konteks dan topik meeting wajib diisi.");
       return;
     }
 
     if (!isCvReady(activeCv)) {
       setStatus("error");
-      setMessage("Tunggu CV aktif selesai diproses AI sebelum membuat application.");
+      setMessage("Tunggu profil aktif selesai diproses AI sebelum membuat konteks meeting.");
       return;
     }
 
@@ -468,13 +293,13 @@ export function CvDashboard() {
       setMessage(`${response.application.companyName} - ${response.application.roleTitle} berhasil dibuat.`);
     } catch (error) {
       setStatus("error");
-      setMessage(error instanceof Error ? error.message : "Gagal membuat application.");
+      setMessage(error instanceof Error ? error.message : "Gagal membuat konteks meeting.");
     }
   }
 
   async function handleDeleteApplication(application: Application) {
     const companyRole = `${application.companyName} - ${application.roleTitle}`;
-    const confirmed = window.confirm(`Hapus application "${companyRole}" beserta semua interview round di dalamnya?`);
+    const confirmed = window.confirm(`Hapus konteks meeting "${companyRole}" beserta semua sesi live di dalamnya?`);
     if (!confirmed) {
       return;
     }
@@ -495,7 +320,34 @@ export function CvDashboard() {
       setMessage(`${companyRole} berhasil dihapus.`);
     } catch (error) {
       setStatus("error");
-      setMessage(error instanceof Error ? error.message : "Gagal menghapus application.");
+      setMessage(error instanceof Error ? error.message : "Gagal menghapus konteks meeting.");
+    }
+  }
+
+  async function handleDeleteInterviewRound(round: InterviewRound) {
+    if (!round.endedAt) {
+      setStatus("error");
+      setMessage("Sesi meeting yang masih berjalan harus diakhiri dulu sebelum dihapus.");
+      return;
+    }
+
+    const confirmed = window.confirm(`Hapus sesi ${round.stageType} dari ${formatDate(round.startedAt)}? Transkrip sesi ini ikut terhapus.`);
+    if (!confirmed) {
+      return;
+    }
+
+    setStatus("loading");
+    try {
+      await deleteInterviewRound(round.id);
+      if (activeInterviewRound?.id === round.id) {
+        setActiveInterviewRound(null);
+      }
+      await refreshInterviewRounds(round.applicationId);
+      setStatus("idle");
+      setMessage(`Sesi ${round.stageType} berhasil dihapus.`);
+    } catch (error) {
+      setStatus("error");
+      setMessage(error instanceof Error ? error.message : "Gagal menghapus sesi meeting.");
     }
   }
 
@@ -504,7 +356,7 @@ export function CvDashboard() {
     try {
       const response = await startInterview({
         applicationId: application.id,
-        stageType: selectedStage
+        stageType: DEFAULT_MEETING_STAGE
       });
       setActiveInterviewRound(response.interviewRound);
 
@@ -516,28 +368,28 @@ export function CvDashboard() {
             applicationId: application.id,
             companyName: application.companyName,
             roleTitle: application.roleTitle,
-            stageType: selectedStage,
-            audioStatus: hasSystemAudio ? "ready" : audioSignalStatus === "ok" ? "ready" : audioSignalStatus,
-            audioDeviceLabel: hasSystemAudio ? "Active system output (WASAPI loopback)" : getSelectedAudioDeviceLabel(audioDevices, selectedAudioDeviceId),
-            audioSourceKind: hasSystemAudio ? "system-loopback" : getAudioSourceKind(audioDevices, selectedAudioDeviceId),
+            stageType: DEFAULT_MEETING_STAGE,
+            audioStatus: hasSystemAudio ? "ready" : "waiting",
+            audioDeviceLabel: hasSystemAudio ? "Active system output (WASAPI loopback)" : "System audio loopback",
+            audioSourceKind: "system-loopback",
             domainLabel: response.realtimeContext?.domainProfile.primaryDomain || getDomainProfile(application).primaryDomain,
             realtimeContext: response.realtimeContext
           });
         } catch (overlayError) {
           await endInterview(response.interviewRound.id, {
-            transcriptText: "Interview otomatis ditutup karena floating overlay gagal dibuka."
+            transcriptText: "Sesi meeting otomatis ditutup karena floating overlay gagal dibuka."
           });
           await refreshInterviewRounds(application.id);
           setStatus("error");
-          setMessage(overlayError instanceof Error ? overlayError.message : "Floating overlay gagal dibuka. Interview round sudah ditutup otomatis.");
+          setMessage(overlayError instanceof Error ? overlayError.message : "Floating overlay gagal dibuka. Sesi meeting sudah ditutup otomatis.");
           return;
         }
         await refreshInterviewRounds(application.id);
         setStatus("idle");
-        setMessage(`${selectedStage} interview round started. Floating overlay aktif.`);
+        setMessage("Sesi meeting dimulai. Floating overlay aktif.");
       } else if (window.interviewDesktop) {
         await endInterview(response.interviewRound.id, {
-          transcriptText: "Interview otomatis ditutup karena Electron overlay bridge belum tersedia."
+          transcriptText: "Sesi meeting otomatis ditutup karena Electron overlay bridge belum tersedia."
         });
         await refreshInterviewRounds(application.id);
         setStatus("error");
@@ -546,17 +398,17 @@ export function CvDashboard() {
         await refreshInterviewRounds(application.id);
         setView("interview");
         setStatus("idle");
-        setMessage(`${selectedStage} interview round started. Browser fallback aktif.`);
+        setMessage("Sesi meeting dimulai. Browser fallback aktif.");
       }
     } catch (error) {
       setStatus("error");
-      setMessage(error instanceof Error ? error.message : "Gagal start interview.");
+      setMessage(error instanceof Error ? error.message : "Gagal memulai sesi meeting.");
     }
   }
 
   async function handleOverlayInterviewEnded(payload: OverlayEndPayload) {
     if (!payload.interviewRoundId) {
-      setMessage("Overlay ditutup, tapi interview round id tidak ditemukan.");
+      setMessage("Overlay ditutup, tapi ID sesi meeting tidak ditemukan.");
       return;
     }
 
@@ -573,10 +425,10 @@ export function CvDashboard() {
         await refreshApplications();
       }
       setStatus("idle");
-      setMessage("Interview ended. Transcript terbaru sudah tersimpan di round.");
+      setMessage("Sesi meeting berakhir. Transkrip terbaru sudah tersimpan di sesi.");
     } catch (error) {
       setStatus("error");
-      setMessage(error instanceof Error ? error.message : "Gagal end interview.");
+      setMessage(error instanceof Error ? error.message : "Gagal mengakhiri sesi meeting.");
     }
   }
 
@@ -587,37 +439,6 @@ export function CvDashboard() {
       setInterviewRounds([]);
     }
   }, [selectedApplication?.id]);
-
-  async function pushDevTranscriptSegment(transcriptText: string) {
-    const normalized = transcriptText.trim();
-    if (!normalized) {
-      setDevTranscriptMessage("Transcript dev kosong.");
-      return;
-    }
-
-    if (!activeInterviewRound || activeInterviewRound.endedAt) {
-      setDevTranscriptMessage("Belum ada interview aktif untuk menerima transcript dev.");
-      return;
-    }
-
-    if (!window.interviewDesktop?.pushOverlayTranscript) {
-      setDevTranscriptMessage("Bridge transcript dev belum tersedia. Restart dev:desktop.");
-      return;
-    }
-
-    try {
-      await window.interviewDesktop.pushOverlayTranscript({
-        transcriptText: normalized,
-        detectedQuestion: looksLikeQuestionText(normalized) ? normalized : undefined,
-        speaker: "interviewer",
-        isFinal: true,
-        capturedAt: new Date().toISOString()
-      });
-      setDevTranscriptMessage(`Transcript dev terkirim: ${normalized}`);
-    } catch (error) {
-      setDevTranscriptMessage(error instanceof Error ? error.message : "Gagal mengirim transcript dev.");
-    }
-  }
 
   if (view === "interview" && selectedApplication && activeInterviewRound) {
     return (
@@ -647,32 +468,18 @@ export function CvDashboard() {
       <Shell activeCv={activeCv}>
         <ApplicationDetailView
           application={selectedApplication}
-          activeInterviewRound={activeInterviewRound}
           interviewRounds={interviewRounds}
-          selectedStage={selectedStage}
           onBack={() => setView("dashboard")}
           onDelete={() => void handleDeleteApplication(selectedApplication)}
-          onStageChange={setSelectedStage}
+          onDeleteRound={(round) => void handleDeleteInterviewRound(round)}
           onStartInterview={() => void handleStartInterview(selectedApplication)}
-          onPushDevTranscript={(transcriptText) => void pushDevTranscriptSegment(transcriptText)}
-          devTranscriptMessage={devTranscriptMessage}
-          audioDevices={audioDevices}
-          selectedAudioDeviceId={selectedAudioDeviceId}
-          audioStatus={audioStatus}
-          audioMessage={audioMessage}
-          audioSignalStatus={audioSignalStatus}
-          audioSignalLevel={audioSignalLevel}
-          audioSignalMessage={audioSignalMessage}
           systemAudioSupport={systemAudioSupport}
           systemAudioStatus={systemAudioStatus}
           systemAudioLevel={systemAudioLevel}
           systemAudioMessage={systemAudioMessage}
-          onAudioDeviceChange={handleAudioDeviceChange}
-          onTestAudioSignal={() => void validateSelectedAudioSignal()}
           onStartSystemAudioProbe={() => void startSystemAudioProbe()}
           onStopSystemAudioProbe={() => void stopSystemAudioProbe()}
           onRefreshSystemAudioSupport={() => void refreshSystemAudioSupport()}
-          onRefreshAudioDevices={() => void refreshAudioDevices()}
           isLoading={status === "loading"}
         />
       </Shell>
@@ -683,60 +490,76 @@ export function CvDashboard() {
     <Shell activeCv={activeCv}>
       <section className="section-head">
         <div>
-          <h1>Applications</h1>
-          <p className="subcopy">Buat context per company dan role, lalu mulai interview round dari application yang sama.</p>
+          <h1>Meeting Workspace</h1>
         </div>
-        <button className="primary-btn" onClick={() => setView("createApplication")} disabled={!isCvReady(activeCv)}>
-          + New Application
+        <button
+          className="primary-btn icon-btn new-session-btn"
+          onClick={() => setView("createApplication")}
+          disabled={!isCvReady(activeCv)}
+          aria-label="Buat konteks meeting baru"
+          title="Buat konteks meeting baru"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
         </button>
       </section>
 
-      <section className="grid two">
-        <div className="panel">
-          <div className="application-list no-margin">
-            {applications.length ? applications.map((application) => (
-              <div className="application-row" key={application.id}>
-                <button
-                  className="application-row-main"
-                  onClick={() => selectApplication(application)}
-                >
-                  <div>
-                    <h3>{application.companyName} - {application.roleTitle}</h3>
-                    <div className="meta-line">
-                      <span>CV linked</span>
-                      <span>Context ready</span>
-                      <span>{interviewRounds.length || 0} interview round</span>
-                    </div>
-                  </div>
-                  <span className="pill good">Application</span>
-                </button>
-                <button
-                  className="secondary-btn small danger-btn"
-                  onClick={() => void handleDeleteApplication(application)}
-                  disabled={status === "loading" || status === "processingApplication" || status === "uploading"}
-                >
-                  Delete
-                </button>
-              </div>
-            )) : (
-              <div className="empty-applications">
-                <div className="eyebrow">Application workspace</div>
-                <h2>Belum ada application</h2>
-                <p className="subcopy">Upload CV dulu, lalu buat application pertama dengan company, role, dan job description.</p>
-              </div>
-            )}
+      <section className="dashboard-stack">
+        <section className="panel dashboard-panel">
+          <div className="panel-head dashboard-panel-head">
+            <h2>Konteks Meeting</h2>
           </div>
-        </div>
+
+          {applications.length ? (
+            <div className="dashboard-table">
+              {applications.map((application) => {
+                return (
+                  <article className="dashboard-app-row" key={application.id}>
+                    <div className="dashboard-app-title">
+                      <div className="dashboard-app-title-line">
+                        <strong>{application.companyName} - {application.roleTitle}</strong>
+                      </div>
+                      <span>Fokus: {getDashboardApplicationFocus(application)}</span>
+                    </div>
+
+                    <div className="dashboard-row-actions">
+                      <button
+                        className="secondary-btn dashboard-action-btn open-action-btn"
+                        onClick={() => selectApplication(application)}
+                      >
+                        Buka
+                      </button>
+                      <button
+                        className="secondary-btn small danger-btn"
+                        onClick={() => void handleDeleteApplication(application)}
+                        disabled={status === "loading" || status === "processingApplication" || status === "uploading"}
+                      >
+                        Hapus
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="dashboard-empty-applications">
+              <div className="eyebrow">Meeting workspace</div>
+              <h2>Belum ada konteks meeting</h2>
+              <p className="subcopy">Upload profil dulu, lalu buat konteks pertama dengan nama meeting, topik, dan brief yang relevan.</p>
+            </div>
+          )}
+        </section>
 
         <ProfileContextPanel
           activeCv={activeCv}
           cvs={cvs}
           status={status}
           message={message}
-          onRefresh={() => void refreshCvs()}
           onUpload={handleUpload}
           onSetActive={(cvId) => void handleSetActive(cvId)}
           onRetryProcessing={(cvId) => void handleRetryCvProcessing(cvId)}
+          onDeleteCv={(cv) => void handleDeleteCv(cv)}
         />
       </section>
     </Shell>
@@ -748,14 +571,11 @@ function Shell({ activeCv, children }: { activeCv: Cv | null; children: ReactNod
     <main className="workspace">
       <nav className="topbar">
         <div className="brand">
-          <div className="brand-mark">I</div>
-          <div>
-            <strong>Interview Assistant</strong>
-            <p className="subcopy topbar-copy">MVP workspace</p>
-          </div>
+          <img className="brand-logo" src={orvikoLogo} alt="" aria-hidden="true" />
+          <strong>Orviko</strong>
         </div>
         <div className="profile-pill">
-          <span>CV aktif: {activeCv?.fileName || "Belum ada"}</span>
+          <span>Profil aktif: {activeCv?.fileName || "Belum ada"}</span>
           <span className="avatar" aria-hidden="true" />
         </div>
       </nav>
@@ -781,57 +601,57 @@ function CreateApplicationView({
     <>
       <section className="section-head">
         <div>
-          <h1>Create Application</h1>
-          <p className="subcopy">Application menyimpan company, role, JD, CV aktif, dan domain/niche profile untuk semua interview round berikutnya.</p>
+          <h1>Buat Konteks Meeting</h1>
+          <p className="subcopy">Konteks meeting menyimpan brief, topik, profil aktif, dan batas relevansi untuk semua sesi live berikutnya.</p>
         </div>
-        <button className="secondary-btn" onClick={onCancel}>Back</button>
+        <button className="secondary-btn" onClick={onCancel}>Kembali</button>
       </section>
 
       <section className="grid two">
         <form className="panel field-stack" onSubmit={onSubmit}>
           {!cvReady ? (
             <AiStatusCard
-              title="CV belum siap"
+              title="Profil belum siap"
               status={activeCv?.processingStatus || "failed"}
-              message="Tunggu AI processing CV selesai sebelum membuat application baru."
+              message="Tunggu AI processing profil selesai sebelum membuat konteks meeting baru."
             />
           ) : null}
               <label className="field">
-                <span>Company</span>
-            <input name="companyName" placeholder="Tokopedia" defaultValue="Tokopedia" />
+                <span>Nama konteks</span>
+            <input name="companyName" placeholder="Weekly Product Sync" defaultValue="" />
               </label>
               <label className="field">
-                <span>Role</span>
-            <input name="roleTitle" placeholder="Marketing Associate" defaultValue="Marketing Associate" />
+                <span>Topik meeting</span>
+            <input name="roleTitle" placeholder="Roadmap planning" defaultValue="" />
               </label>
               <label className="field">
-                <span>Job Description</span>
-            <textarea name="jobDescription" placeholder="Paste job description di sini..." />
+                <span>Brief / konteks meeting</span>
+            <textarea name="jobDescription" placeholder="Paste agenda, notes, dokumen, atau konteks penting di sini..." />
               </label>
               <div className="summary-item">
-                <p className="summary-label">Active CV</p>
-                <strong>{activeCv?.fileName || "Belum ada active CV"}</strong>
-                <p className="subcopy compact">Application akan memakai CV aktif saat ini.</p>
+                <p className="summary-label">Profil Aktif</p>
+                <strong>{activeCv?.fileName || "Belum ada profil aktif"}</strong>
+                <p className="subcopy compact">Konteks meeting akan memakai profil aktif saat ini.</p>
               </div>
           {activeCv ? <CvProcessingStatus cv={activeCv} compact /> : null}
           <button className="primary-btn" type="submit" disabled={!cvReady || isLoading}>
-                {isLoading ? "Analyzing JD..." : "Save Application"}
+                {isLoading ? "Menganalisis konteks..." : "Simpan Konteks Meeting"}
               </button>
             </form>
 
         <aside className="panel">
           <h2>AI Processing</h2>
-          <p className="subcopy">Saat disimpan, backend akan membuat JD summary, domain/niche boundary, dan interview prep context dari CV aktif + JD.</p>
+          <p className="subcopy">Saat disimpan, backend akan membuat ringkasan meeting, batas relevansi, dan konteks persiapan dari profil aktif + brief meeting.</p>
           {isLoading ? (
             <AiStatusCard
-              title="Analyzing domain context"
+              title="Menganalisis konteks domain"
               status="processing"
-              message="AI sedang membuat JD summary, niche boundary, dan preparation themes."
+              message="AI sedang membuat meeting summary, relevance boundary, dan preparation themes."
             />
           ) : null}
           <div className="keywords">
-            <span className="pill">Domain profile</span>
-            <span className="pill">Niche boundary</span>
+            <span className="pill">Meeting summary</span>
+            <span className="pill">Relevance boundary</span>
             <span className="pill">Prep themes</span>
           </div>
         </aside>
@@ -845,480 +665,302 @@ function ProfileContextPanel({
   cvs,
   status,
   message,
-  onRefresh,
   onUpload,
   onSetActive,
-  onRetryProcessing
+  onRetryProcessing,
+  onDeleteCv
 }: {
   activeCv: Cv | null;
   cvs: Cv[];
   status: LoadState;
   message: string;
-  onRefresh: () => void;
   onUpload: (event: ChangeEvent<HTMLInputElement>) => void;
   onSetActive: (cvId: string) => void;
   onRetryProcessing: (cvId: string) => void;
+  onDeleteCv: (cv: Cv) => void;
 }) {
+  const historyItems = cvs.length ? cvs : activeCv ? [activeCv] : [];
+
   return (
-    <aside className="panel profile-panel">
-      <h2>Profile Context</h2>
-      <p className="subcopy">CV diproses sekali di profile level dan dipakai ulang untuk semua application.</p>
-
-      <div className="summary-box">
-            <div className="summary-item">
-              <p className="summary-label">Active CV</p>
-              {activeCv ? (
-                <>
-                  <strong>{activeCv.fileName}</strong>
-                  <p className="subcopy compact">Uploaded {formatDate(activeCv.createdAt)}</p>
-                </>
-              ) : (
-                <p className="subcopy compact">Belum ada CV aktif.</p>
-              )}
-            </div>
-
-        {activeCv ? (
-          <CvProcessingStatus cv={activeCv} onRetry={() => onRetryProcessing(activeCv.id)} />
-        ) : null}
-
-        <div className="summary-item">
-          <p className="summary-label">Candidate summary</p>
-          <p className="subcopy compact">{activeCv ? getCandidateSummary(activeCv) : "Upload CV untuk membuat candidate summary."}</p>
-        </div>
-
-            <label className="upload-box">
-              <strong>Upload CV</strong>
-          <input type="file" accept=".pdf,.doc,.docx" onChange={onUpload} disabled={status === "uploading"} />
-              <p className="subcopy compact">PDF, DOC, atau DOCX. File terbaru otomatis menjadi active CV, lalu diproses AI sebelum bisa dipakai.</p>
-            </label>
-
-        {cvs.length > 1 ? (
-          <details className="summary-item">
-            <summary>CV Version History</summary>
-            <div className="cv-list">
-              {cvs.map((cv) => (
-                  <div className="cv-row" key={cv.id}>
-                    <div>
-                      <strong>{cv.fileName}</strong>
-                      <p>{formatDate(cv.createdAt)}</p>
-                    </div>
-                    {cv.isActive ? (
-                      <span className={`pill ${cv.processingStatus === "ready" ? "good" : cv.processingStatus === "failed" ? "danger" : "warn"}`}>
-                        {cv.processingStatus === "ready" ? "Active" : cv.processingStatus}
-                      </span>
-                    ) : (
-                    <button className="secondary-btn small" onClick={() => onSetActive(cv.id)}>
-                        Set active
-                      </button>
-                    )}
-                  </div>
-              ))}
-              </div>
-          </details>
-        ) : null}
-
-        <div className={`status-card slim ${status === "error" ? "error" : ""}`}>
-          <strong>{status === "uploading" ? "Uploading CV" : status === "loading" ? "Syncing" : "Status"}</strong>
-          <p>{message}</p>
+    <section className="panel dashboard-panel profile-panel-home">
+      <div className="panel-head dashboard-panel-head">
+        <div>
+          <h2>Profil & Referensi User</h2>
         </div>
       </div>
-      <button className="secondary-btn" onClick={onRefresh} disabled={status === "loading" || status === "uploading"}>Refresh</button>
-    </aside>
+
+      <div className="dashboard-profile-grid">
+        <article className="dashboard-profile-card">
+          <b className="summary-label">Profil Aktif</b>
+          {activeCv ? (
+            <>
+              <strong>{activeCv.fileName}</strong>
+              <p>Diupload {formatDate(activeCv.createdAt)}. File terbaru menjadi referensi user utama setelah AI processing selesai.</p>
+            </>
+          ) : (
+            <>
+              <strong>Belum ada profil aktif</strong>
+              <p>Upload profil pertama untuk mulai membuat referensi user dan membuka workflow konteks meeting.</p>
+            </>
+          )}
+
+          <div className="dashboard-card-actions">
+            <label className="primary-btn dashboard-upload-btn upload-btn">
+              Upload Profil Baru
+              <input type="file" accept=".pdf,.doc,.docx" onChange={onUpload} disabled={status === "uploading"} />
+            </label>
+          </div>
+        </article>
+
+        <article className={`dashboard-profile-card dashboard-status-card ${activeCv?.processingStatus || "uploaded"}`}>
+          <b className="summary-label">{activeCv ? getCvProcessingTitle(activeCv) : "AI Processing"}</b>
+          <strong>{activeCv ? getCvProcessingTitle(activeCv) : "Belum ada profil aktif"}</strong>
+          <p>{activeCv ? getCvProcessingDetail(activeCv) : "AI processing akan berjalan setelah profil pertama diupload."}</p>
+          {activeCv?.processingStatus === "failed" ? (
+            <div className="dashboard-card-actions">
+              <button className="secondary-btn small" type="button" onClick={() => onRetryProcessing(activeCv.id)}>
+                Coba Lagi
+              </button>
+            </div>
+          ) : null}
+        </article>
+
+        <article className="dashboard-profile-card">
+          <b className="summary-label">Ringkasan Profil</b>
+          <strong>{activeCv?.fileName || "Profile summary"}</strong>
+          <p>{activeCv ? getCandidateSummary(activeCv) : "Upload profil untuk membuat ringkasan user yang dipakai ulang di semua konteks meeting."}</p>
+        </article>
+      </div>
+
+      {historyItems.length ? (
+        <div className="dashboard-history-panel">
+          <h3>Riwayat Versi Profil</h3>
+          <div className="dashboard-cv-history">
+            {historyItems.map((cv) => (
+              <div className="dashboard-cv-row" key={cv.id}>
+                <div>
+                  <strong>{cv.fileName}</strong>
+                  <p>{cv.isActive ? "Aktif" : "Diproses"} - {cv.processingStatus} - diupload {formatDate(cv.createdAt)}</p>
+                </div>
+
+                <div className="dashboard-cv-actions">
+                  {cv.isActive ? (
+                    <span className={`pill ${cv.processingStatus === "ready" ? "good" : cv.processingStatus === "failed" ? "danger" : "warn"}`}>
+                      active
+                    </span>
+                  ) : (
+                    <button className="secondary-btn small" onClick={() => onSetActive(cv.id)}>
+                      Jadikan Aktif
+                    </button>
+                  )}
+                  <button
+                    className="secondary-btn small danger-btn"
+                    onClick={() => onDeleteCv(cv)}
+                    disabled={status === "loading" || status === "uploading"}
+                  >
+                    Hapus
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      <div className={`status-card slim ${status === "error" ? "error" : ""}`}>
+        <strong>{status === "uploading" ? "Mengupload Profil" : status === "loading" ? "Menyinkronkan" : "Status"}</strong>
+        <p>{message}</p>
+      </div>
+    </section>
   );
 }
 
 function ApplicationDetailView({
   application,
-  activeInterviewRound,
   interviewRounds,
-  selectedStage,
   onBack,
   onDelete,
-  onStageChange,
+  onDeleteRound,
   onStartInterview,
-  onPushDevTranscript,
-  devTranscriptMessage,
-  audioDevices,
-  selectedAudioDeviceId,
-  audioStatus,
-  audioMessage,
-  audioSignalStatus,
-  audioSignalLevel,
-  audioSignalMessage,
   systemAudioSupport,
   systemAudioStatus,
   systemAudioLevel,
   systemAudioMessage,
-  onAudioDeviceChange,
-  onTestAudioSignal,
   onStartSystemAudioProbe,
   onStopSystemAudioProbe,
   onRefreshSystemAudioSupport,
-  onRefreshAudioDevices,
   isLoading
 }: {
   application: Application;
-  activeInterviewRound: InterviewRound | null;
   interviewRounds: InterviewRound[];
-  selectedStage: InterviewStage;
   onBack: () => void;
   onDelete: () => void;
-  onStageChange: (stage: InterviewStage) => void;
+  onDeleteRound: (round: InterviewRound) => void;
   onStartInterview: () => void;
-  onPushDevTranscript: (transcriptText: string) => void;
-  devTranscriptMessage: string;
-  audioDevices: InterviewAudioInputDevice[];
-  selectedAudioDeviceId: string;
-  audioStatus: AudioReadinessStatus;
-  audioMessage: string;
-  audioSignalStatus: AudioSignalStatus;
-  audioSignalLevel: number;
-  audioSignalMessage: string;
   systemAudioSupport: SystemAudioSupport | null;
   systemAudioStatus: SystemAudioProbeStatus;
   systemAudioLevel: number;
   systemAudioMessage: string;
-  onAudioDeviceChange: (deviceId: string) => void;
-  onTestAudioSignal: () => void;
   onStartSystemAudioProbe: () => void;
   onStopSystemAudioProbe: () => void;
   onRefreshSystemAudioSupport: () => void;
-  onRefreshAudioDevices: () => void;
   isLoading: boolean;
 }) {
   const domainProfile = getDomainProfile(application);
   const prepThemes = getInterviewPrepThemes(application);
-  const hasLiveDevHarness = Boolean(activeInterviewRound && !activeInterviewRound.endedAt && window.interviewDesktop?.pushOverlayTranscript);
 
   return (
     <>
       <section className="section-head">
         <div>
           <h1>{application.companyName}</h1>
-          <p className="subcopy">{application.roleTitle} - CV aktif tersambung</p>
+          <p className="subcopy">{application.roleTitle} - profil aktif tersambung</p>
         </div>
         <div className="actions-row no-margin">
-          <button className="secondary-btn" onClick={onBack}>Back to Dashboard</button>
-          <button className="secondary-btn danger-btn" onClick={onDelete}>Delete Application</button>
+          <button className="secondary-btn" onClick={onBack}>Kembali ke Workspace</button>
+          <button className="secondary-btn danger-btn" onClick={onDelete}>Hapus Konteks</button>
         </div>
       </section>
 
       <section className="grid two">
         <div className="panel">
-          <h2>Application Context</h2>
+          <h2>Ringkasan Meeting</h2>
           <div className="summary-box detail-grid">
-        <div className="summary-item">
-          <p className="summary-label">JD Summary</p>
-          <p>{getJdSummary(application)}</p>
-        </div>
             <div className="summary-item">
-              <p className="summary-label">Domain / Niche Profile</p>
-              <strong>{domainProfile.primaryDomain || "Domain belum cukup jelas"}</strong>
-              <p className="subcopy compact">{domainProfile.nicheDescription || "AI belum punya cukup konteks untuk menentukan niche yang tajam."}</p>
-              {domainProfile.seedConcepts.length ? (
-                <>
-                  <p className="summary-label compact">Niche Signals</p>
-                  <div className="keywords">
-                    {domainProfile.seedConcepts.slice(0, 5).map((concept) => (
-                      <span className="pill" key={concept}>{concept}</span>
-                    ))}
-                  </div>
-                </>
-              ) : null}
+              <p className="summary-label">Ringkasan</p>
+              <p>{getJdSummary(application)}</p>
+              <p className="subcopy compact">{domainProfile.nicheDescription || "Konteks meeting akan mengikuti nama konteks, topik, dan brief yang tersimpan."}</p>
             </div>
             <div className="summary-item">
-              <p className="summary-label">Interview Prep Themes</p>
+              <p className="summary-label">Yang Perlu Dipersiapkan</p>
               <ul className="theme-list">
                 {prepThemes.map((theme) => (
                   <li key={theme}>{theme}</li>
                 ))}
               </ul>
             </div>
+            <div className="summary-item">
+              <p className="summary-label">Riwayat Sesi Live</p>
+              <div className="round-list">
+                {interviewRounds.length ? interviewRounds.map((round) => (
+                  <div className="round-row" key={round.id}>
+                    <div>
+                      <strong>Sesi meeting</strong>
+                      <span>{round.endedAt ? "Selesai" : "Dimulai"} - {formatDate(round.startedAt)}</span>
+                    </div>
+                    <button
+                      className="secondary-btn small danger-btn"
+                      onClick={() => onDeleteRound(round)}
+                      disabled={!round.endedAt || isLoading}
+                    >
+                      Hapus
+                    </button>
+                  </div>
+                )) : (
+                  <p className="subcopy compact">Belum ada sesi meeting.</p>
+                )}
+              </div>
+            </div>
             <details className="summary-item">
-              <summary>AI Context Details</summary>
-              {domainProfile.relevanceGuidance ? (
+              <summary>Brief Meeting</summary>
+              <p>{application.jobDescription || "Belum ada brief meeting."}</p>
+            </details>
+            <details className="summary-item">
+              <summary>Detail Tambahan</summary>
+              {domainProfile.primaryDomain ? (
                 <div className="detail-block">
-                  <p className="summary-label">Relevance Guidance</p>
-                  <p className="clamped-copy">{domainProfile.relevanceGuidance}</p>
+                  <p className="summary-label">Fokus Meeting</p>
+                  <strong>{domainProfile.primaryDomain}</strong>
                 </div>
               ) : null}
-              {domainProfile.inScopeConcepts.length ? (
+              {domainProfile.seedConcepts.length ? (
                 <div className="detail-block">
-                  <p className="summary-label">In Scope Concepts</p>
+                  <p className="summary-label">Topik Terkait</p>
                   <div className="keywords compact-list">
-                    {domainProfile.inScopeConcepts.slice(0, 8).map((concept) => (
+                    {domainProfile.seedConcepts.slice(0, 5).map((concept) => (
                       <span className="pill" key={concept}>{concept}</span>
                     ))}
                   </div>
                 </div>
               ) : null}
-              {domainProfile.outOfScopeConcepts.length ? (
+              {domainProfile.relevanceGuidance ? (
                 <div className="detail-block">
-                  <p className="summary-label">Out of Scope Examples</p>
-                  <div className="keywords compact-list">
-                    {domainProfile.outOfScopeConcepts.slice(0, 5).map((concept) => (
-                      <span className="pill warn" key={concept}>{concept}</span>
-                    ))}
-                  </div>
+                  <p className="summary-label">Catatan Relevansi</p>
+                  <p className="clamped-copy">{domainProfile.relevanceGuidance}</p>
                 </div>
               ) : null}
-            </details>
-        <div className="summary-item">
-              <p className="summary-label">Previous Rounds</p>
-              <div className="round-list">
-                {interviewRounds.length ? interviewRounds.map((round) => (
-                  <div className="round-row" key={round.id}>
-                    <strong>{round.stageType}</strong>
-                    <span>{round.endedAt ? "Ended" : "Started"} - {formatDate(round.startedAt)}</span>
-                  </div>
-                )) : (
-                  <p className="subcopy compact">Belum ada interview round.</p>
-                )}
-              </div>
-            </div>
-            <details className="summary-item">
-              <summary>Job Description</summary>
-          <p>{application.jobDescription || "Belum ada job description."}</p>
             </details>
           </div>
         </div>
 
         <aside className="panel">
-          <h2>Start New Interview Round</h2>
-          <p className="subcopy">Pilih stage sebelum session live dimulai.</p>
-          <AudioReadinessCard
-            devices={audioDevices}
-            selectedDeviceId={selectedAudioDeviceId}
-            status={audioStatus}
-            message={audioMessage}
-            signalStatus={audioSignalStatus}
-            signalLevel={audioSignalLevel}
-            signalMessage={audioSignalMessage}
+          <h2>Mulai Sesi Meeting Baru</h2>
+          <p className="subcopy">Pastikan audio meeting siap, lalu mulai sesi live.</p>
+          <SystemAudioReadinessCard
             systemSupport={systemAudioSupport}
             systemStatus={systemAudioStatus}
             systemLevel={systemAudioLevel}
             systemMessage={systemAudioMessage}
-            onDeviceChange={onAudioDeviceChange}
-            onTestSignal={onTestAudioSignal}
             onStartSystemProbe={onStartSystemAudioProbe}
             onStopSystemProbe={onStopSystemAudioProbe}
             onRefreshSystemSupport={onRefreshSystemAudioSupport}
-            onRefresh={onRefreshAudioDevices}
           />
-          <div className="stage-grid">
-            {stageOptions.map((stage) => (
-              <button
-                className={`stage-btn ${stage.value === "OTHER" ? "wide" : ""} ${selectedStage === stage.value ? "active" : ""}`}
-                key={stage.value}
-                onClick={() => onStageChange(stage.value)}
-              >
-                {stage.label}
-                <span>{stage.hint}</span>
-              </button>
-            ))}
-          </div>
           <div className="actions-row">
             <button className="primary-btn" onClick={onStartInterview} disabled={isLoading}>
-              Start Interview
+              Mulai Meeting
             </button>
-            <span className="pill good">{selectedStage} selected</span>
           </div>
-          {hasLiveDevHarness ? (
-            <DevTranscriptHarness
-              onSubmit={onPushDevTranscript}
-              samples={DEV_TRANSCRIPT_SAMPLES}
-              message={devTranscriptMessage}
-            />
-          ) : null}
         </aside>
       </section>
     </>
   );
 }
 
-function DevTranscriptHarness({
-  onSubmit,
-  samples,
-  message
-}: {
-  onSubmit: (transcriptText: string) => void;
-  samples: readonly string[];
-  message: string;
-}) {
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const formData = new FormData(form);
-    const transcriptText = String(formData.get("transcriptText") || "").trim();
-    if (!transcriptText) {
-      return;
-    }
-    form.reset();
-    onSubmit(transcriptText);
-  }
-
-  return (
-    <div className="status-card slim">
-      <strong>Dev Transcript Harness</strong>
-      <p>Kirim potongan ucapan interviewer ke overlay tanpa STT live dulu.</p>
-      <form className="field-stack no-margin" onSubmit={handleSubmit}>
-        <label className="field">
-          <span>Transcript segment</span>
-          <textarea name="transcriptText" placeholder="Contoh: Bagaimana kamu memvalidasi solusi untuk problem utama di role ini?" rows={3} />
-        </label>
-        <div className="actions-row no-margin">
-          <button className="secondary-btn small" type="submit">Push transcript</button>
-        </div>
-      </form>
-      <div className="keywords">
-        {samples.map((sample) => (
-          <button className="secondary-btn small" key={sample} onClick={() => onSubmit(sample)}>
-            Sample
-          </button>
-        ))}
-      </div>
-      <p className="subcopy compact">{message}</p>
-    </div>
-  );
-}
-
-function AudioReadinessCard({
-  devices,
-  selectedDeviceId,
-  status,
-  message,
-  signalStatus,
-  signalLevel,
-  signalMessage,
+function SystemAudioReadinessCard({
   systemSupport,
   systemStatus,
   systemLevel,
   systemMessage,
-  onDeviceChange,
-  onTestSignal,
   onStartSystemProbe,
   onStopSystemProbe,
-  onRefreshSystemSupport,
-  onRefresh
+  onRefreshSystemSupport
 }: {
-  devices: InterviewAudioInputDevice[];
-  selectedDeviceId: string;
-  status: AudioReadinessStatus;
-  message: string;
-  signalStatus: AudioSignalStatus;
-  signalLevel: number;
-  signalMessage: string;
   systemSupport: SystemAudioSupport | null;
   systemStatus: SystemAudioProbeStatus;
   systemLevel: number;
   systemMessage: string;
-  onDeviceChange: (deviceId: string) => void;
-  onTestSignal: () => void;
   onStartSystemProbe: () => void;
   onStopSystemProbe: () => void;
   onRefreshSystemSupport: () => void;
-  onRefresh: () => void;
 }) {
-  const selectedDevice = getSelectedAudioDevice(devices, selectedDeviceId);
-  const isSystemCandidateSelected = selectedDevice ? isLikelySystemAudioDevice(selectedDevice) : false;
-  const systemCandidates = devices.filter(isLikelySystemAudioDevice);
-
   return (
     <div className="audio-readiness">
       <div className="status-title-row">
-        <p className="summary-label">Audio Readiness</p>
-        <span className={`pill ${status === "ready" ? "good" : status === "error" ? "danger" : "warn"}`}>
-          {getAudioStatusLabel(status)}
+        <p className="summary-label">Audio Meeting</p>
+        <span className={`pill ${systemStatus === "ok" ? "good" : systemStatus === "error" || systemStatus === "missing" ? "danger" : "warn"}`}>
+          {getSystemAudioStatusLabel(systemStatus)}
         </span>
       </div>
-      <label className="field audio-field">
-        <span>Runtime audio source</span>
-        <select
-          className="audio-select"
-          value={selectedDeviceId}
-          onChange={(event) => onDeviceChange(event.currentTarget.value)}
-          disabled={status === "unsupported" || status === "loading" || !devices.length}
-        >
-          {!devices.length ? <option value="">No audio input detected</option> : null}
-          {devices.map((device) => (
-            <option key={`${device.deviceId}-${device.label}`} value={device.deviceId}>
-              [{getAudioSourceTypeLabel(device)}] {device.label}{device.isDefault ? " (default)" : ""}
-            </option>
-          ))}
-        </select>
-      </label>
-      <p className="subcopy compact">{message}</p>
-      <div className="audio-source-types">
-        <div className={`audio-source-card ${selectedDevice && !isSystemCandidateSelected ? "active" : ""}`}>
-          <div className="status-title-row">
-            <strong>Microphone input</strong>
-            <span className={`pill ${selectedDevice && !isSystemCandidateSelected ? "good" : "warn"}`}>
-              {selectedDevice && !isSystemCandidateSelected ? "selected" : "not selected"}
-            </span>
-          </div>
-          <p className="subcopy compact">Valid untuk mic user. Ini tidak membuktikan meeting/browser system audio masuk langsung.</p>
-        </div>
-        <div className={`audio-source-card ${isSystemCandidateSelected ? "active" : ""}`}>
-          <div className="status-title-row">
-            <strong>System/meeting audio</strong>
-            <span className={`pill ${isSystemCandidateSelected ? "good" : systemCandidates.length ? "warn" : "danger"}`}>
-              {isSystemCandidateSelected ? "selected" : systemCandidates.length ? "candidate found" : "not configured"}
-            </span>
-          </div>
-          <p className="subcopy compact">
-            Butuh Stereo Mix, virtual cable, atau native WASAPI loopback. Candidate terdeteksi: {systemCandidates.length}.
-          </p>
-        </div>
-      </div>
       <div className="audio-meter system">
-        <div className="status-title-row">
-          <span className="summary-label">System audio probe</span>
-          <span className={`pill ${systemStatus === "ok" ? "good" : systemStatus === "error" || systemStatus === "missing" ? "danger" : "warn"}`}>
-            {getSystemAudioStatusLabel(systemStatus)}
-          </span>
-        </div>
         <div className="audio-meter-track" aria-hidden="true">
           <div className={`audio-meter-fill ${systemStatus}`} style={{ width: `${Math.round(systemLevel * 100)}%` }} />
         </div>
-        <p className="subcopy compact">{systemMessage}</p>
-        {systemSupport?.helperPath ? (
-          <p className="subcopy compact">Helper: {systemSupport.helperExists ? "available" : "missing"}</p>
-        ) : null}
+        <p className="subcopy compact">{getSystemAudioUserMessage(systemStatus, systemMessage)}</p>
         <div className="actions-row no-margin">
           <button
-            className="secondary-btn small"
+            className="secondary-btn small open-action-btn"
             onClick={onStartSystemProbe}
             disabled={systemStatus === "checking" || systemStatus === "unsupported" || systemStatus === "missing"}
           >
-            {systemStatus === "checking" ? "Probing..." : "Probe system audio"}
+            {systemStatus === "checking" ? "Mengecek..." : "Cek Audio"}
           </button>
           <button className="secondary-btn small" onClick={onStopSystemProbe} disabled={systemStatus !== "checking"}>
-            Stop
+            Berhenti
           </button>
           <button className="secondary-btn small" onClick={onRefreshSystemSupport} disabled={systemStatus === "checking"}>
-            Recheck
+            Cek Ulang
           </button>
         </div>
-      </div>
-      <div className="audio-meter">
-        <div className="status-title-row">
-          <span className="summary-label">Signal validation</span>
-          <span className={`pill ${signalStatus === "ok" ? "good" : signalStatus === "error" ? "danger" : "warn"}`}>
-            {getAudioSignalStatusLabel(signalStatus)}
-          </span>
-        </div>
-        <div className="audio-meter-track" aria-hidden="true">
-          <div className={`audio-meter-fill ${signalStatus}`} style={{ width: `${Math.round(signalLevel * 100)}%` }} />
-        </div>
-        <p className="subcopy compact">{signalMessage}</p>
-      </div>
-      <div className="actions-row no-margin">
-        <button className="secondary-btn small" onClick={onTestSignal} disabled={status !== "ready" || signalStatus === "checking"}>
-          {signalStatus === "checking" ? "Testing..." : "Test signal"}
-        </button>
-        <button className="secondary-btn small" onClick={onRefresh} disabled={status === "loading" || signalStatus === "checking"}>
-          Refresh devices
-        </button>
       </div>
     </div>
   );
@@ -1337,22 +979,22 @@ function InterviewSessionPlaceholder({
     <main className="meeting-screen-placeholder">
       <section className="zoom-dummy-window">
         <div className="zoom-titlebar">
-          <span>Interview Session</span>
+          <span>Live Meeting Session</span>
           <button className="secondary-btn small" onClick={onBack}>Back</button>
         </div>
         <div className="zoom-dummy-body">
           <div>
             <p className="eyebrow">Meeting placeholder</p>
-            <h1>{interviewRound.stageType} Round Started</h1>
+            <h1>Sesi Meeting Dimulai</h1>
             <p className="subcopy">{application.companyName} - {application.roleTitle}</p>
           </div>
           <div className="summary-box">
         <div className="summary-item">
               <p className="summary-label">Status</p>
-              <p>Browser fallback only. Di Electron, Start Interview seharusnya membuka floating overlay window terpisah.</p>
+              <p>Browser fallback only. Di Electron, Start Meeting seharusnya membuka floating overlay window terpisah.</p>
         </div>
         <div className="summary-item">
-              <p className="summary-label">Started At</p>
+              <p className="summary-label">Dimulai Pada</p>
               <p>{formatDate(interviewRound.startedAt)}</p>
             </div>
         </div>
@@ -1379,7 +1021,7 @@ function CvProcessingStatus({
       compact={compact}
       action={cv.processingStatus === "failed" && onRetry ? (
         <button className="secondary-btn small" type="button" onClick={onRetry}>
-          Retry AI Processing
+          Coba Lagi
         </button>
       ) : undefined}
     />
@@ -1414,20 +1056,12 @@ function AiStatusCard({
         </div>
       ) : null}
       {!compact && status !== "ready" ? (
-        <p className="subcopy compact">New Application dikunci sampai CV status menjadi ready.</p>
+        <p className="subcopy compact">Konteks meeting baru dikunci sampai status profil menjadi ready.</p>
       ) : null}
       {action ? <div className="actions-row no-margin">{action}</div> : null}
     </div>
   );
 }
-
-const stageOptions: Array<{ value: InterviewStage; label: string; hint: string }> = [
-  { value: "HR", label: "HR", hint: "culture" },
-  { value: "TECHNICAL", label: "Technical", hint: "skill" },
-  { value: "USER", label: "User", hint: "workflow" },
-  { value: "FINAL", label: "Final", hint: "closing" },
-  { value: "OTHER", label: "Other", hint: "custom" }
-];
 
 function getDomainProfile(application: Application): DomainProfile {
   const result = getApplicationAiResult(application);
@@ -1438,44 +1072,50 @@ function getDomainProfile(application: Application): DomainProfile {
   if (result?.domainKeywords?.length) {
     return normalizeDomainProfile({
       primaryDomain: application.roleTitle,
-      nicheDescription: "Application ini memakai format AI lama. Seed concepts berikut hanya referensi sementara, bukan runtime keyword chips.",
+      nicheDescription: "Konteks ini memakai format AI lama. Seed concepts berikut hanya referensi sementara, bukan runtime keyword chips.",
       seedConcepts: result.domainKeywords,
       inScopeConcepts: result.domainKeywords,
       outOfScopeConcepts: [],
-      relevanceGuidance: "Buat ulang application untuk mendapatkan niche boundary versi terbaru."
+      relevanceGuidance: "Buat ulang konteks meeting untuk mendapatkan relevance boundary versi terbaru."
     });
   }
 
   return normalizeDomainProfile({
     primaryDomain: application.roleTitle,
     nicheDescription: application.jobDescription
-      ? "Domain profile belum tersedia. Buat ulang application agar AI membangun niche boundary yang lebih tepat."
-      : "Domain profile belum tersedia karena job description kosong.",
+      ? "Domain profile belum tersedia. Buat ulang konteks meeting agar AI membangun relevance boundary yang lebih tepat."
+      : "Domain profile belum tersedia karena brief meeting kosong.",
     seedConcepts: [],
     inScopeConcepts: [],
     outOfScopeConcepts: [],
-    relevanceGuidance: "Runtime keyword hanya boleh muncul setelah transcript live terbukti relevan dengan niche application."
+    relevanceGuidance: "Runtime keyword hanya boleh muncul setelah transcript live terbukti relevan dengan konteks meeting."
   });
 }
 
 function getInterviewPrepThemes(application: Application) {
   const result = getApplicationAiResult(application);
   const themes = result?.interviewPrepThemes || result?.likelyInterviewThemes;
-  return themes?.length ? compactTextList(themes, 3, 90) : ["Validasi scope role", "Hubungkan pengalaman CV dengan kebutuhan JD"];
+  return themes?.length ? compactTextList(themes, 3, 90) : ["Validasi scope meeting", "Hubungkan pengalaman user dengan konteks meeting"];
+}
+
+function getDashboardApplicationFocus(application: Application) {
+  const domainProfile = getDomainProfile(application);
+  const focus = domainProfile.nicheDescription || domainProfile.primaryDomain || getJdSummary(application) || application.roleTitle;
+  return truncateText(focus, 72);
 }
 
 function getJdSummary(application: Application) {
-  return getApplicationAiResult(application)?.jdSummary || application.companyContext || "Application context belum tersedia.";
+  return getApplicationAiResult(application)?.jdSummary || application.companyContext || "Konteks meeting belum tersedia.";
 }
 
 function getCandidateSummary(cv: Cv) {
   if (cv.processingStatus === "processing") {
-    return "AI sedang membaca CV dan membuat candidate summary.";
+    return "AI sedang membaca profil dan membuat ringkasan user.";
   }
   if (cv.processingStatus === "failed") {
-    return "Candidate summary belum tersedia karena AI processing gagal.";
+    return "Ringkasan profil belum tersedia karena AI processing gagal.";
   }
-  return getCvAiResult(cv)?.candidateSummary || cv.readyContext || "Candidate summary belum tersedia.";
+  return getCvAiResult(cv)?.candidateSummary || cv.readyContext || "Ringkasan profil belum tersedia.";
 }
 
 function isCvReady(cv: Cv | null) {
@@ -1483,93 +1123,54 @@ function isCvReady(cv: Cv | null) {
 }
 
 function getCvStatusMessage(cv: Cv | null) {
-  if (!cv) return "Belum ada CV aktif. Upload CV untuk memulai.";
-  if (cv.processingStatus === "processing") return `${cv.fileName} sedang diproses AI. Tunggu sampai ready sebelum membuat application.`;
-  if (cv.processingStatus === "failed") return `${cv.fileName} gagal diproses AI. Klik retry sebelum membuat application.`;
-  return "CV aktif sudah diproses AI dan siap dipakai untuk application berikutnya.";
+  if (!cv) return "Belum ada profil aktif. Upload profil untuk memulai.";
+  if (cv.processingStatus === "processing") return `${cv.fileName} sedang diproses AI. Tunggu sampai ready sebelum membuat konteks meeting.`;
+  if (cv.processingStatus === "failed") return `${cv.fileName} gagal diproses AI. Klik coba lagi sebelum membuat konteks meeting.`;
+  return "Profil aktif sudah diproses AI dan siap dipakai untuk konteks meeting berikutnya.";
 }
 
 function getCvProcessingTitle(cv: Cv) {
-  if (cv.processingStatus === "processing") return "AI Processing";
-  if (cv.processingStatus === "failed") return "AI Failed";
-  if (cv.processingStatus === "uploaded") return "Uploaded";
+  if (cv.processingStatus === "processing") return "AI Memproses";
+  if (cv.processingStatus === "failed") return "AI Gagal";
+  if (cv.processingStatus === "uploaded") return "Diupload";
   return "AI Ready";
 }
 
 function getCvProcessingDetail(cv: Cv) {
   if (cv.processingStatus === "processing") {
-    return "AI sedang membaca CV, mengekstrak skill, pengalaman, dan interview-ready context.";
+    return "AI sedang membaca profil, mengekstrak pengalaman, preferensi, dan konteks user yang bisa dipakai saat meeting.";
   }
   if (cv.processingStatus === "failed") {
-    return cv.processingError || "AI gagal memproses CV. Retry sebelum membuat application.";
+    return cv.processingError || "AI gagal memproses profil. Coba lagi sebelum membuat konteks meeting.";
   }
   if (cv.processingStatus === "uploaded") {
-    return "CV sudah diupload dan menunggu AI processing.";
+    return "Profil sudah diupload dan menunggu AI processing.";
   }
-  return "CV sudah diproses AI dan siap dipakai untuk application.";
-}
-
-function getAudioStatusLabel(status: AudioReadinessStatus) {
-  if (status === "ready") return "ready";
-  if (status === "loading") return "checking";
-  if (status === "unsupported") return "desktop only";
-  if (status === "noDevice") return "no device";
-  return "error";
-}
-
-function getAudioSignalStatusLabel(status: AudioSignalStatus) {
-  if (status === "ok") return "signal OK";
-  if (status === "checking") return "testing";
-  if (status === "silent") return "silent";
-  if (status === "error") return "error";
-  return "untested";
-}
-
-function looksLikeQuestionText(text: string) {
-  const normalized = text.trim().toLowerCase();
-  if (!normalized) {
-    return false;
-  }
-
-  if (normalized.includes("?")) {
-    return true;
-  }
-
-  return /^(apa|apakah|bagaimana|kenapa|mengapa|kapan|di mana|seberapa|jelaskan|ceritakan|how|what|why|when|where|can|could|do|did|have|tell me)\b/.test(normalized);
+  return "Profil sudah diproses AI dan siap dipakai untuk konteks meeting.";
 }
 
 function getSystemAudioStatusLabel(status: SystemAudioProbeStatus) {
-  if (status === "ok") return "system OK";
-  if (status === "checking") return "probing";
-  if (status === "silent") return "silent";
-  if (status === "missing") return "helper missing";
-  if (status === "unsupported") return "unsupported";
-  if (status === "stopped") return "stopped";
-  if (status === "error") return "error";
-  return "ready";
+  if (status === "ok") return "Siap";
+  if (status === "checking") return "Mengecek";
+  if (status === "silent") return "Belum ada suara";
+  if (status === "missing") return "Belum siap";
+  if (status === "unsupported") return "Tidak tersedia";
+  if (status === "stopped") return "Berhenti";
+  if (status === "error") return "Gagal";
+  return "Belum dicek";
 }
 
-function getSelectedAudioDeviceLabel(devices: InterviewAudioInputDevice[], selectedDeviceId: string) {
-  return getSelectedAudioDevice(devices, selectedDeviceId)?.label || "Audio source belum dipilih";
+function getSystemAudioUserMessage(status: SystemAudioProbeStatus, _fallbackMessage: string) {
+  if (status === "ok") return "Audio dari meeting siap didengar.";
+  if (status === "checking") return "Sedang mengecek audio meeting...";
+  if (status === "silent") return "Belum ada suara meeting terdeteksi. Putar suara dari meeting, lalu cek ulang.";
+  if (status === "missing") return "Komponen audio belum siap. Restart aplikasi, lalu coba lagi.";
+  if (status === "unsupported") return "Pengecekan audio otomatis hanya tersedia di Windows.";
+  if (status === "stopped") return "Pengecekan audio dihentikan.";
+  if (status === "error") return "Audio meeting belum bisa dicek. Coba cek ulang.";
+  return "Klik Cek Audio sebelum memulai meeting.";
 }
 
-function getSelectedAudioDevice(devices: InterviewAudioInputDevice[], selectedDeviceId: string) {
-  return devices.find((device) => device.deviceId === selectedDeviceId);
-}
-
-function getAudioSourceKind(devices: InterviewAudioInputDevice[], selectedDeviceId: string) {
-  const device = getSelectedAudioDevice(devices, selectedDeviceId);
-  return device && isLikelySystemAudioDevice(device) ? "system-candidate" : "microphone";
-}
-
-function getAudioSourceTypeLabel(device: InterviewAudioInputDevice) {
-  return isLikelySystemAudioDevice(device) ? "System candidate" : "Mic";
-}
-
-function isLikelySystemAudioDevice(device: InterviewAudioInputDevice) {
-  const label = device.label.toLowerCase();
-  return SYSTEM_AUDIO_DEVICE_KEYWORDS.some((keyword) => label.includes(keyword));
-}
 
 type CvAiEnvelope = {
   result?: {

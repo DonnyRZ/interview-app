@@ -41,3 +41,11 @@ export async function endInterviewRound(userId: string, interviewRoundId: string
 
   return updatedRound || null;
 }
+
+export async function deleteInterviewRound(userId: string, interviewRoundId: string) {
+  const [deletedRound] = await db.delete(interviewRounds)
+    .where(and(eq(interviewRounds.userId, userId), eq(interviewRounds.id, interviewRoundId)))
+    .returning({ id: interviewRounds.id });
+
+  return deletedRound || null;
+}

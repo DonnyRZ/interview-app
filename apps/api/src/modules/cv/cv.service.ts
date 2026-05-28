@@ -1,4 +1,5 @@
 import { createWriteStream } from "node:fs";
+import { unlink } from "node:fs/promises";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import type { MultipartFile } from "@fastify/multipart";
@@ -9,7 +10,17 @@ import { preprocessCvSpec } from "../ai/action-specs.js";
 import { runOpenAiJsonAction } from "../ai/action-runner.js";
 import { DEV_USER_ID } from "../dev/dev-user.js";
 import { ensureDevUser } from "../dev/dev-user.repository.js";
-import { createCv, findActiveCv, findCvById, listCvs, setActiveCv, updateCvProcessingState } from "./cv.repository.js";
+import {
+  createCv,
+  deleteCv,
+  findActiveCv,
+  findApplicationUsingCv,
+  findCvById,
+  findLatestCvExcluding,
+  listCvs,
+  setActiveCv,
+  updateCvProcessingState
+} from "./cv.repository.js";
 
 const allowedMimeTypes = new Set([
   "application/pdf",
@@ -95,6 +106,38 @@ export async function retryCvProcessingForDevUser(cvId: string) {
   });
 
   return processingCv;
+}
+
+export async function deleteCvForDevUser(cvId: string) {
+  await ensureDevUser();
+
+  const existingCv = await findCvById(DEV_USER_ID, cvId);
+  if (!existingCv) {
+    return null;
+  }
+
+  const linkedApplication = await findApplicationUsingCv(DEV_USER_ID, cvId);
+  if (linkedApplication) {
+    throw new Error("CV is still linked to an application and cannot be deleted.");
+  }
+
+  const replacementCv = existingCv.isActive ? await findLatestCvExcluding(DEV_USER_ID, cvId) : null;
+
+  const deletedCv = await deleteCv(DEV_USER_ID, cvId);
+  if (!deletedCv) {
+    return null;
+  }
+
+  if (replacementCv) {
+    await setActiveCv(DEV_USER_ID, replacementCv.id);
+  }
+
+  await unlink(deletedCv.filePath).catch((error) => {
+    const message = error instanceof Error ? error.message : "Unknown CV file cleanup error";
+    console.warn(`[cv:cleanup] failed to delete uploaded CV file: ${message}`);
+  });
+
+  return deletedCv;
 }
 
 function queueCvProcessing(input: { cvId: string; fileName: string; filePath: string; fileMimeType?: string | null }) {

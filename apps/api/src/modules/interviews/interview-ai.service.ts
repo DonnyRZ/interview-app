@@ -47,7 +47,7 @@ export async function surfaceRealtimeKeywords(
   const transcriptSegment = input.transcriptSegment.trim();
 
   if (!transcriptSegment) {
-    return buildFallbackRealtimeKeywords("Transcript interviewer kosong atau belum terdeteksi.");
+    return buildFallbackRealtimeKeywords("Transcript meeting kosong atau belum terdeteksi.");
   }
 
   try {
@@ -80,7 +80,7 @@ export async function generateInterviewAnswer(
   const normalizedQuestion = input.interviewerQuestion.trim();
 
   if (!normalizedQuestion) {
-    return buildFallbackInterviewAnswer(input, "Pertanyaan interviewer kosong atau belum terdeteksi.");
+    return buildFallbackInterviewAnswer(input, "Konteks meeting kosong atau belum terdeteksi.");
   }
 
   try {
@@ -101,8 +101,8 @@ export async function generateInterviewAnswer(
       ]
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown OpenAI interview answer error";
-    console.warn(`[ai:fallback] generate_interview_answer failed: ${message}`);
+    const message = error instanceof Error ? error.message : "Unknown OpenAI meeting response error";
+    console.warn(`[ai:fallback] generate_meeting_response failed: ${message}`);
     return buildFallbackInterviewAnswer(input, message);
   }
 }
@@ -113,7 +113,7 @@ export async function generateInterviewExplanation(
   const normalizedQuestion = input.interviewerQuestion.trim();
 
   if (!normalizedQuestion) {
-    return buildFallbackInterviewExplanation(input, "Pertanyaan interviewer kosong atau belum terdeteksi.");
+    return buildFallbackInterviewExplanation(input, "Konteks meeting kosong atau belum terdeteksi.");
   }
 
   try {
@@ -134,8 +134,8 @@ export async function generateInterviewExplanation(
       ]
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown OpenAI interview explanation error";
-    console.warn(`[ai:fallback] generate_interview_explanation failed: ${message}`);
+    const message = error instanceof Error ? error.message : "Unknown OpenAI meeting explanation error";
+    console.warn(`[ai:fallback] generate_meeting_explanation failed: ${message}`);
     return buildFallbackInterviewExplanation(input, message);
   }
 }
@@ -146,7 +146,7 @@ export async function generateInterviewFollowup(
   const normalizedQuestion = input.interviewerQuestion.trim();
 
   if (!normalizedQuestion) {
-    return buildFallbackInterviewFollowup(input, "Pertanyaan interviewer kosong atau belum terdeteksi.");
+    return buildFallbackInterviewFollowup(input, "Konteks meeting kosong atau belum terdeteksi.");
   }
 
   try {
@@ -167,8 +167,8 @@ export async function generateInterviewFollowup(
       ]
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown OpenAI interview follow-up error";
-    console.warn(`[ai:fallback] generate_interview_followup failed: ${message}`);
+    const message = error instanceof Error ? error.message : "Unknown OpenAI meeting follow-up error";
+    console.warn(`[ai:fallback] generate_meeting_followup failed: ${message}`);
     return buildFallbackInterviewFollowup(input, message);
   }
 }
@@ -200,8 +200,8 @@ export async function generateInterviewKeywordHelp(
       ]
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown OpenAI interview keyword help error";
-    console.warn(`[ai:fallback] generate_interview_keyword_help failed: ${message}`);
+    const message = error instanceof Error ? error.message : "Unknown OpenAI meeting keyword help error";
+    console.warn(`[ai:fallback] generate_meeting_keyword_help failed: ${message}`);
     return buildFallbackInterviewKeywordHelp(input, message);
   }
 }
@@ -298,17 +298,16 @@ function buildFallbackInterviewAnswer(
   input: GenerateInterviewAnswerServiceInput,
   warning: string
 ): GenerateInterviewAnswerResult {
-  const roleTitle = input.realtimeContext.applicationContext.roleTitle || "role ini";
   return {
     status: "partial",
     result: {
       shouldAnswer: false,
-      answerDraft: `Boleh saya klarifikasi sedikit pertanyaannya? Saya ingin memastikan jawaban saya relevan dengan kebutuhan ${roleTitle}.`,
+      answerDraft: "Boleh saya klarifikasi sedikit konteksnya? Saya ingin memastikan respons saya tepat sebelum menjawab.",
       keyPoints: [],
-      followUpNote: "Gunakan ini hanya jika pertanyaan interviewer belum jelas atau AI generation gagal."
+      followUpNote: "Gunakan ini hanya jika konteks meeting belum jelas atau AI generation gagal."
     },
-    warnings: [`OpenAI interview answer fallback: ${warning}`],
-    missingInputs: input.interviewerQuestion.trim() ? [] : ["interviewerQuestion"],
+    warnings: [`OpenAI meeting response fallback: ${warning}`],
+    missingInputs: input.interviewerQuestion.trim() ? [] : ["latestMeetingFocus"],
     confidence: "low",
     evidence: []
   };
@@ -318,19 +317,18 @@ function buildFallbackInterviewExplanation(
   input: GenerateInterviewExplanationServiceInput,
   warning: string
 ): GenerateInterviewExplanationResult {
-  const roleTitle = input.realtimeContext.applicationContext.roleTitle || "role ini";
   return {
     status: "partial",
     result: {
-      meaningSummary: `Interviewer kemungkinan ingin melihat apakah jawabanmu relevan, terstruktur, dan nyambung dengan kebutuhan ${roleTitle}.`,
+      meaningSummary: "Lawan bicara kemungkinan ingin memastikan responsnya relevan, terstruktur, dan nyambung dengan konteks meeting.",
       signals: [
-        "Apakah kamu paham inti pertanyaannya.",
-        "Apakah kamu bisa menghubungkan jawaban ke pengalaman atau logika yang relevan."
+        "Apa inti konteks yang sedang dibahas.",
+        "Apa respons atau klarifikasi yang paling relevan."
       ],
-      answerAngle: "Jawab dengan struktur singkat: konteks, pendekatan, lalu hasil atau trade-off yang paling relevan."
+      answerAngle: "Respons dengan struktur singkat: pahami konteks, beri sudut pandang, lalu usulkan klarifikasi atau next step."
     },
-    warnings: [`OpenAI interview explanation fallback: ${warning}`],
-    missingInputs: input.interviewerQuestion.trim() ? [] : ["interviewerQuestion"],
+    warnings: [`OpenAI meeting explanation fallback: ${warning}`],
+    missingInputs: input.interviewerQuestion.trim() ? [] : ["latestMeetingFocus"],
     confidence: "low",
     evidence: []
   };
@@ -340,19 +338,18 @@ function buildFallbackInterviewFollowup(
   input: GenerateInterviewFollowupServiceInput,
   warning: string
 ): GenerateInterviewFollowupResult {
-  const roleTitle = input.realtimeContext.applicationContext.roleTitle || "role ini";
   return {
     status: "partial",
     result: {
       shouldFollowUp: true,
       followUpQuestions: [
-        `Boleh dijelaskan prioritas utama untuk ${roleTitle} ini?`,
-        "Metric apa yang paling penting untuk interviewer di konteks ini?"
+        "Boleh dijelaskan prioritas utama dari konteks ini?",
+        "Apa kriteria yang paling penting untuk keputusan atau next step-nya?"
       ],
-      followUpStrategy: "Gunakan follow-up ini untuk klarifikasi saat konteks interviewer masih terlalu umum."
+      followUpStrategy: "Gunakan follow-up ini untuk klarifikasi saat konteks meeting masih terlalu umum."
     },
-    warnings: [`OpenAI interview follow-up fallback: ${warning}`],
-    missingInputs: input.interviewerQuestion.trim() ? [] : ["interviewerQuestion"],
+    warnings: [`OpenAI meeting follow-up fallback: ${warning}`],
+    missingInputs: input.interviewerQuestion.trim() ? [] : ["latestMeetingFocus"],
     confidence: "low",
     evidence: []
   };
@@ -365,15 +362,15 @@ function buildFallbackInterviewKeywordHelp(
   return {
     status: "partial",
     result: {
-      keywordSummary: `${input.keyword} adalah keyword yang relevan dengan role ini, tetapi detail konteksnya belum cukup kuat.`,
+      keywordSummary: `${input.keyword} adalah keyword yang mungkin relevan dengan meeting ini, tetapi detail konteksnya belum cukup kuat.`,
       talkingPoints: [
-        "Jelaskan arti keyword ini dalam workflow atau problem yang sedang dibahas.",
-        "Hubungkan keyword ini ke pengalaman atau pendekatan yang paling relevan.",
+        "Jelaskan arti keyword ini dalam konteks atau problem yang sedang dibahas.",
+        "Hubungkan keyword ini ke pendekatan yang paling relevan.",
         "Jika perlu, klarifikasi metric, data, atau trade-off yang terkait."
       ],
       keywordStrategy: "Gunakan keyword ini sebagai anchor singkat, lalu kaitkan ke contoh yang paling relevan."
     },
-    warnings: [`OpenAI interview keyword help fallback: ${warning}`],
+    warnings: [`OpenAI meeting keyword help fallback: ${warning}`],
     missingInputs: input.keyword.trim() ? [] : ["keyword"],
     confidence: "low",
     evidence: []

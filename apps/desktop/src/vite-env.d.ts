@@ -36,10 +36,11 @@ type OverlayTranscriptEvent = {
 
 type RealtimeOverlayAction = {
   requestId: number;
-  action: "answer" | "followup" | "explain" | "keyword" | "ask";
+  action: "answer_qna" | "answer_convo" | "answer" | "followup" | "explain" | "keyword" | "ask";
   latestQuestion?: string;
   recentTranscript?: string;
   triggerText?: string;
+  conversationMode?: "qna" | "convo" | "unknown";
 };
 
 type RealtimeOverlayEvent =
@@ -62,7 +63,6 @@ interface Window {
     onSystemAudioProbeEvent?: (callback: (payload: SystemAudioProbeEvent) => void) => () => void;
     openOverlay?: (context: unknown) => Promise<unknown>;
     updateOverlayContext?: (context: unknown) => Promise<unknown>;
-    pushOverlayTranscript?: (event: OverlayTranscriptEvent) => Promise<unknown>;
     sendRealtimeAction?: (payload: RealtimeOverlayAction) => Promise<{ ok: boolean; message?: string }>;
     reportRealtimeClientEvent?: (payload: unknown) => Promise<{ ok: boolean; message?: string }>;
     closeOverlay?: () => Promise<unknown>;

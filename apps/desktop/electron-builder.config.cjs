@@ -1,8 +1,5 @@
 const path = require("node:path");
 
-const certificateFile = process.env.WINDOWS_CERTIFICATE_FILE;
-const certificatePassword = process.env.WINDOWS_CERTIFICATE_PASSWORD;
-
 module.exports = {
   appId: "com.interviewapp.desktop",
   productName: "Interview App",
@@ -28,10 +25,7 @@ module.exports = {
         target: "nsis",
         arch: ["x64"]
       }
-    ],
-    cscLink: certificateFile,
-    cscKeyPassword: certificatePassword,
-    signAndEditExecutable: Boolean(certificateFile)
+    ]
   },
   nsis: {
     oneClick: false,
