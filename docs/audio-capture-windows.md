@@ -131,7 +131,7 @@ OpenAI Realtime config saat ini:
 
 - Current runtime focuses on system audio lawan bicara.
 - User mic is not yet part of the primary live context.
-- Public Windows distribution still needs careful packaging/signing flow. For current beta QA, use the self-signed beta flow documented in `apps/desktop/WIN_UNPACKED.md`.
+- Public Windows distribution should go through Microsoft Store packaging/submission. Local packaged builds are only for engineering QA.
 
 ## Verification Checklist
 

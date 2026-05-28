@@ -1,6 +1,7 @@
 import type {
   ActiveCvResponse,
   CvListResponse,
+  DeleteCvResponse,
   RetryCvProcessingResponse,
   SetActiveCvResponse,
   UploadCvResponse
@@ -34,5 +35,11 @@ export function setActiveCv(cvId: string) {
 export function retryCvProcessing(cvId: string) {
   return apiRequest<RetryCvProcessingResponse>(`/cv/${cvId}/retry-processing`, {
     method: "POST"
+  });
+}
+
+export function deleteCv(cvId: string) {
+  return apiRequest<DeleteCvResponse>(`/cv/${cvId}`, {
+    method: "DELETE"
   });
 }

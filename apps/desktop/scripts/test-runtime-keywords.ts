@@ -1,9 +1,16 @@
 import assert from "node:assert/strict";
 import { surfaceRealtimeKeywordsResultSchema } from "../../api/src/modules/ai/action-schemas.js";
 import { buildPrompt } from "../../api/src/modules/ai/prompt-builder.js";
-import { surfaceRealtimeKeywordsSpec } from "../../api/src/modules/ai/actions/surface-realtime-keywords.js";
-import { buildRealtimeInterviewSessionInstructions } from "../../api/src/modules/ai/actions/realtime-interview-session.js";
+import { surfaceRealtimeKeywordsSpec } from "../../api/src/modules/ai/actions/keywords/surface-meeting-keywords.js";
+import { generateInterviewExplanationSpec } from "../../api/src/modules/ai/actions/explanation/generate-meeting-explanation.js";
+import { generateInterviewFollowupSpec } from "../../api/src/modules/ai/actions/followup/generate-meeting-followup.js";
+import { buildRealtimeInterviewSessionInstructions } from "../../api/src/modules/ai/actions/realtime/realtime-meeting-session.js";
 import { buildRealtimeActionPrompt } from "../src/features/overlay/runtime-rules/realtime-action-prompt.js";
+import { formatRealtimeResponsePoints } from "../src/features/overlay/runtime-rules/overlay-response-copy.js";
+import {
+  getForcedConversationMode,
+  isRealtimeActionName
+} from "../electron/realtime-action-contract.js";
 
 const realtimeContext = {
     candidateContext: {
@@ -43,7 +50,7 @@ const realtimeContext = {
   };
 
 const prompt = buildPrompt(surfaceRealtimeKeywordsSpec, {
-  transcriptSegment: "Interviewer menyebut beberapa term penting dalam percakapan terbaru.",
+  transcriptSegment: "Lawan bicara menyebut beberapa term penting dalam percakapan terbaru.",
   realtimeContext
 });
 
@@ -54,6 +61,36 @@ assert(promptText.includes("Jangan hardcode"));
 assert(!promptText.includes("TikTok"));
 assert(!promptText.includes("CAC"));
 assert(!promptText.includes("ROAS"));
+assert(!promptText.includes("kandidat saat interview"));
+
+assert.deepEqual(
+  formatRealtimeResponsePoints("- Berikut adalah penjelasan mengenai tahapan yang disebutkan:\n- Fokus pada stabilisasi harga pangan.", {
+    action: "answer_qna",
+    conversationMode: "qna"
+  }),
+  ["Fokus pada stabilisasi harga pangan."]
+);
+assert.deepEqual(
+  formatRealtimeResponsePoints("JAWAB_PERTANYAAN: Fokus pada risiko utama dan data yang perlu dicek.", {
+    action: "answer_qna",
+    conversationMode: "qna"
+  }),
+  ["Fokus pada risiko utama dan data yang perlu dicek."]
+);
+assert.deepEqual(
+  formatRealtimeResponsePoints("Berikut adalah jawaban singkat: fokus pada risiko utama dulu.", {
+    action: "answer_qna",
+    conversationMode: "qna"
+  }),
+  ["Fokus pada risiko utama dulu."]
+);
+assert.deepEqual(
+  formatRealtimeResponsePoints("- Mungkin kita bisa mulai dari concern yang paling berdampak.", {
+    action: "answer_convo",
+    conversationMode: "convo"
+  }),
+  ["Kita bisa mulai dari concern yang paling berdampak."]
+);
 
 const parsed = surfaceRealtimeKeywordsResultSchema.parse({
   status: "success",
@@ -75,16 +112,37 @@ assert.equal(parsed.result.keywords.length, 3);
 const realtimePrompt = buildRealtimeActionPrompt({
   action: "keyword",
   triggerText: "selected keyword",
-  recentTranscript: "Interviewer menyebut selected keyword dalam percakapan terbaru.",
-  latestQuestion: "Interviewer menyebut selected keyword dalam percakapan terbaru."
+  recentTranscript: "Lawan bicara menyebut selected keyword dalam percakapan terbaru.",
+  latestQuestion: "Lawan bicara menyebut selected keyword dalam percakapan terbaru.",
+  conversationMode: "convo"
 });
 assert(realtimePrompt.includes("TRIGGER: EXPLAIN_KEYWORD"));
+assert(realtimePrompt.includes("Conversation mode hint:\nconvo"));
 assert(realtimePrompt.includes("Input user/keyword:\nselected keyword"));
+
+const qnaAnswerPrompt = buildRealtimeActionPrompt({
+  action: "answer_qna",
+  recentTranscript: "Ada pertanyaan yang perlu dijawab user.",
+  latestQuestion: "Ada pertanyaan yang perlu dijawab user.",
+  conversationMode: "qna"
+});
+assert(qnaAnswerPrompt.includes("TRIGGER: JAWAB_PERTANYAAN"));
+assert(qnaAnswerPrompt.includes("Conversation mode hint:\nqna"));
+
+const convoAnswerPrompt = buildRealtimeActionPrompt({
+  action: "answer_convo",
+  recentTranscript: "Ada statement meeting yang perlu ditanggapi user.",
+  latestQuestion: "Ada statement meeting yang perlu ditanggapi user.",
+  conversationMode: "convo"
+});
+assert(convoAnswerPrompt.includes("TRIGGER: TANGGAPI"));
+assert(convoAnswerPrompt.includes("Conversation mode hint:\nconvo"));
 
 const surfacePrompt = buildRealtimeActionPrompt({
   action: "surface_keywords",
-  recentTranscript: "Interviewer menyebut selected keyword dalam percakapan terbaru.",
-  latestQuestion: "Interviewer menyebut selected keyword dalam percakapan terbaru."
+  recentTranscript: "Lawan bicara menyebut selected keyword dalam percakapan terbaru.",
+  latestQuestion: "Lawan bicara menyebut selected keyword dalam percakapan terbaru.",
+  conversationMode: "convo"
 });
 assert(surfacePrompt.includes("TRIGGER: SURFACE_KEYWORDS"));
 assert(surfacePrompt.includes("BEGIN_RUNTIME_DATA"));
@@ -92,10 +150,46 @@ assert(surfacePrompt.includes("Conversation window terbaru:"));
 
 const realtimeInstructions = buildRealtimeInterviewSessionInstructions(realtimeContext);
 assert(realtimeInstructions.includes("SURFACE_KEYWORDS"));
+assert(realtimeInstructions.includes("JAWAB_PERTANYAAN"));
+assert(realtimeInstructions.includes("TANGGAPI"));
+assert(realtimeInstructions.includes("must not be overridden by inferred intent"));
+assert(realtimeInstructions.indexOf("Explicit answer trigger routing") < realtimeInstructions.indexOf("Legacy BANTU_JAWAB routing"));
+assert(realtimeInstructions.includes("For legacy BANTU_JAWAB, if runtime conversationMode is qna or convo, treat it as a hint only."));
 assert(realtimeInstructions.includes("KEYWORDS: term one | term two | term three"));
 assert(realtimeInstructions.includes("transcript-first"));
+assert(realtimeInstructions.includes("QnA mode rules"));
+assert(realtimeInstructions.includes("Convo mode rules"));
 assert(!realtimeInstructions.includes("TikTok"));
 assert(!realtimeInstructions.includes("CAC"));
 assert(!realtimeInstructions.includes("ROAS"));
+assert(!realtimeInstructions.includes("live interview copilot"));
+assert(!realtimeInstructions.includes("write as the candidate"));
+
+assert.equal(isRealtimeActionName("answer_qna"), true);
+assert.equal(isRealtimeActionName("answer_convo"), true);
+assert.equal(isRealtimeActionName("answer_wrong"), false);
+assert.equal(getForcedConversationMode("answer_qna"), "qna");
+assert.equal(getForcedConversationMode("answer_convo"), "convo");
+assert.equal(getForcedConversationMode("answer"), undefined);
+
+const followupPrompt = buildPrompt(generateInterviewFollowupSpec, {
+  interviewerQuestion: "Konteks meeting terbaru.",
+  realtimeContext
+});
+const followupPromptText = `${followupPrompt.systemInstructions}\n${followupPrompt.assembledPrompt}`;
+assert(!followupPromptText.includes("JAWAB_PERTANYAAN"));
+assert(!followupPromptText.includes("TANGGAPI"));
+assert(!followupPromptText.includes("QnA mode rules"));
+assert(!followupPromptText.includes("Convo mode rules"));
+
+const explanationPrompt = buildPrompt(generateInterviewExplanationSpec, {
+  interviewerQuestion: "Konteks meeting terbaru.",
+  realtimeContext
+});
+const explanationPromptText = `${explanationPrompt.systemInstructions}\n${explanationPrompt.assembledPrompt}`;
+assert(!explanationPromptText.includes("JAWAB_PERTANYAAN"));
+assert(!explanationPromptText.includes("TANGGAPI"));
+assert(!explanationPromptText.includes("QnA mode rules"));
+assert(!explanationPromptText.includes("Convo mode rules"));
 
 console.log("Runtime keyword tests passed.");

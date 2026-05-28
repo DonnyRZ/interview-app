@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "../../db/client.js";
-import { candidateCvs, candidateProfiles } from "../../db/schema/index.js";
+import { applications, candidateCvs, candidateProfiles } from "../../db/schema/index.js";
 
 export type CreateCvInput = {
   userId: string;
@@ -31,6 +31,21 @@ export async function findCvById(userId: string, cvId: string) {
   return db.query.candidateCvs.findFirst({
     where: and(eq(candidateCvs.userId, userId), eq(candidateCvs.id, cvId))
   });
+}
+
+export async function findApplicationUsingCv(userId: string, cvId: string) {
+  return db.query.applications.findFirst({
+    where: and(eq(applications.userId, userId), eq(applications.cvId, cvId))
+  });
+}
+
+export async function findLatestCvExcluding(userId: string, excludedCvId: string) {
+  const cvs = await db.query.candidateCvs.findMany({
+    where: eq(candidateCvs.userId, userId),
+    orderBy: [desc(candidateCvs.createdAt)]
+  });
+
+  return cvs.find((cv) => cv.id !== excludedCvId) || null;
 }
 
 export async function createCv(input: CreateCvInput) {
@@ -93,4 +108,21 @@ export async function updateCvProcessingState(
     .returning();
 
   return updatedCv || null;
+}
+
+export async function deleteCv(userId: string, cvId: string) {
+  const [deletedCv] = await db.transaction(async (tx) => {
+    await tx.update(candidateProfiles)
+      .set({ activeCvId: null, updatedAt: new Date() })
+      .where(and(eq(candidateProfiles.userId, userId), eq(candidateProfiles.activeCvId, cvId)));
+
+    return tx.delete(candidateCvs)
+      .where(and(eq(candidateCvs.userId, userId), eq(candidateCvs.id, cvId)))
+      .returning({
+        id: candidateCvs.id,
+        filePath: candidateCvs.filePath
+      });
+  });
+
+  return deletedCv || null;
 }

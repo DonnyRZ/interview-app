@@ -1,6 +1,7 @@
 import {
   createRealtimeClientSecretRequestSchema,
   createRealtimeClientSecretResponseSchema,
+  deleteInterviewRoundResponseSchema,
   endInterviewRequestSchema,
   generateInterviewAnswerRequestSchema,
   generateInterviewAnswerResponseSchema,
@@ -21,6 +22,7 @@ import { z } from "zod";
 import { env } from "../../env.js";
 import { mapInterviewRound } from "./interview.mapper.js";
 import {
+  deleteInterviewRoundForDevUser,
   endInterviewForDevUser,
   getInterviewRoundsForDevUser,
   startInterviewForDevUser
@@ -161,5 +163,27 @@ export async function registerInterviewRoutes(app: FastifyInstance) {
     return interviewRoundResponseSchema.parse({
       interviewRound: mapInterviewRound(round)
     });
+  });
+
+  app.delete("/:id", async (request, reply) => {
+    const params = interviewParamsSchema.safeParse(request.params);
+    if (!params.success) {
+      return reply.code(400).send({ message: "Invalid interview id" });
+    }
+
+    try {
+      const deletedRound = await deleteInterviewRoundForDevUser(params.data.id);
+      if (!deletedRound) {
+        return reply.code(404).send({ message: "Interview round not found" });
+      }
+
+      return deleteInterviewRoundResponseSchema.parse({
+        ok: true,
+        deletedInterviewRoundId: deletedRound.id
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to delete interview round";
+      return reply.code(400).send({ message });
+    }
   });
 }

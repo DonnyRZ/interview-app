@@ -4,6 +4,7 @@ import { findCvById } from "../cv/cv.repository.js";
 import { DEV_USER_ID } from "../dev/dev-user.js";
 import { ensureDevUser } from "../dev/dev-user.repository.js";
 import {
+  deleteInterviewRound,
   endInterviewRound,
   findInterviewRoundById,
   listInterviewRounds,
@@ -49,4 +50,19 @@ export async function endInterviewForDevUser(interviewRoundId: string, input: En
   }
 
   return endInterviewRound(DEV_USER_ID, interviewRoundId, input.transcriptText);
+}
+
+export async function deleteInterviewRoundForDevUser(interviewRoundId: string) {
+  await ensureDevUser();
+
+  const existingRound = await findInterviewRoundById(DEV_USER_ID, interviewRoundId);
+  if (!existingRound) {
+    return null;
+  }
+
+  if (!existingRound.endedAt) {
+    throw new Error("Live interview round cannot be deleted. End the interview first.");
+  }
+
+  return deleteInterviewRound(DEV_USER_ID, interviewRoundId);
 }

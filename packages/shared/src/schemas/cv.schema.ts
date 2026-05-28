@@ -32,9 +32,15 @@ export const retryCvProcessingResponseSchema = z.object({
   cv: cvSchema
 });
 
+export const deleteCvResponseSchema = z.object({
+  ok: z.literal(true),
+  deletedCvId: z.string().uuid()
+});
+
 export type Cv = z.infer<typeof cvSchema>;
 export type CvListResponse = z.infer<typeof cvListResponseSchema>;
 export type ActiveCvResponse = z.infer<typeof activeCvResponseSchema>;
 export type UploadCvResponse = z.infer<typeof uploadCvResponseSchema>;
 export type SetActiveCvResponse = z.infer<typeof setActiveCvResponseSchema>;
 export type RetryCvProcessingResponse = z.infer<typeof retryCvProcessingResponseSchema>;
+export type DeleteCvResponse = z.infer<typeof deleteCvResponseSchema>;

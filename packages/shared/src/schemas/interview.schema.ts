@@ -234,6 +234,11 @@ export const interviewRoundListResponseSchema = z.object({
   interviewRounds: z.array(interviewRoundSchema)
 });
 
+export const deleteInterviewRoundResponseSchema = z.object({
+  ok: z.literal(true),
+  deletedInterviewRoundId: z.string().uuid()
+});
+
 export type InterviewStage = z.infer<typeof interviewStageSchema>;
 export type RealtimeDomainProfile = z.infer<typeof realtimeDomainProfileSchema>;
 export type RealtimeCandidateExperience = z.infer<typeof realtimeCandidateExperienceSchema>;
@@ -258,3 +263,4 @@ export type CreateRealtimeClientSecretRequest = z.infer<typeof createRealtimeCli
 export type CreateRealtimeClientSecretResponse = z.infer<typeof createRealtimeClientSecretResponseSchema>;
 export type InterviewRoundResponse = z.infer<typeof interviewRoundResponseSchema>;
 export type InterviewRoundListResponse = z.infer<typeof interviewRoundListResponseSchema>;
+export type DeleteInterviewRoundResponse = z.infer<typeof deleteInterviewRoundResponseSchema>;

@@ -1,4 +1,5 @@
 import type {
+  DeleteInterviewRoundResponse,
   EndInterviewRequest,
   GenerateInterviewAnswerRequest,
   GenerateInterviewAnswerResponse,
@@ -37,6 +38,12 @@ export function endInterview(interviewRoundId: string, input: EndInterviewReques
       "Content-Type": "application/json"
     },
     body: JSON.stringify(input)
+  });
+}
+
+export function deleteInterviewRound(interviewRoundId: string) {
+  return apiRequest<DeleteInterviewRoundResponse>(`/interviews/${interviewRoundId}`, {
+    method: "DELETE"
   });
 }
 
