@@ -5,7 +5,7 @@ export async function registerHealthRoutes(app: FastifyInstance) {
   app.get("/health", async () => {
     return healthResponseSchema.parse({
       ok: true,
-      service: "interview-api",
+      service: "orviko-api",
       timestamp: new Date().toISOString()
     });
   });

@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { surfaceRealtimeKeywordsResultSchema } from "../../api/src/modules/ai/action-schemas.js";
 import { buildPrompt } from "../../api/src/modules/ai/prompt-builder.js";
 import { surfaceRealtimeKeywordsSpec } from "../../api/src/modules/ai/actions/keywords/surface-meeting-keywords.js";
-import { generateInterviewExplanationSpec } from "../../api/src/modules/ai/actions/explanation/generate-meeting-explanation.js";
-import { generateInterviewFollowupSpec } from "../../api/src/modules/ai/actions/followup/generate-meeting-followup.js";
-import { buildRealtimeInterviewSessionInstructions } from "../../api/src/modules/ai/actions/realtime/realtime-meeting-session.js";
+import { generateMeetingExplanationSpec } from "../../api/src/modules/ai/actions/explanation/generate-meeting-explanation.js";
+import { generateMeetingFollowupSpec } from "../../api/src/modules/ai/actions/followup/generate-meeting-followup.js";
+import { buildRealtimeMeetingSessionInstructions } from "../../api/src/modules/ai/actions/realtime/realtime-meeting-session.js";
 import { buildRealtimeActionPrompt } from "../src/features/overlay/runtime-rules/realtime-action-prompt.js";
 import { formatRealtimeResponsePoints } from "../src/features/overlay/runtime-rules/overlay-response-copy.js";
 import {
@@ -13,7 +13,7 @@ import {
 } from "../electron/realtime-action-contract.js";
 
 const realtimeContext = {
-    candidateContext: {
+    userProfileContext: {
       summary: "",
       readyContext: "",
       skills: [],
@@ -22,18 +22,18 @@ const realtimeContext = {
       education: [],
       organizations: [],
       internships: [],
-      strengthsForInterview: [],
+      usefulStrengths: [],
       risks: []
     },
-    applicationContext: {
-      companyName: "",
-      roleTitle: "",
-      jdSummary: "",
-      roleRequirements: [],
+    meetingContext: {
+      contextName: "",
+      meetingTopic: "",
+      meetingSummary: "",
+      keyCriteria: [],
       responsibilities: [],
       niceToHave: [],
-      interviewPrepThemes: [],
-      applicationContext: ""
+      preparationThemes: [],
+      meetingContext: ""
     },
     domainProfile: {
       primaryDomain: "",
@@ -43,8 +43,8 @@ const realtimeContext = {
       seedConcepts: [],
       relevanceGuidance: ""
     },
-    stageContext: {
-      stageType: "TECHNICAL",
+    sessionContext: {
+      sessionType: "TECHNICAL",
       focus: []
     }
   };
@@ -148,13 +148,13 @@ assert(surfacePrompt.includes("TRIGGER: SURFACE_KEYWORDS"));
 assert(surfacePrompt.includes("BEGIN_RUNTIME_DATA"));
 assert(surfacePrompt.includes("Conversation window terbaru:"));
 
-const realtimeInstructions = buildRealtimeInterviewSessionInstructions(realtimeContext);
+const realtimeInstructions = buildRealtimeMeetingSessionInstructions(realtimeContext);
 assert(realtimeInstructions.includes("SURFACE_KEYWORDS"));
 assert(realtimeInstructions.includes("JAWAB_PERTANYAAN"));
 assert(realtimeInstructions.includes("TANGGAPI"));
 assert(realtimeInstructions.includes("must not be overridden by inferred intent"));
-assert(realtimeInstructions.indexOf("Explicit answer trigger routing") < realtimeInstructions.indexOf("Legacy BANTU_JAWAB routing"));
-assert(realtimeInstructions.includes("For legacy BANTU_JAWAB, if runtime conversationMode is qna or convo, treat it as a hint only."));
+assert(realtimeInstructions.indexOf("Explicit answer trigger routing") < realtimeInstructions.indexOf("Legacy answer action routing"));
+assert(realtimeInstructions.includes("For legacy answer action, if runtime conversationMode is qna or convo, treat it as a hint only."));
 assert(realtimeInstructions.includes("KEYWORDS: term one | term two | term three"));
 assert(realtimeInstructions.includes("transcript-first"));
 assert(realtimeInstructions.includes("QnA mode rules"));
@@ -164,6 +164,7 @@ assert(!realtimeInstructions.includes("CAC"));
 assert(!realtimeInstructions.includes("ROAS"));
 assert(!realtimeInstructions.includes("live interview copilot"));
 assert(!realtimeInstructions.includes("write as the candidate"));
+assert(!/interview|candidate|kandidat|interviewer|CV|JD|BANTU_JAWAB|sales|client|vendor|hiring/i.test(realtimeInstructions));
 
 assert.equal(isRealtimeActionName("answer_qna"), true);
 assert.equal(isRealtimeActionName("answer_convo"), true);
@@ -172,8 +173,8 @@ assert.equal(getForcedConversationMode("answer_qna"), "qna");
 assert.equal(getForcedConversationMode("answer_convo"), "convo");
 assert.equal(getForcedConversationMode("answer"), undefined);
 
-const followupPrompt = buildPrompt(generateInterviewFollowupSpec, {
-  interviewerQuestion: "Konteks meeting terbaru.",
+const followupPrompt = buildPrompt(generateMeetingFollowupSpec, {
+  meetingPrompt: "Konteks meeting terbaru.",
   realtimeContext
 });
 const followupPromptText = `${followupPrompt.systemInstructions}\n${followupPrompt.assembledPrompt}`;
@@ -182,8 +183,8 @@ assert(!followupPromptText.includes("TANGGAPI"));
 assert(!followupPromptText.includes("QnA mode rules"));
 assert(!followupPromptText.includes("Convo mode rules"));
 
-const explanationPrompt = buildPrompt(generateInterviewExplanationSpec, {
-  interviewerQuestion: "Konteks meeting terbaru.",
+const explanationPrompt = buildPrompt(generateMeetingExplanationSpec, {
+  meetingPrompt: "Konteks meeting terbaru.",
   realtimeContext
 });
 const explanationPromptText = `${explanationPrompt.systemInstructions}\n${explanationPrompt.assembledPrompt}`;

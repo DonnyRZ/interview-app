@@ -1,231 +1,329 @@
 # Hero Section
-Jangan blank saat interview kerja
-Orviko membantu kamu menyusun jawaban yang lebih tenang, jelas, dan meyakinkan saat interview online berlangsung.
+
+Tetap siap saat meeting berjalan
+
+Orviko membantu kamu memahami percakapan, menyusun respons, dan menjaga arah meeting tetap jelas.
 
 # Interactive Demo Section
-[disini bukan text, melainkan ada layer desktop windows lalu diatasnya ada zoom meeting 2 orang (kandidat dan interviewer), lapisan paling atasnya ada floating overlay Orviko yang interactive PERSIS seperti mockup yang sudah kamu buat]
-[notes: saya mengupload gambar dari referensi cluely supaya kamu dapat gambaran lebih bagian "Interactive Demo Section" ini maksudnya seperti apa]
+
+[disini bukan text, melainkan ada layer desktop windows lalu diatasnya ada online meeting / browser / video call, lapisan paling atasnya ada floating overlay Orviko yang interactive]
 
 # Demo Supporting Copy
-Lihat bagaimana Orviko membantu saat interview berlangsung.
+
+Lihat bagaimana Orviko membantu saat meeting berlangsung.
 
 # How Orviko Helps Section
+
 ## Section Title
-Cara Orviko membantu saat interview berlangsung
+
+Cara Orviko membantu di online meeting
 
 ## Point 1
+
 ### Title
-Orviko mendengarkan percakapan saat meeting
+
+Orviko mendengarkan percakapan meeting
 
 ### Description
-Orviko menangkap percakapan secara realtime untuk memahami konteks interview yang sedang berjalan.
+
+Orviko menangkap percakapan secara realtime untuk memahami konteks meeting yang sedang berjalan.
 
 ## Point 2
+
 ### Title
+
 Saat butuh bantuan, Orviko merespons dengan cepat
 
 ### Description
-Saat kamu blank atau butuh arahan, Orviko langsung menampilkan bantuan yang ringkas dan cepat dibaca.
+
+Saat kamu perlu menjawab, menanggapi, atau memahami maksud lawan bicara, Orviko menampilkan bantuan yang ringkas dan cepat dibaca.
 
 # Feature Highlights Section
+
 ## Section Title
+
 Cepat, ringkas, dan selalu siap
 
 ## Feature 1
+
 ### Title
+
 Floating overlay desktop
 
 ### Description
+
 Bantuan muncul langsung tanpa perlu pindah tab.
 
 ## Feature 2
+
 ### Title
+
 Bantuan yang lebih terarah
 
 ### Description
-Jawaban jadi lebih jelas, lebih tenang, dan lebih nyambung.
+
+Respons jadi lebih jelas, lebih natural, dan lebih nyambung dengan konteks meeting.
 
 ## Feature 3
+
 ### Title
+
 Bantuan sesuai situasi
 
 ### Description
-Bantu Jawab, Bantu Follow-up, Jelaskan Maksudnya, dan keyword chips.
 
-# Invisible / Undetected Section
+Jawab Pertanyaan, Tanggapi, Pertanyaan Follow-up, Jelaskan Maksudnya, dan keyword chips.
+
+# Low Profile Section
+
 ## Section Title
-Tetap low-profile saat interview
+
+Tetap low-profile saat meeting
 
 ## Body Copy
-Orviko tampil ringkas sebagai overlay desktop agar tetap terasa rapi saat interview berjalan.
+
+Orviko tampil ringkas sebagai overlay desktop agar tetap terasa rapi saat meeting berjalan.
 
 # Realtime Transcription Section
+
 ## Section Title
+
 Realtime transcription yang cepat
 
 ## Stat 1
+
 ### Label
+
 Bahasa
 
 ### Value
+
 Indonesia dan Inggris
 
 ## Stat 2
+
 ### Label
-Waktu respon
+
+Waktu respons
 
 ### Value
-300ms
+
+Near real-time
 
 ## Stat 3
+
 ### Label
-Akurasi transkripsi
+
+Konteks
 
 ### Value
-95%
+
+Transcript-first
 
 # Example Results Section
+
 ## Section Title
+
 Contoh bantuan dari Orviko
 
 ## Example 1
+
 ### Title
-Bantu Jawab
+
+Jawab Pertanyaan
 
 ### Description
-Membantu menyusun jawaban yang lebih rapi dan meyakinkan.
+
+Membantu menyusun jawaban yang lebih rapi dan langsung.
 
 ## Example 2
+
 ### Title
-Bantu Follow-up
+
+Tanggapi
 
 ### Description
-Membantu menyiapkan pertanyaan lanjutan yang relevan.
+
+Membantu memberi respons natural terhadap update, concern, feedback, atau opini.
 
 ## Example 3
+
 ### Title
+
+Pertanyaan Follow-up
+
+### Description
+
+Membantu menyiapkan pertanyaan lanjutan yang relevan.
+
+## Example 4
+
+### Title
+
 Jelaskan Maksudnya
 
 ### Description
-Membantu menangkap inti pertanyaan interviewer.
 
-## Example 4
+Membantu menangkap inti ucapan lawan bicara.
+
+## Example 5
+
 ### Title
+
 Keyword chips
 
 ### Description
+
 Menyorot topik penting dari konteks percakapan terbaru.
 
-## Example 5
-### Title
-Konteks belum tertangkap
+# Meeting Scenarios Section
 
-### Description
-Menunjukkan saat konteks belum cukup, agar bantuan tidak asal.
-
-# Interview Scenarios Section
 ## Section Title
-Relevan untuk berbagai jenis interview
+
+Relevan untuk berbagai jenis meeting
 
 ## Scenario 1
+
 ### Title
-HR interview
+
+Team sync
 
 ### Description
-Untuk pertanyaan perkenalan, motivasi, dan komunikasi.
+
+Untuk update progress, blocker, dan alignment.
 
 ## Scenario 2
+
 ### Title
-Technical interview
+
+Technical discussion
 
 ### Description
-Untuk jawaban yang lebih runtut dan logis di bawah tekanan.
+
+Untuk respons yang lebih runtut saat membahas trade-off teknis.
 
 ## Scenario 3
+
 ### Title
-Marketing interview
+
+Planning meeting
 
 ### Description
-Untuk strategi, campaign, growth, dan decision making.
+
+Untuk membantu menjelaskan prioritas, scope, dan next step.
 
 ## Scenario 4
+
 ### Title
-Case interview
+
+Review meeting
 
 ### Description
-Untuk problem solving dan jawaban yang tetap terstruktur.
+
+Untuk menanggapi feedback dan menyusun follow-up yang jelas.
 
 # Desktop App / Download Section
+
 ## Section Title
+
 Siap dipakai di Windows
 
 ## Intro
-Orviko adalah aplikasi desktop untuk kebutuhan interview online.
+
+Orviko adalah aplikasi desktop untuk kebutuhan online meeting.
 
 ## CTA Primary
+
 Download untuk Windows
 
 ## CTA Secondary
+
 Lihat paket harga
 
 ## Repeated CTA Notes
-[di landing page, tombol Download untuk Windows harus muncul beberapa kali: hero, setelah demo, setelah section fitur utama, dan dekat FAQ / closing CTA]
+
+[di landing page, tombol Download untuk Windows muncul beberapa kali: hero, setelah demo, setelah section fitur utama, dan dekat FAQ / closing CTA]
 
 # No Free Tier Framing Section
+
 ## Section Title
-Untuk orang yang serius mempersiapkan interview
+
+Untuk orang yang sering berada di meeting penting
 
 ## Body Copy
-Orviko dibuat untuk membantu kamu tampil lebih siap saat momen interview benar-benar penting.
+
+Orviko dibuat untuk membantu kamu tetap jelas, cepat, dan relevan saat percakapan meeting bergerak cepat.
 
 # FAQ Section
+
 ## Section Title
+
 Frequently asked questions
 
 ## FAQ 1
+
 ### Question
-Apakah Orviko hanya untuk interview kerja?
+
+Apakah Orviko hanya untuk satu jenis meeting?
 
 ### Answer
-Fokus utama Orviko adalah membantu saat interview kerja online.
+
+Tidak. Orviko dirancang sebagai assistant umum untuk online meeting.
 
 ## FAQ 2
+
 ### Question
+
 Apakah Orviko bisa membantu dalam bahasa Indonesia dan Inggris?
 
 ### Answer
+
 Ya, Orviko mendukung bahasa Indonesia dan Inggris.
 
 ## FAQ 3
+
 ### Question
+
 Apakah Orviko harus dibuka di browser?
 
 ### Answer
+
 Tidak. Orviko adalah aplikasi desktop untuk Windows.
 
 ## FAQ 4
+
 ### Question
+
 Apa yang terjadi kalau konteks percakapannya belum jelas?
 
 ### Answer
+
 Orviko akan memberi tahu kalau konteks terbaru belum cukup tertangkap.
 
 ## FAQ 5
+
 ### Question
+
 Kapan sebaiknya saya menggunakan Orviko?
 
 ### Answer
-Siapkan Orviko sebelum interview dimulai.
+
+Siapkan Orviko sebelum meeting dimulai.
 
 # Closing CTA Section
+
 ## Section Title
-Jangan biarkan momen interview penting berakhir karena kamu blank
+
+Jaga respons tetap jelas saat meeting berjalan
 
 ## Body Copy
-Siapkan Orviko sebelum interview berikutnya.
+
+Siapkan Orviko sebelum meeting berikutnya.
 
 ## CTA Primary
+
 Download untuk Windows
 
 ## CTA Secondary
+
 Lihat harga paket

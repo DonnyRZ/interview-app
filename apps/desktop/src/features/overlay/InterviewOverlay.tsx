@@ -24,7 +24,7 @@ import {
   classifyTranscriptQuality,
   deriveLatestConversationFocus,
   isDomainRelatedText,
-  looksLikeInterviewerQuestion,
+  looksLikeMeetingQuestion,
   type ConversationMode,
   type TranscriptQualityResult
 } from "./runtime-rules/transcript-focus-rules.js";
@@ -32,11 +32,11 @@ import {
 type OverlayMode = "mini" | "expanded" | "loading" | "response";
 
 type OverlayContext = {
-  interviewRoundId?: string;
-  applicationId?: string;
-  companyName?: string;
-  roleTitle?: string;
-  stageType?: string;
+  liveMeetingSessionId?: string;
+  meetingContextId?: string;
+  contextName?: string;
+  meetingTopic?: string;
+  sessionType?: string;
   audioStatus?: string;
   audioDeviceLabel?: string;
   audioSourceKind?: string;
@@ -103,9 +103,9 @@ const conversationMemoryMs = 120_000;
 const runtimeKeywordThrottleMs = 350;
 
 const fallbackContext: OverlayContext = {
-  companyName: "Meeting",
-  roleTitle: "Active session",
-  stageType: "HR",
+  contextName: "Meeting",
+  meetingTopic: "Active session",
+  sessionType: "HR",
   domainLabel: "meeting context",
   runtimeKeywords: []
 };
@@ -156,8 +156,8 @@ export function InterviewOverlay() {
     if (!payload || typeof payload !== "object") return;
 
     const nextContext = payload as OverlayContext;
-    const incomingRoundId = typeof nextContext.interviewRoundId === "string" ? nextContext.interviewRoundId : undefined;
-    const currentRoundId = typeof contextRef.current.interviewRoundId === "string" ? contextRef.current.interviewRoundId : undefined;
+    const incomingRoundId = typeof nextContext.liveMeetingSessionId === "string" ? nextContext.liveMeetingSessionId : undefined;
+    const currentRoundId = typeof contextRef.current.liveMeetingSessionId === "string" ? contextRef.current.liveMeetingSessionId : undefined;
     const isNewRound = Boolean(incomingRoundId) && incomingRoundId !== currentRoundId;
     const mergedContext = {
       ...(isNewRound ? fallbackContext : contextRef.current),
@@ -398,7 +398,7 @@ export function InterviewOverlay() {
     }
 
     queueRuntimeKeywordRequest(snapshot);
-  }, [context.interviewRoundId, context.realtimeContext, context.realtimeStatus, stableConversationVersion, keywordTranscriptVersion]);
+  }, [context.liveMeetingSessionId, context.realtimeContext, context.realtimeStatus, stableConversationVersion, keywordTranscriptVersion]);
 
   function beginDrag(event: PointerEvent<HTMLElement>) {
     const target = event.target as HTMLElement;
@@ -474,7 +474,7 @@ export function InterviewOverlay() {
     }
 
     const fingerprint = buildKeywordRequestFingerprint(keywordSourceText);
-    const requestKey = `${contextRef.current.interviewRoundId || "draft"}::${fingerprint}`;
+    const requestKey = `${contextRef.current.liveMeetingSessionId || "draft"}::${fingerprint}`;
     if (
       runtimeKeywordLastRequestedKeyRef.current === requestKey
       || runtimeKeywordPendingRef.current?.requestKey === requestKey
@@ -1498,7 +1498,7 @@ export function InterviewOverlay() {
     const text = String(formData.get("ask") || "").trim();
     if (!text) return;
     form.reset();
-    if (looksLikeInterviewerQuestion(text) || isDomainRelatedText(text, context)) {
+    if (looksLikeMeetingQuestion(text) || isDomainRelatedText(text, context)) {
       void window.interviewDesktop?.updateOverlayContext?.({
         latestQuestion: text
       });
@@ -1508,8 +1508,8 @@ export function InterviewOverlay() {
 
   function endInterview() {
     void window.interviewDesktop?.endOverlayInterview?.({
-      interviewRoundId: context.interviewRoundId,
-      applicationId: context.applicationId,
+      liveMeetingSessionId: context.liveMeetingSessionId,
+      meetingContextId: context.meetingContextId,
       transcriptText: getFullTranscriptText()
     });
   }
@@ -1524,7 +1524,7 @@ export function InterviewOverlay() {
       .join("\n")
       .trim();
 
-    return transcript || `Meeting untuk ${context.companyName || "context"} - ${context.roleTitle || "topic"}. Transcript live belum tertangkap.`;
+    return transcript || `Meeting untuk ${context.contextName || "context"} - ${context.meetingTopic || "topic"}. Transcript live belum tertangkap.`;
   }
 
   if (mode === "mini") {
@@ -1552,7 +1552,7 @@ export function InterviewOverlay() {
           <div>
             <p className="overlay-kicker">Listening {formatTime(seconds)}</p>
             <h1>Live Meeting</h1>
-            <p>{context.companyName} - {context.roleTitle}</p>
+            <p>{context.contextName} - {context.meetingTopic}</p>
             <p className="overlay-audio-status">
               {getOverlayAudioStatusText(context)}
             </p>
@@ -1694,7 +1694,7 @@ function isRealtimeLive(context: OverlayContext) {
 function getRealtimeActionTitle(payload: RealtimeOverlayAction) {
   if (payload.action === "answer_qna") return "Jawab Pertanyaan";
   if (payload.action === "answer_convo") return "Tanggapi";
-  if (payload.action === "answer") return "Bantu Jawab";
+  if (payload.action === "answer") return "Jawab Pertanyaan";
   if (payload.action === "followup") return "Pertanyaan Follow-up";
   if (payload.action === "explain") return "Jelaskan Maksudnya";
   if (payload.action === "keyword") return `Keyword: ${payload.triggerText || "Keyword"}`;

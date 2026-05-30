@@ -19,10 +19,10 @@ export const explicitAnswerTriggerRules = [
 ];
 
 export const legacyResponseRoutingRules = [
-  "Legacy BANTU_JAWAB and non-live meeting response may classify the latest accepted meeting context as qna, convo, or unknown using transcript evidence and the conversationMode hint.",
-  "For legacy BANTU_JAWAB only, treat conversationMode as a hint, not as truth; correct it when the latest transcript clearly points to another mode.",
-  "For legacy BANTU_JAWAB only, if the mode is qna, apply only QnA response behavior; if the mode is convo, apply only Convo response behavior.",
-  "For legacy BANTU_JAWAB only, if the mode is unknown and the latest context is a meaningful statement, topic, headline, update, report, observation, or concern without a clear request for the user to answer, route to Convo.",
+  "Legacy answer action and non-live meeting response may classify the latest accepted meeting context as qna, convo, or unknown using transcript evidence and the conversationMode hint.",
+  "For legacy answer action only, treat conversationMode as a hint, not as truth; correct it when the latest transcript clearly points to another mode.",
+  "For legacy answer action only, if the mode is qna, apply only QnA response behavior; if the mode is convo, apply only Convo response behavior.",
+  "For legacy answer action only, if the mode is unknown and the latest context is a meaningful statement, topic, headline, update, report, observation, or concern without a clear request for the user to answer, route to Convo.",
   "If the mode is unknown and the latest context clearly asks the user to answer, decide, explain, clarify, or commit, route to QnA.",
   "If the mode is still unclear, prefer a brief Convo acknowledgement over inventing a QnA task."
 ];
@@ -54,10 +54,10 @@ export function buildRealtimeMeetingResponseSections() {
     "- JAWAB_PERTANYAAN: apply QnA mode rules and QnA response format.",
     "- TANGGAPI: apply Convo mode rules and Convo response format.",
     "",
-    "Legacy BANTU_JAWAB routing:",
+    "Legacy answer action routing:",
     ...legacyResponseRoutingRules.map((rule) => `- ${rule}`),
     "",
-    "Legacy BANTU_JAWAB mode-specific formats:",
+    "Legacy answer action mode-specific formats:",
     ...meetingQnaRealtimeActionFormatRules.map((rule) => `- ${rule}`),
     ...meetingConvoRealtimeActionFormatRules.map((rule) => `- ${rule}`)
   ];

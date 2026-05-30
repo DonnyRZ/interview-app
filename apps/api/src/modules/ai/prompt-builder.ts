@@ -4,6 +4,7 @@ const MAX_CONTEXT_CHARACTERS = 24_000;
 
 export function buildPrompt<TInput>(spec: ActionSpec<TInput>, input: TInput): PromptBuildResult {
   const rawContext = spec.buildContext(input);
+  const promptActionId = spec.promptActionId || spec.actionId;
   const truncated = rawContext.length > MAX_CONTEXT_CHARACTERS;
   const runtimeContext = truncated
     ? `${rawContext.slice(0, MAX_CONTEXT_CHARACTERS)}\n\n[Context truncated by prompt builder.]`
@@ -16,7 +17,7 @@ export function buildPrompt<TInput>(spec: ActionSpec<TInput>, input: TInput): Pr
   ].join("\n\n");
 
   const assembledPrompt = [
-    `Action ID: ${spec.actionId}`,
+    `Action ID: ${promptActionId}`,
     `Versi prompt: ${spec.version}`,
     `Tugas:\n${spec.task}`,
     `Konteks:\n${runtimeContext}`,

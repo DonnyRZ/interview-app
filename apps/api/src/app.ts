@@ -2,10 +2,12 @@ import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import Fastify from "fastify";
 import { sql } from "./db/client.js";
-import { registerApplicationRoutes } from "./modules/applications/application.routes.js";
-import { registerCvRoutes } from "./modules/cv/cv.routes.js";
+import { registerAuthRoutes } from "./modules/auth/auth.routes.js";
+import { registerMeetingContextRoutes } from "./modules/meeting-contexts/meeting-context.routes.js";
+import { registerPaymentRoutes } from "./modules/payments/payment.routes.js";
+import { registerProfileDocumentRoutes } from "./modules/profile-documents/profile-document.routes.js";
 import { registerHealthRoutes } from "./modules/health/health.routes.js";
-import { registerInterviewRoutes } from "./modules/interviews/interview.routes.js";
+import { registerLiveMeetingRoutes } from "./modules/live-meetings/live-meeting.routes.js";
 
 export function buildApp() {
   const app = Fastify({
@@ -15,7 +17,8 @@ export function buildApp() {
   });
 
   app.register(cors, {
-    origin: true
+    origin: true,
+    credentials: true
   });
 
   app.register(multipart, {
@@ -26,9 +29,11 @@ export function buildApp() {
   });
 
   app.register(registerHealthRoutes);
-  app.register(registerCvRoutes, { prefix: "/cv" });
-  app.register(registerApplicationRoutes, { prefix: "/applications" });
-  app.register(registerInterviewRoutes, { prefix: "/interviews" });
+  app.register(registerAuthRoutes, { prefix: "/auth" });
+  app.register(registerPaymentRoutes, { prefix: "/payments" });
+  app.register(registerProfileDocumentRoutes, { prefix: "/profile-documents" });
+  app.register(registerMeetingContextRoutes, { prefix: "/meeting-contexts" });
+  app.register(registerLiveMeetingRoutes, { prefix: "/live-meetings" });
 
   app.addHook("onClose", async () => {
     await sql.end();

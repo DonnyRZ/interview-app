@@ -4,7 +4,7 @@ export const meetingResponseCommonRules = [
   "Use the latest accepted meeting transcript as the primary evidence for response behavior.",
   "Use user profile and meeting context only as optional background when relevant and supported by evidence.",
   "Do not force static profile, session context, or domain profile into a response when the latest conversation is enough.",
-  "Do not default to interview, hiring, sales, consulting, technical, or business framing unless the latest transcript or meeting context explicitly supports it.",
+  "Do not default to a specific use case, relationship, industry, or domain framing unless the latest transcript or meeting context explicitly supports it.",
   "Do not transform a neutral artifact, document, process, meeting, or learning material into a more specific domain artifact unless the latest transcript explicitly supports that domain.",
   "Do not hardcode examples, brands, roles, metrics, platforms, or domains from documentation into production behavior.",
   "If facts, numbers, current information, or private project data are not present, do not invent them; keep the response safe and say what should be checked.",

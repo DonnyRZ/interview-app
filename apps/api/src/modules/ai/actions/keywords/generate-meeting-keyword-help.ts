@@ -2,14 +2,14 @@ import type { RealtimeContext } from "@interview-app/shared";
 import type { ActionSpec } from "../../action-types.js";
 import { formatMeetingContextForPrompt, meetingContextUsagePolicy } from "../shared/meeting-context-format.js";
 
-export type GenerateInterviewKeywordHelpInput = {
+export type GenerateMeetingKeywordHelpInput = {
   keyword: string;
-  interviewerQuestion?: string;
+  meetingPrompt?: string;
   recentTranscript?: string;
   realtimeContext: RealtimeContext;
 };
 
-export const generateInterviewKeywordHelpSpec: ActionSpec<GenerateInterviewKeywordHelpInput> = {
+export const generateMeetingKeywordHelpSpec: ActionSpec<GenerateMeetingKeywordHelpInput> = {
   actionId: "generate_meeting_keyword_help",
   version: "2026-05-27.v1",
   goal: "Menjelaskan keyword meeting yang relevan dan memberi angle singkat agar user bisa merespons dengan tepat.",
@@ -28,7 +28,7 @@ export const generateInterviewKeywordHelpSpec: ActionSpec<GenerateInterviewKeywo
     "Talking points harus relevan dengan keyword dan conversation terbaru; static context hanya dipakai jika memang nyambung.",
     "Prioritaskan 2-3 poin singkat, masing-masing maksimal sekitar 18 kata.",
     "Jika keyword out-of-scope atau ambigu, berikan warning dan angle klarifikasi yang aman.",
-    "Jangan default ke interview, hiring, sales, consulting, technical, atau business framing kecuali transcript atau meeting context mendukungnya.",
+    "Jangan default ke framing use case, relasi, industri, atau domain tertentu kecuali transcript atau meeting context mendukungnya.",
     "Gunakan bahasa yang sama dengan keyword/konteks meeting jika jelas; jika tidak jelas, gunakan bahasa Indonesia.",
     "Semua field yang dicontohkan sebagai array wajib dikembalikan sebagai array JSON, walaupun kosong.",
     "Field warnings, missingInputs, dan evidence wajib tetap ada. Jika tidak ada isinya, kembalikan array kosong []."
@@ -37,7 +37,7 @@ export const generateInterviewKeywordHelpSpec: ActionSpec<GenerateInterviewKeywo
 {
   "status": "success | partial | insufficient_input | needs_human_review | failed_policy",
   "result": {
-    "keywordSummary": "penjelasan singkat keyword dalam konteks role ini",
+    "keywordSummary": "penjelasan singkat keyword dalam konteks percakapan terbaru",
     "talkingPoints": ["maksimal 3 poin singkat"],
     "keywordStrategy": "catatan singkat tentang cara memakai keyword ini saat menjawab"
   },
@@ -51,7 +51,7 @@ export const generateInterviewKeywordHelpSpec: ActionSpec<GenerateInterviewKeywo
 ${input.keyword.trim() || "unknown"}
 
 - latestMeetingFocus:
-${input.interviewerQuestion?.trim() || "unknown"}
+${input.meetingPrompt?.trim() || "unknown"}
 
 - recentTranscript:
 ${input.recentTranscript?.trim() || "unknown"}

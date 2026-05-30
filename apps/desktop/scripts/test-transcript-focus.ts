@@ -4,13 +4,13 @@ import {
   classifyTranscriptQuality,
   deriveLatestConversationFocus,
   isLikelyTranscriptNoise,
-  looksLikeInterviewerQuestion
+  looksLikeMeetingQuestion
 } from "../src/features/overlay/runtime-rules/transcript-focus-rules.js";
 
 const focusContext = {
   domainLabel: "Marketing",
   realtimeContext: {
-    candidateContext: {
+    userProfileContext: {
       summary: "",
       readyContext: "",
       skills: [],
@@ -19,18 +19,18 @@ const focusContext = {
       education: [],
       organizations: [],
       internships: [],
-      strengthsForInterview: [],
+      usefulStrengths: [],
       risks: []
     },
-    applicationContext: {
-      companyName: "",
-      roleTitle: "",
-      jdSummary: "",
-      roleRequirements: [],
+    meetingContext: {
+      contextName: "",
+      meetingTopic: "",
+      meetingSummary: "",
+      keyCriteria: [],
       responsibilities: [],
       niceToHave: [],
-      interviewPrepThemes: [],
-      applicationContext: ""
+      preparationThemes: [],
+      meetingContext: ""
     },
     domainProfile: {
       primaryDomain: "Marketing",
@@ -40,17 +40,17 @@ const focusContext = {
       seedConcepts: [],
       relevanceGuidance: ""
     },
-    stageContext: {
-      stageType: "HR",
+    sessionContext: {
+      sessionType: "HR",
       focus: []
     }
   }
 };
 
 const contaminatedAssistantQuestion = "ChatGPT, apakah Anda memiliki pengalaman dalam mengelola proyek menggunakan metode Scrum?";
-const contaminatedCandidateInstruction = "Coba jawab sebagai kandidat: apakah Anda punya pengalaman project Scrum?";
-const normalInterviewerQuestion = "Apakah kamu pernah mengelola proyek menggunakan metode Scrum?";
-const shortInterviewerQuestion = "Terus apa yang berubah?";
+const contaminatedPersonaInstruction = "Coba jawab sebagai persona lain: apakah Anda punya pengalaman project Scrum?";
+const normalMeetingQuestion = "Apakah kamu pernah mengelola proyek menggunakan metode Scrum?";
+const shortMeetingQuestion = "Terus apa yang berubah?";
 const relevantStatement = "Kita akan membahas pengelolaan proyek Scrum dan kolaborasi stakeholder.";
 const impliedQnaContext = "Menurut kamu, opsi mana yang paling realistis untuk timeline minggu ini.";
 const convoConcernContext = "Tim kami sedang cukup penuh, jadi perubahan proses harus dibuat ringan.";
@@ -59,26 +59,26 @@ const transcriptionPromptArtifact = "Istilah teknis, nama tools, nama produk, me
 
 assert.notEqual(classifyTranscriptQuality(contaminatedAssistantQuestion).status, "accept");
 assert.equal(isLikelyTranscriptNoise(contaminatedAssistantQuestion), true);
-assert.equal(looksLikeInterviewerQuestion(contaminatedAssistantQuestion), true);
+assert.equal(looksLikeMeetingQuestion(contaminatedAssistantQuestion), true);
 assert.equal(deriveLatestConversationFocus(contaminatedAssistantQuestion, contaminatedAssistantQuestion, focusContext), "");
 
-assert.notEqual(classifyTranscriptQuality(contaminatedCandidateInstruction).status, "accept");
-assert.equal(deriveLatestConversationFocus(contaminatedCandidateInstruction, contaminatedCandidateInstruction, focusContext), "");
+assert.notEqual(classifyTranscriptQuality(contaminatedPersonaInstruction).status, "accept");
+assert.equal(deriveLatestConversationFocus(contaminatedPersonaInstruction, contaminatedPersonaInstruction, focusContext), "");
 
 assert.notEqual(classifyTranscriptQuality(transcriptionPromptArtifact).status, "accept");
 assert.equal(isLikelyTranscriptNoise(transcriptionPromptArtifact), true);
 assert.equal(deriveLatestConversationFocus(transcriptionPromptArtifact, transcriptionPromptArtifact, focusContext), "");
 
-assert.equal(classifyTranscriptQuality(normalInterviewerQuestion).status, "accept");
+assert.equal(classifyTranscriptQuality(normalMeetingQuestion).status, "accept");
 assert.equal(
-  deriveLatestConversationFocus(normalInterviewerQuestion, normalInterviewerQuestion, focusContext),
-  normalInterviewerQuestion
+  deriveLatestConversationFocus(normalMeetingQuestion, normalMeetingQuestion, focusContext),
+  normalMeetingQuestion
 );
 
-assert.equal(classifyTranscriptQuality(shortInterviewerQuestion).status, "accept");
+assert.equal(classifyTranscriptQuality(shortMeetingQuestion).status, "accept");
 assert.equal(
-  deriveLatestConversationFocus(shortInterviewerQuestion, shortInterviewerQuestion, focusContext),
-  shortInterviewerQuestion
+  deriveLatestConversationFocus(shortMeetingQuestion, shortMeetingQuestion, focusContext),
+  shortMeetingQuestion
 );
 
 assert.equal(classifyTranscriptQuality(relevantStatement).status, "accept");
@@ -87,11 +87,11 @@ assert.equal(
   relevantStatement
 );
 
-assert.equal(classifyMeetingConversationMode(normalInterviewerQuestion), "qna");
-assert.equal(classifyMeetingConversationMode(shortInterviewerQuestion), "qna");
+assert.equal(classifyMeetingConversationMode(normalMeetingQuestion), "qna");
+assert.equal(classifyMeetingConversationMode(shortMeetingQuestion), "qna");
 assert.equal(classifyMeetingConversationMode(impliedQnaContext), "qna");
 assert.equal(classifyMeetingConversationMode(convoConcernContext), "convo");
 assert.equal(classifyMeetingConversationMode(casualConvoContext), "convo");
-assert.equal(classifyMeetingConversationMode(contaminatedCandidateInstruction), "unknown");
+assert.equal(classifyMeetingConversationMode(contaminatedPersonaInstruction), "unknown");
 
 console.log("Transcript focus tests passed.");

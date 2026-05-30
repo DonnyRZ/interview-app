@@ -10,7 +10,7 @@ type RealtimeActionPromptPayload = {
 
 export function buildRealtimeActionPrompt(payload: RealtimeActionPromptPayload) {
   return [
-    `TRIGGER: ${getRealtimeTriggerName(payload.action)}`,
+    `TRIGGER: ${getRealtimeTriggerName(payload)}`,
     "BEGIN_RUNTIME_DATA",
     payload.conversationMode ? `Conversation mode hint:\n${payload.conversationMode}` : "",
     payload.recentTranscript ? `Conversation window terbaru:\n${payload.recentTranscript}` : "",
@@ -20,10 +20,11 @@ export function buildRealtimeActionPrompt(payload: RealtimeActionPromptPayload) 
   ].filter(Boolean).join("\n");
 }
 
-function getRealtimeTriggerName(action: RealtimeActionPromptPayload["action"]) {
+function getRealtimeTriggerName(payload: RealtimeActionPromptPayload) {
+  const action = payload.action;
   if (action === "answer_qna") return "JAWAB_PERTANYAAN";
   if (action === "answer_convo") return "TANGGAPI";
-  if (action === "answer") return "BANTU_JAWAB";
+  if (action === "answer") return payload.conversationMode === "convo" ? "TANGGAPI" : "JAWAB_PERTANYAAN";
   if (action === "followup") return "BANTU_FOLLOWUP";
   if (action === "explain") return "JELASKAN_MAKSUDNYA";
   if (action === "keyword") return "EXPLAIN_KEYWORD";

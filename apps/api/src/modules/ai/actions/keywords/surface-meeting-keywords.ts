@@ -29,7 +29,7 @@ export const surfaceRealtimeKeywordsSpec: ActionSpec<SurfaceRealtimeKeywordsInpu
     "Jika transcript benar-benar belum punya term/topik konkret, return keywords kosong; tombol bantuan lain tetap bisa dipakai.",
     "Keyword harus pendek, spesifik, natural sebagai chip UI, dan bisa dijelaskan cepat saat user klik.",
     "Keyword term maksimal 2-4 kata.",
-    "Jangan default ke interview, hiring, sales, consulting, technical, atau business vocabulary kecuali transcript menyebutnya.",
+    "Jangan default ke vocabulary use case, relasi, industri, atau domain tertentu kecuali transcript menyebutnya.",
     "Semua field yang dicontohkan sebagai array wajib dikembalikan sebagai array JSON, walaupun kosong.",
     "Field warnings, missingInputs, dan evidence wajib tetap ada. Jika tidak ada isinya, kembalikan array kosong []."
   ],

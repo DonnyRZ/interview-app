@@ -6,13 +6,13 @@ import {
 } from "../response/meeting-response-common.js";
 import { formatMeetingContextForPrompt, meetingContextUsagePolicy } from "../shared/meeting-context-format.js";
 
-export type GenerateInterviewExplanationInput = {
-  interviewerQuestion: string;
+export type GenerateMeetingExplanationInput = {
+  meetingPrompt: string;
   recentTranscript?: string;
   realtimeContext: RealtimeContext;
 };
 
-export const generateInterviewExplanationSpec: ActionSpec<GenerateInterviewExplanationInput> = {
+export const generateMeetingExplanationSpec: ActionSpec<GenerateMeetingExplanationInput> = {
   actionId: "generate_meeting_explanation",
   version: "2026-05-27.v1",
   goal: "Menjelaskan maksud lawan bicara secara singkat agar user paham konteks dan bisa merespons dengan tepat.",
@@ -49,7 +49,7 @@ export const generateInterviewExplanationSpec: ActionSpec<GenerateInterviewExpla
 }`,
   buildContext: (input) => `Runtime payload:
 - latestMeetingFocus:
-${input.interviewerQuestion.trim() || "unknown"}
+${input.meetingPrompt.trim() || "unknown"}
 
 - recentTranscript:
 ${input.recentTranscript?.trim() || "unknown"}

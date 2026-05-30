@@ -6,13 +6,13 @@ import {
 } from "../response/meeting-response-common.js";
 import { formatMeetingContextForPrompt, meetingContextUsagePolicy } from "../shared/meeting-context-format.js";
 
-export type GenerateInterviewFollowupInput = {
-  interviewerQuestion: string;
+export type GenerateMeetingFollowupInput = {
+  meetingPrompt: string;
   recentTranscript?: string;
   realtimeContext: RealtimeContext;
 };
 
-export const generateInterviewFollowupSpec: ActionSpec<GenerateInterviewFollowupInput> = {
+export const generateMeetingFollowupSpec: ActionSpec<GenerateMeetingFollowupInput> = {
   actionId: "generate_meeting_followup",
   version: "2026-05-27.v1",
   goal: "Membuat pertanyaan follow-up singkat yang relevan untuk membantu user melanjutkan online meeting.",
@@ -48,7 +48,7 @@ export const generateInterviewFollowupSpec: ActionSpec<GenerateInterviewFollowup
 }`,
   buildContext: (input) => `Runtime payload:
 - latestMeetingFocus:
-${input.interviewerQuestion.trim() || "unknown"}
+${input.meetingPrompt.trim() || "unknown"}
 
 - recentTranscript:
 ${input.recentTranscript?.trim() || "unknown"}

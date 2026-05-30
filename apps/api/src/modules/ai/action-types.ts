@@ -5,6 +5,7 @@ export type AiConfidence = "low" | "medium" | "high";
 
 export type ActionSpec<TInput> = {
   actionId: string;
+  promptActionId?: string;
   version: string;
   goal: string;
   role: string;

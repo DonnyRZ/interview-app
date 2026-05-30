@@ -12,10 +12,10 @@ export function resolveStoragePath(configuredPath: string) {
     : path.resolve(projectRoot, configuredPath);
 }
 
-export const cvStorageDir = resolveStoragePath(env.CV_STORAGE_DIR);
+export const profileDocumentStorageDir = resolveStoragePath(env.PROFILE_DOCUMENT_STORAGE_DIR);
 
-export async function ensureCvStorageDir() {
-  await mkdir(cvStorageDir, { recursive: true });
+export async function ensureProfileDocumentStorageDir() {
+  await mkdir(profileDocumentStorageDir, { recursive: true });
 }
 
 export function sanitizeFileName(fileName: string) {

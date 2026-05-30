@@ -13,6 +13,7 @@
     "dist:win": "npm run build && electron-builder --win nsis --config electron-builder.config.cjs",
     "test:keywords": "tsx scripts/test-runtime-keywords.ts",
     "test:transcript-focus": "tsx scripts/test-transcript-focus.ts",
+    "test:overlay-runtime": "tsx scripts/test-overlay-runtime-stress.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.electron.json --noEmit",
     "preview": "vite preview --host 127.0.0.1 --port 4173"
   },
