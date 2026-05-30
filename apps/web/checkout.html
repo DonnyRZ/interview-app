@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Orviko - Checkout</title>
+  <link rel="stylesheet" href="/src/checkout.css" />
+</head>
+<body data-page="checkout">
+  <div class="checkout-page">
+    <header class="site-header">
+      <div class="container">
+        <nav class="nav" aria-label="Main navigation">
+          <a class="brand" href="/">
+            <img class="brand-mark" src="/assets/Logo-2.png" alt="Orviko logo" />
+            <span class="brand-name">Orviko</span>
+          </a>
+          <a class="nav-link" href="/pricing.html">Kembali ke paket</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="checkout-hero">
+        <div class="container">
+          <p class="eyebrow">Checkout Sandbox</p>
+          <h1>Selesaikan paket Orviko kamu.</h1>
+          <p class="hero-sub">Flow ini dipakai sementara untuk review Midtrans sandbox. Setelah login Google, pembayaran dibuka melalui Midtrans Snap.</p>
+        </div>
+      </section>
+
+      <section class="checkout-section">
+        <div class="container checkout-grid">
+          <article class="summary-panel">
+            <p class="panel-kicker">Paket dipilih</p>
+            <div class="plan-row">
+              <div>
+                <h2 id="planName">Starter</h2>
+                <p id="planDescription">12 kali sesi live dalam satu bulan.</p>
+              </div>
+              <strong id="planPrice">Rp98rb</strong>
+            </div>
+
+            <div class="feature-list" id="planFeatures"></div>
+          </article>
+
+          <aside class="payment-panel">
+            <div class="account-box" id="accountBox">
+              <p class="panel-kicker">Akun</p>
+              <strong id="accountName">Memeriksa login...</strong>
+              <span id="accountEmail">Sebentar ya.</span>
+            </div>
+
+            <div class="total-row">
+              <span>Total</span>
+              <strong id="totalPrice">Rp98rb</strong>
+            </div>
+
+            <button class="pay-button" id="payButton" type="button" disabled>Bayar sekarang</button>
+            <a class="login-button" id="loginButton" href="/auth/google/login?plan=starter" hidden>Login Google dulu</a>
+            <p class="status-text" id="statusText">Menyiapkan checkout...</p>
+          </aside>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="/src/checkout.js"></script>
+</body>
+</html>

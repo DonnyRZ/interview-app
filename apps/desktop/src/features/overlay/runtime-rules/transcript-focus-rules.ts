@@ -44,7 +44,8 @@ const promptInstructionSignals = [
   "jawablah sebagai",
   "jawab pertanyaan ini",
   "coba jawab",
-  "sebagai kandidat",
+  "jawab dengan persona",
+  "sebagai persona",
   "sebagai chatgpt",
   "as chatgpt",
   "answer as",
@@ -60,8 +61,9 @@ const promptInstructionSignals = [
 const uiOrDebugSignals = [
   "latest conversation focus",
   "runtime keyword chips",
-  "bantu jawab",
-  "bantu follow-up",
+  "jawab pertanyaan",
+  "pertanyaan follow-up",
+  "tanggapi",
   "jelaskan maksudnya",
   "konteks belum tertangkap",
   "mencari keyword",
@@ -157,19 +159,19 @@ export function deriveLatestConversationFocus(windowText: string, latestSegment:
   return meaningful ? compactFocusText(meaningful) : "";
 }
 
-export function chooseMostCompleteTranscript(finalText: string, ...candidates: Array<string | undefined>): string {
+export function chooseMostCompleteTranscript(finalText: string, ...transcriptOptions: Array<string | undefined>): string {
   const normalizedFinal = normalizeTranscriptText(finalText);
-  return candidates.reduce<string>((best, candidate) => {
-    const normalizedCandidate = normalizeTranscriptText(candidate || "");
-    if (!normalizedCandidate || isLikelyTranscriptNoise(normalizedCandidate)) {
+  return transcriptOptions.reduce<string>((best, option) => {
+    const normalizedOption = normalizeTranscriptText(option || "");
+    if (!normalizedOption || isLikelyTranscriptNoise(normalizedOption)) {
       return best;
     }
 
-    return isMoreCompleteTranscript(normalizedCandidate, best) ? normalizedCandidate : best;
+    return isMoreCompleteTranscript(normalizedOption, best) ? normalizedOption : best;
   }, normalizedFinal);
 }
 
-export function looksLikeInterviewerQuestion(text: string) {
+export function looksLikeMeetingQuestion(text: string) {
   const normalized = text.trim().toLowerCase();
   if (!normalized) {
     return false;
@@ -193,7 +195,7 @@ export function classifyMeetingConversationMode(text: string): ConversationMode 
     return "unknown";
   }
 
-  if (looksLikeInterviewerQuestion(text) || includesAnySignal(normalized, responseNeededSignals)) {
+  if (looksLikeMeetingQuestion(text) || includesAnySignal(normalized, responseNeededSignals)) {
     return "qna";
   }
 
@@ -281,18 +283,18 @@ function compactFocusText(value: string) {
   return normalized.slice(normalized.length - 220).trim();
 }
 
-function isMoreCompleteTranscript(candidate: string, current: string) {
+function isMoreCompleteTranscript(option: string, current: string) {
   if (!current) {
     return true;
   }
 
-  if (areSameTranscript(candidate, current)) {
-    return wordCount(candidate) > wordCount(current) || candidate.length > current.length + 20;
+  if (areSameTranscript(option, current)) {
+    return wordCount(option) > wordCount(current) || option.length > current.length + 20;
   }
 
-  const candidateWords = wordCount(candidate);
+  const optionWords = wordCount(option);
   const currentWords = wordCount(current);
-  return candidateWords >= currentWords + 4 && candidate.length >= current.length + 24;
+  return optionWords >= currentWords + 4 && option.length >= current.length + 24;
 }
 
 function normalizeTranscriptText(value: string) {
@@ -308,7 +310,7 @@ function isDetectedQuestion(question: string) {
   return Boolean(normalized) && !normalized.startsWith(waitingQuestionPrefix);
 }
 
-function isConfirmedInterviewQuestion(text: string, context: TranscriptFocusContext) {
+function isConfirmedMeetingQuestion(text: string, context: TranscriptFocusContext) {
   const normalized = text.trim();
   const normalizedLower = normalized.toLowerCase();
   if (!isDetectedQuestion(normalized) || isLikelyTranscriptNoise(normalized)) {
@@ -332,7 +334,7 @@ function isConfirmedInterviewQuestion(text: string, context: TranscriptFocusCont
     return false;
   }
 
-  if (looksLikeInterviewerQuestion(normalized)) {
+  if (looksLikeMeetingQuestion(normalized)) {
     return isRelevantTranscriptText(normalized, context) || hasStrongMeetingSignal(normalizedLower);
   }
 
@@ -351,13 +353,13 @@ function deriveQuestionFromTranscriptText(transcriptText: string, context: Trans
 
   for (let index = segments.length - 1; index >= 0; index -= 1) {
     const segment = segments[index];
-    if (segment && isConfirmedInterviewQuestion(segment, context)) {
+    if (segment && isConfirmedMeetingQuestion(segment, context)) {
       return segment;
     }
   }
 
   const trailingSegment = segments.at(-1) || transcriptText;
-  if (isConfirmedInterviewQuestion(trailingSegment, context)) {
+  if (isConfirmedMeetingQuestion(trailingSegment, context)) {
     return trailingSegment;
   }
 
@@ -366,13 +368,13 @@ function deriveQuestionFromTranscriptText(transcriptText: string, context: Trans
 
 function deriveContextFromTranscriptWindow(recentTranscript: string, latestSegment: string, context: TranscriptFocusContext) {
   const directQuestion = deriveQuestionFromTranscriptText(latestSegment, context);
-  if (directQuestion && directQuestion.length >= 48 && isConfirmedInterviewQuestion(directQuestion, context)) {
+  if (directQuestion && directQuestion.length >= 48 && isConfirmedMeetingQuestion(directQuestion, context)) {
     return directQuestion;
   }
 
   const windowText = recentTranscript.trim();
   if (!windowText) {
-    return directQuestion && isConfirmedInterviewQuestion(directQuestion, context) ? directQuestion : "";
+    return directQuestion && isConfirmedMeetingQuestion(directQuestion, context) ? directQuestion : "";
   }
 
   const segments = windowText
@@ -385,11 +387,11 @@ function deriveContextFromTranscriptWindow(recentTranscript: string, latestSegme
     ? `${focusedWindow} ${directQuestion}`.trim()
     : focusedWindow || directQuestion || "";
 
-  if (combinedQuestion && isConfirmedInterviewQuestion(combinedQuestion, context)) {
+  if (combinedQuestion && isConfirmedMeetingQuestion(combinedQuestion, context)) {
     return combinedQuestion;
   }
 
-  return directQuestion && isConfirmedInterviewQuestion(directQuestion, context) ? directQuestion : "";
+  return directQuestion && isConfirmedMeetingQuestion(directQuestion, context) ? directQuestion : "";
 }
 
 function isRelevantTranscriptText(text: string, context: TranscriptFocusContext) {
@@ -421,7 +423,7 @@ function isAssistantAddressedText(normalized: string) {
 
   return assistantAddressingSignals.some((signal) => {
     const escaped = escapeRegExp(signal);
-    return new RegExp(`\\b${escaped}\\b[^.!?]{0,80}\\b(?:apa|apakah|bagaimana|jawab|answer|respond|kandidat|candidate)\\b`).test(normalized);
+    return new RegExp(`\\b${escaped}\\b[^.!?]{0,80}\\b(?:apa|apakah|bagaimana|jawab|answer|respond)\\b`).test(normalized);
   });
 }
 
@@ -453,8 +455,8 @@ function hasMeaningfulDomainOverlap(domainTerm: string, textTokens: Set<string>)
 
 function isOverlyGenericDomainToken(token: string) {
   return new Set([
-    "role", "posisi", "domain", "application", "interview", "kerja", "pekerjaan", "staff", "team",
-    "tim", "company", "perusahaan", "candidate", "kandidat"
+    "posisi", "domain", "context", "konteks", "meeting", "kerja", "pekerjaan", "staff", "team",
+    "tim", "organisasi", "perusahaan"
   ]).has(token);
 }
 
@@ -470,8 +472,8 @@ function tokenizeText(text: string) {
     "jika", "saat", "itu", "ini", "nya", "paling", "cocok", "pilih", "memilih", "gunakan", "pakai",
     "terkait", "tentang", "about", "tell", "me", "please", "use", "using", "choose", "related",
     "nanti", "gue", "aku", "akan", "kasih", "tunjuk", "ya", "dia", "seperti", "kerjaan", "hasil",
-    "lihat", "coba", "dong", "deh", "nih", "aja", "sih", "role", "domain", "application",
-    "interview", "company", "candidate", "kandidat", "perusahaan", "pekerjaan", "kerja"
+    "lihat", "coba", "dong", "deh", "nih", "aja", "sih", "domain", "context", "konteks",
+    "meeting", "organisasi", "perusahaan", "pekerjaan", "kerja"
   ]);
 
   return new Set(text

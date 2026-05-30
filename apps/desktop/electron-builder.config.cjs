@@ -1,8 +1,8 @@
 const path = require("node:path");
 
 module.exports = {
-  appId: "com.interviewapp.desktop",
-  productName: "Interview App",
+  appId: "com.orviko.desktop",
+  productName: "Orviko",
   electronVersion: "34.5.8",
   directories: {
     output: "release"

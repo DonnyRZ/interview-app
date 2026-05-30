@@ -51,14 +51,14 @@ export async function generateOpenAiJson(prompt: PromptBuildResult, inlineFile?:
 
   const content: unknown[] = [];
   if (inlineFile) {
-    if (inlineFile.mimeType !== "application/pdf") {
-      throw new Error(`OpenAI CV preprocessing currently supports PDF inline files only. Received ${inlineFile.mimeType}`);
+    if (inlineFile.mimeType !== "meetingContext/pdf") {
+      throw new Error(`OpenAI profile document preprocessing currently supports PDF inline files only. Received ${inlineFile.mimeType}`);
     }
 
     const bytes = await readFile(inlineFile.filePath);
     content.push({
       type: "input_file",
-      filename: inlineFile.filePath.split(/[\\/]/).pop() || "cv.pdf",
+      filename: inlineFile.filePath.split(/[\\/]/).pop() || "profile.pdf",
       file_data: `data:${inlineFile.mimeType};base64,${bytes.toString("base64")}`
     });
   }
@@ -76,7 +76,7 @@ export async function generateOpenAiJson(prompt: PromptBuildResult, inlineFile?:
     method: "POST",
     headers: {
       "Authorization": `Bearer ${env.OPENAI_API_KEY}`,
-      "Content-Type": "application/json"
+      "Content-Type": "meetingContext/json"
     },
     body: JSON.stringify({
       model: env.OPENAI_TEXT_MODEL,
@@ -109,14 +109,14 @@ export async function createOpenAiRealtimeClientSecret(config: RealtimeClientSec
   }
 
   if (env.OPENAI_REALTIME_MODEL !== "gpt-realtime-mini") {
-    throw new Error("Live interview runtime only supports gpt-realtime-mini.");
+    throw new Error("Live meeting runtime only supports gpt-realtime-mini.");
   }
 
   const response = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${env.OPENAI_API_KEY}`,
-      "Content-Type": "application/json"
+      "Content-Type": "meetingContext/json"
     },
     body: JSON.stringify({
       expires_after: {

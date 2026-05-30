@@ -1,4 +1,4 @@
-﻿:root {
+:root {
       --bg: #ffffff;
       --bg-soft: #f3f8ff;
       --line: rgba(73, 116, 186, 0.16);
@@ -614,7 +614,7 @@
 
     .demo-actions {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 8px;
     }
 
@@ -1175,31 +1175,6 @@
       font-weight: 800;
     }
 
-    .comic-section {
-      padding: 10px 0 92px;
-      background: #ffffff;
-    }
-
-    .comic-heading {
-      margin-bottom: 28px;
-    }
-
-    .comic-frame {
-      overflow: hidden;
-      border-radius: 28px;
-      border: 1px solid rgba(72, 119, 190, 0.16);
-      background: #f6faff;
-      box-shadow:
-        0 24px 54px rgba(55, 109, 192, 0.12),
-        0 0 0 8px rgba(232, 242, 255, 0.60);
-    }
-
-    .comic-frame img {
-      display: block;
-      width: 100%;
-      height: auto;
-    }
-
     .compat-section {
       padding: 0 0 108px;
       background:
@@ -1676,17 +1651,6 @@
         max-width: 100%;
       }
 
-      .comic-section {
-        padding: 0 0 68px;
-      }
-
-      .comic-frame {
-        border-radius: 22px;
-        box-shadow:
-          0 18px 42px rgba(55, 109, 192, 0.12),
-          0 0 0 6px rgba(232, 242, 255, 0.60);
-      }
-
       .compat-section {
         padding: 0 0 72px;
       }
@@ -1766,3 +1730,5 @@
         letter-spacing: 0;
       }
     }
+
+  

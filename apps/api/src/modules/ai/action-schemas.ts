@@ -68,8 +68,8 @@ const domainProfileSchema = z.object({
   relevanceGuidance: ""
 });
 
-const cvExperienceSchema = z.object({
-  companyName: textSchema,
+const profileDocumentExperienceSchema = z.object({
+  organizationName: textSchema,
   roleTitle: textSchema,
   dateRange: textSchema,
   duration: textSchema,
@@ -79,7 +79,7 @@ const cvExperienceSchema = z.object({
   technologies: stringArraySchema
 });
 
-const cvEducationSchema = z.object({
+const profileDocumentEducationSchema = z.object({
   institution: textSchema,
   degree: textSchema,
   major: textSchema,
@@ -87,15 +87,15 @@ const cvEducationSchema = z.object({
   notes: stringArraySchema
 });
 
-const cvOrganizationSchema = z.object({
+const profileDocumentOrganizationSchema = z.object({
   organizationName: textSchema,
   roleTitle: textSchema,
   dateRange: textSchema,
   responsibilities: stringArraySchema
 });
 
-const cvInternshipSchema = z.object({
-  companyName: textSchema,
+const profileDocumentInternshipSchema = z.object({
+  organizationName: textSchema,
   roleTitle: textSchema,
   dateRange: textSchema,
   duration: textSchema,
@@ -113,44 +113,69 @@ function objectArraySchema<TSchema extends z.ZodTypeAny>(schema: TSchema) {
   }, z.array(schema)).default([]);
 }
 
-export const preprocessCvResultSchema = z.object({
+function recordFrom(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+const preprocessUserProfileResultObjectSchema = z.preprocess((value) => {
+  const record = recordFrom(value);
+  return {
+    ...record,
+    userProfileSummary: record.userProfileSummary ?? record.userProfileSummary,
+    usefulStrengths: record.usefulStrengths ?? record.usefulStrengths
+  };
+}, z.object({
+  userProfileSummary: z.string(),
+  skills: stringArraySchema,
+  relevantExperience: stringArraySchema,
+  experiences: objectArraySchema(profileDocumentExperienceSchema),
+  education: objectArraySchema(profileDocumentEducationSchema),
+  organizations: objectArraySchema(profileDocumentOrganizationSchema),
+  internships: objectArraySchema(profileDocumentInternshipSchema),
+  usefulStrengths: stringArraySchema,
+  risks: stringArraySchema,
+  readyContext: z.string()
+}));
+
+const preprocessMeetingContextResultObjectSchema = z.preprocess((value) => {
+  const record = recordFrom(value);
+  return {
+    ...record,
+    meetingSummary: record.meetingSummary ?? record.meetingSummary,
+    keyCriteria: record.keyCriteria ?? record.keyCriteria,
+    preparationThemes: record.preparationThemes ?? record.preparationThemes
+  };
+}, z.object({
+  meetingSummary: z.string(),
+  keyCriteria: stringArraySchema,
+  responsibilities: stringArraySchema.default([]),
+  niceToHave: stringArraySchema.default([]),
+  domainProfile: domainProfileSchema,
+  preparationThemes: stringArraySchema,
+    contextText: z.string()
+}));
+
+export const preprocessProfileDocumentResultSchema = z.object({
   status: aiStatusSchema,
-  result: z.object({
-    candidateSummary: z.string(),
-    skills: stringArraySchema,
-    relevantExperience: stringArraySchema,
-    experiences: objectArraySchema(cvExperienceSchema),
-    education: objectArraySchema(cvEducationSchema),
-    organizations: objectArraySchema(cvOrganizationSchema),
-    internships: objectArraySchema(cvInternshipSchema),
-    strengthsForInterview: stringArraySchema,
-    risks: stringArraySchema,
-    readyContext: z.string()
-  }),
+  result: preprocessUserProfileResultObjectSchema,
   warnings: stringArraySchema,
   missingInputs: stringArraySchema,
   confidence: aiConfidenceSchema,
   evidence: evidenceArraySchema
 });
 
-export const preprocessApplicationJdResultSchema = z.object({
+export const preprocessMeetingContextResultSchema = z.object({
   status: aiStatusSchema,
-  result: z.object({
-    jdSummary: z.string(),
-    roleRequirements: stringArraySchema,
-    responsibilities: stringArraySchema.default([]),
-    niceToHave: stringArraySchema.default([]),
-    domainProfile: domainProfileSchema,
-    interviewPrepThemes: stringArraySchema,
-    applicationContext: z.string()
-  }),
+  result: preprocessMeetingContextResultObjectSchema,
   warnings: stringArraySchema,
   missingInputs: stringArraySchema,
   confidence: aiConfidenceSchema,
   evidence: evidenceArraySchema
 });
 
-export const generateInterviewAnswerResultSchema = z.object({
+export const generateMeetingAnswerResultSchema = z.object({
   status: aiStatusSchema,
   result: z.object({
     shouldAnswer: z.boolean().default(true),
@@ -164,7 +189,7 @@ export const generateInterviewAnswerResultSchema = z.object({
   evidence: evidenceArraySchema
 });
 
-export const generateInterviewFollowupResultSchema = z.object({
+export const generateMeetingFollowupResultSchema = z.object({
   status: aiStatusSchema,
   result: z.object({
     shouldFollowUp: z.boolean().default(true),
@@ -177,7 +202,7 @@ export const generateInterviewFollowupResultSchema = z.object({
   evidence: evidenceArraySchema
 });
 
-export const generateInterviewExplanationResultSchema = z.object({
+export const generateMeetingExplanationResultSchema = z.object({
   status: aiStatusSchema,
   result: z.object({
     meaningSummary: textSchema,
@@ -190,7 +215,7 @@ export const generateInterviewExplanationResultSchema = z.object({
   evidence: evidenceArraySchema
 });
 
-export const generateInterviewKeywordHelpResultSchema = z.object({
+export const generateMeetingKeywordHelpResultSchema = z.object({
   status: aiStatusSchema,
   result: z.object({
     keywordSummary: textSchema,
@@ -243,10 +268,10 @@ export const surfaceRealtimeKeywordsResultSchema = z.object({
   evidence: evidenceArraySchema
 });
 
-export type PreprocessCvResult = z.infer<typeof preprocessCvResultSchema>;
-export type PreprocessApplicationJdResult = z.infer<typeof preprocessApplicationJdResultSchema>;
-export type GenerateInterviewAnswerResult = z.infer<typeof generateInterviewAnswerResultSchema>;
-export type GenerateInterviewFollowupResult = z.infer<typeof generateInterviewFollowupResultSchema>;
-export type GenerateInterviewExplanationResult = z.infer<typeof generateInterviewExplanationResultSchema>;
-export type GenerateInterviewKeywordHelpResult = z.infer<typeof generateInterviewKeywordHelpResultSchema>;
+export type PreprocessProfileDocumentResult = z.infer<typeof preprocessProfileDocumentResultSchema>;
+export type PreprocessMeetingContextResult = z.infer<typeof preprocessMeetingContextResultSchema>;
+export type GenerateMeetingAnswerResult = z.infer<typeof generateMeetingAnswerResultSchema>;
+export type GenerateMeetingFollowupResult = z.infer<typeof generateMeetingFollowupResultSchema>;
+export type GenerateMeetingExplanationResult = z.infer<typeof generateMeetingExplanationResultSchema>;
+export type GenerateMeetingKeywordHelpResult = z.infer<typeof generateMeetingKeywordHelpResultSchema>;
 export type SurfaceRealtimeKeywordsResult = z.infer<typeof surfaceRealtimeKeywordsResultSchema>;

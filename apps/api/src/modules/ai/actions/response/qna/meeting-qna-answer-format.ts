@@ -1,5 +1,5 @@
 export const meetingQnaAnswerFormatRules = [
-  "For JAWAB_PERTANYAAN and legacy BANTU_JAWAB in QnA mode, produce a direct ready-to-say answer.",
+  "For JAWAB_PERTANYAAN and legacy answer action in QnA mode, produce a direct ready-to-say answer.",
   "Use the safest useful answer shape for the question: direct answer, structured reasoning, trade-off, clarification, or next-step proposal.",
   "Use 3-5 concise bullets when the answer has multiple parts.",
   "Start directly with the answer, not with the trigger name or a coaching phrase.",

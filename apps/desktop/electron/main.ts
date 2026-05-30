@@ -34,6 +34,12 @@ type RealtimeActionPayload = {
   conversationMode?: RealtimeConversationMode;
 };
 
+type OverlayEndPayload = {
+  liveMeetingSessionId?: string;
+  meetingContextId?: string;
+  transcriptText?: string;
+};
+
 let mainWindow: BrowserWindow | null = null;
 let overlayWindow: BrowserWindow | null = null;
 let overlayContext: unknown = null;
@@ -52,6 +58,7 @@ const realtimeAudioExpectedStops = new WeakSet<ChildProcessWithoutNullStreams>()
 const realtimeAudioRestartDelaysMs = [500, 1500];
 let realtimeStatus: RealtimeStatus = "idle";
 let realtimeConnectPayload: { model: string; clientSecret: string; expiresAt: number } | null = null;
+let isQuittingAfterOverlayCleanup = false;
 
 function mergeOverlayContext(update: unknown) {
   const base = overlayContext && typeof overlayContext === "object" ? overlayContext as Record<string, unknown> : {};
@@ -160,7 +167,7 @@ function emitRealtimeConnectPayload() {
 }
 
 async function fetchRealtimeClientSecret(realtimeContext: Record<string, unknown>) {
-  const response = await fetch(`${apiBaseUrl}/interviews/realtime/client-secret`, {
+  const response = await fetch(`${apiBaseUrl}/live-meetings/realtime/client-secret`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
@@ -189,6 +196,34 @@ async function fetchRealtimeClientSecret(realtimeContext: Record<string, unknown
     clientSecret: payload.clientSecret,
     expiresAt: payload.expiresAt
   };
+}
+
+async function endOverlayRoundDirect(payload: unknown, reason: string) {
+  const endPayload = readOverlayEndPayload(payload);
+  if (!endPayload.liveMeetingSessionId) {
+    return;
+  }
+
+  const transcriptText = endPayload.transcriptText?.trim()
+    || `Sesi meeting otomatis ditutup karena ${reason}.`;
+
+  try {
+    const response = await fetch(`${apiBaseUrl}/live-meetings/${encodeURIComponent(endPayload.liveMeetingSessionId)}/end`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ transcriptText })
+    });
+
+    if (!response.ok && response.status !== 404) {
+      const body = await response.text().catch(() => "");
+      console.warn(`[overlay] Failed to end meeting round ${endPayload.liveMeetingSessionId}: ${response.status} ${body}`);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    console.warn(`[overlay] Failed to end meeting round ${endPayload.liveMeetingSessionId}: ${message}`);
+  }
 }
 
 function startRealtimeAudioStream() {
@@ -266,7 +301,7 @@ function getLoopbackHelperErrorMessage(error: NodeJS.ErrnoException) {
   const rawMessage = error.message || "";
   const blockedByPolicy = error.code === "EPERM"
     || rawMessage.toLowerCase().includes("blocked")
-    || rawMessage.toLowerCase().includes("application control");
+    || rawMessage.toLowerCase().includes("meetingContext control");
 
   if (blockedByPolicy) {
     return "System audio helper diblokir Windows Security. Untuk distribusi user, gunakan package Microsoft Store. Untuk QA lokal, jalankan dari dev mode atau packaged build internal yang sesuai policy Windows mesin ini.";
@@ -531,7 +566,11 @@ async function createOverlayWindow(context: unknown) {
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     const previousContext = readOverlayEndContext();
     const nextContext = readOverlayEndContext(context);
-    if (previousContext.interviewRoundId && previousContext.interviewRoundId !== nextContext.interviewRoundId) {
+    if (previousContext.liveMeetingSessionId && previousContext.liveMeetingSessionId !== nextContext.liveMeetingSessionId) {
+      await endOverlayRoundDirect({
+        ...previousContext,
+        transcriptText: "Sesi meeting otomatis ditutup karena sesi baru dimulai."
+      }, "sesi baru dimulai");
       mainWindow?.webContents.send("overlay:interview-ended", {
         ...previousContext,
         transcriptText: "Sesi meeting otomatis ditutup karena sesi baru dimulai."
@@ -586,10 +625,13 @@ async function createOverlayWindow(context: unknown) {
     stopOverlayDrag();
     stopRealtimeSession();
     if (!overlayCloseHandled) {
-      mainWindow?.webContents.send("overlay:interview-ended", {
+      const payload = {
         ...readOverlayEndContext(),
         transcriptText: "Overlay tertutup sebelum tombol End Meeting ditekan."
-      });
+      };
+      void endOverlayRoundDirect(payload, "overlay tertutup");
+      mainWindow?.webContents.send("overlay:interview-ended", payload);
+      overlayContext = null;
     }
     overlayWindow = null;
     overlayCloseHandled = false;
@@ -719,10 +761,12 @@ function registerOverlayIpc() {
     return { ok: true };
   });
 
-  ipcMain.handle("overlay:end-interview", (_event, payload: unknown) => {
+  ipcMain.handle("overlay:end-interview", async (_event, payload: unknown) => {
     overlayCloseHandled = true;
     stopRealtimeSession();
+    await endOverlayRoundDirect(payload, "tombol End Meeting ditekan");
     mainWindow?.webContents.send("overlay:interview-ended", payload);
+    overlayContext = null;
     overlayWindow?.close();
     overlayWindow = null;
     return { ok: true };
@@ -870,10 +914,23 @@ function readOverlayEndContext(source: unknown = overlayContext) {
     return {};
   }
 
-  const context = source as { interviewRoundId?: unknown; applicationId?: unknown };
+  const context = source as { liveMeetingSessionId?: unknown; meetingContextId?: unknown };
   return {
-    interviewRoundId: typeof context.interviewRoundId === "string" ? context.interviewRoundId : undefined,
-    applicationId: typeof context.applicationId === "string" ? context.applicationId : undefined
+    liveMeetingSessionId: typeof context.liveMeetingSessionId === "string" ? context.liveMeetingSessionId : undefined,
+    meetingContextId: typeof context.meetingContextId === "string" ? context.meetingContextId : undefined
+  };
+}
+
+function readOverlayEndPayload(source: unknown = overlayContext): OverlayEndPayload {
+  if (!source || typeof source !== "object") {
+    return {};
+  }
+
+  const context = source as { liveMeetingSessionId?: unknown; meetingContextId?: unknown; transcriptText?: unknown };
+  return {
+    liveMeetingSessionId: typeof context.liveMeetingSessionId === "string" ? context.liveMeetingSessionId : undefined,
+    meetingContextId: typeof context.meetingContextId === "string" ? context.meetingContextId : undefined,
+    transcriptText: typeof context.transcriptText === "string" ? context.transcriptText : undefined
   };
 }
 
@@ -898,6 +955,28 @@ app.whenReady().then(async () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       void createMainWindow();
     }
+  });
+});
+
+app.on("before-quit", (event) => {
+  if (isQuittingAfterOverlayCleanup) {
+    return;
+  }
+
+  const payload = readOverlayEndContext();
+  if (!payload.liveMeetingSessionId) {
+    return;
+  }
+
+  event.preventDefault();
+  isQuittingAfterOverlayCleanup = true;
+  stopRealtimeSession();
+  stopSystemAudioProbe();
+  void endOverlayRoundDirect({
+    ...payload,
+    transcriptText: "Sesi meeting otomatis ditutup karena aplikasi ditutup."
+  }, "aplikasi ditutup").finally(() => {
+    app.quit();
   });
 });
 

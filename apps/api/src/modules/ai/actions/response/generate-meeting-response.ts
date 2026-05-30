@@ -3,13 +3,13 @@ import type { ActionSpec } from "../../action-types.js";
 import { formatMeetingContextForPrompt, meetingContextUsagePolicy } from "../shared/meeting-context-format.js";
 import { buildMeetingResponsePolicyRules } from "./meeting-response-router.js";
 
-export type GenerateInterviewAnswerInput = {
-  interviewerQuestion: string;
+export type GenerateMeetingAnswerInput = {
+  meetingPrompt: string;
   recentTranscript?: string;
   realtimeContext: RealtimeContext;
 };
 
-export const generateInterviewAnswerSpec: ActionSpec<GenerateInterviewAnswerInput> = {
+export const generateMeetingAnswerSpec: ActionSpec<GenerateMeetingAnswerInput> = {
   actionId: "generate_meeting_response",
   version: "2026-05-27.v1",
   goal: "Membuat respons meeting online yang singkat, natural, aman, dan siap diucapkan user.",
@@ -45,7 +45,7 @@ export const generateInterviewAnswerSpec: ActionSpec<GenerateInterviewAnswerInpu
 }`,
   buildContext: (input) => `Runtime payload:
 - latestMeetingFocus:
-${input.interviewerQuestion.trim() || "unknown"}
+${input.meetingPrompt.trim() || "unknown"}
 
 - recentTranscript:
 ${input.recentTranscript?.trim() || "unknown"}

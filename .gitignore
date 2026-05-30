@@ -64,4 +64,5 @@ storage/cvs/*
 storage/*.log
 outputs/
 temp/
+Temp-Reference/
 audio-sample/

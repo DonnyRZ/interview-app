@@ -1,12 +1,13 @@
 import type { ActionSpec } from "../../action-types.js";
 
-export type PreprocessCvInput = {
+export type PreprocessProfileDocumentInput = {
   fileName: string;
   fileMimeType?: string | null;
 };
 
-export const preprocessCvSpec: ActionSpec<PreprocessCvInput> = {
-  actionId: "preprocess_cv",
+export const preprocessProfileDocumentSpec: ActionSpec<PreprocessProfileDocumentInput> = {
+  actionId: "preprocess_profileDocument",
+  promptActionId: "preprocess_user_profile",
   version: "2026-05-27.v1",
   goal: "Mengubah dokumen identitas/profil user yang diupload menjadi konteks reusable untuk online meeting.",
   role: "Kamu adalah mesin ekstraksi informasi untuk membuat user profile reference yang aman dipakai ulang.",
@@ -31,12 +32,12 @@ export const preprocessCvSpec: ActionSpec<PreprocessCvInput> = {
 {
   "status": "success | partial | insufficient_input | needs_human_review | failed_policy",
   "result": {
-    "candidateSummary": "string",
+    "userProfileSummary": "ringkasan profil user yang faktual dan aman dipakai ulang",
     "skills": ["string"],
     "relevantExperience": ["string"],
     "experiences": [
       {
-        "companyName": "string",
+        "organizationName": "string",
         "roleTitle": "string",
         "dateRange": "string",
         "duration": "string",
@@ -65,7 +66,7 @@ export const preprocessCvSpec: ActionSpec<PreprocessCvInput> = {
     ],
     "internships": [
       {
-        "companyName": "string",
+        "organizationName": "string",
         "roleTitle": "string",
         "dateRange": "string",
         "duration": "string",
@@ -73,7 +74,7 @@ export const preprocessCvSpec: ActionSpec<PreprocessCvInput> = {
         "projects": ["string"]
       }
     ],
-    "strengthsForInterview": ["string"],
+    "usefulStrengths": ["kekuatan atau bukti profil yang berguna untuk meeting live"],
     "risks": ["string"],
     "readyContext": "string"
   },

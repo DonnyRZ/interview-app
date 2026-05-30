@@ -1,14 +1,15 @@
 import type { ActionSpec } from "../../action-types.js";
 
-export type PreprocessApplicationJdInput = {
-  companyName: string;
-  roleTitle: string;
-  jobDescription?: string;
-  cvReadyContext?: string | null;
+export type PreprocessMeetingContextInput = {
+  contextName: string;
+  meetingTopic: string;
+  meetingBrief?: string;
+  profileDocumentReadyContext?: string | null;
 };
 
-export const preprocessApplicationJdSpec: ActionSpec<PreprocessApplicationJdInput> = {
-  actionId: "preprocess_application_context",
+export const preprocessMeetingContextSpec: ActionSpec<PreprocessMeetingContextInput> = {
+  actionId: "preprocess_meetingContext_context",
+  promptActionId: "preprocess_meeting_context",
   version: "2026-05-27.v1",
   goal: "Mengubah konteks sesi, topik meeting, dokumen brief, dan profil aktif menjadi profil domain/niche untuk meeting live.",
   role: "Kamu adalah analis konteks meeting untuk aplikasi online meeting lintas bidang.",
@@ -31,7 +32,7 @@ export const preprocessApplicationJdSpec: ActionSpec<PreprocessApplicationJdInpu
     "Nice to have hanya berisi hal yang eksplisit opsional/plus/preferred/bonus di brief. Jika tidak ada, kembalikan array kosong.",
     "Niche description maksimal 2 kalimat pendek.",
     "Out-of-scope concepts maksimal 5 item dan hanya berisi contoh paling penting.",
-    "Field interviewPrepThemes adalah field legacy; isi dengan preparation themes meeting maksimal 3 item, setiap item maksimal 8-12 kata.",
+    "Preparation themes berisi hal penting yang perlu disiapkan untuk sesi meeting, maksimal 3 item, setiap item maksimal 8-12 kata.",
     "Gunakan bahasa Indonesia untuk semua field natural-language karena UI produk saat ini berbahasa Indonesia.",
     "Semua field yang dicontohkan sebagai array wajib dikembalikan sebagai array JSON, walaupun hanya berisi satu item atau kosong.",
     "Field warnings, missingInputs, dan evidence wajib tetap ada. Jika tidak ada isinya, kembalikan array kosong []."
@@ -40,8 +41,8 @@ export const preprocessApplicationJdSpec: ActionSpec<PreprocessApplicationJdInpu
 {
   "status": "success | partial | insufficient_input | needs_human_review | failed_policy",
   "result": {
-    "jdSummary": "string",
-    "roleRequirements": ["string"],
+    "meetingSummary": "ringkasan brief atau konteks meeting",
+    "keyCriteria": ["kriteria, kebutuhan, constraint, atau fokus utama sesi"],
     "responsibilities": ["string"],
     "niceToHave": ["string"],
     "domainProfile": {
@@ -52,8 +53,8 @@ export const preprocessApplicationJdSpec: ActionSpec<PreprocessApplicationJdInpu
       "seedConcepts": ["maksimal 5 item, 2-4 kata per item"],
       "relevanceGuidance": "deskripsi boundary relevansi, bukan instruksi model"
     },
-    "interviewPrepThemes": ["maksimal 3 item, 8-12 kata per item"],
-    "applicationContext": "string"
+    "preparationThemes": ["maksimal 3 item, 8-12 kata per item"],
+    "contextText": "string"
   },
   "warnings": ["string"],
   "missingInputs": ["string"],
@@ -61,11 +62,11 @@ export const preprocessApplicationJdSpec: ActionSpec<PreprocessApplicationJdInpu
   "evidence": [{ "field": "string", "source": "string", "quote": "string" }]
 }`,
   buildContext: (input) => `Runtime payload:
-- organizationOrCounterparty: ${input.companyName}
-- sessionTitleOrTopic: ${input.roleTitle}
+- organizationOrCounterparty: ${input.contextName}
+- sessionTitleOrTopic: ${input.meetingTopic}
 - meetingBrief:
-${input.jobDescription?.trim() || "unknown"}
+${input.meetingBrief?.trim() || "unknown"}
 
 - activeProfileReadyContext:
-${input.cvReadyContext?.trim() || "unknown"}`
+${input.profileDocumentReadyContext?.trim() || "unknown"}`
 };

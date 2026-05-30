@@ -13,30 +13,30 @@ export const meetingContextUsagePolicy = [
 
 export function formatMeetingContextForPrompt(context: RealtimeContext) {
   return `- userProfile:
-  - summary: ${context.candidateContext.summary || "unknown"}
-  - reusableContext: ${context.candidateContext.readyContext || "unknown"}
-  - skillsOrCapabilities: ${joinList(context.candidateContext.skills)}
-  - relevantBackground: ${joinList(context.candidateContext.relevantExperience)}
+  - summary: ${context.userProfileContext.summary || "unknown"}
+  - reusableContext: ${context.userProfileContext.readyContext || "unknown"}
+  - skillsOrCapabilities: ${joinList(context.userProfileContext.skills)}
+  - relevantBackground: ${joinList(context.userProfileContext.relevantExperience)}
   - structuredBackground:
-${formatExperiences(context.candidateContext.experiences)}
+${formatExperiences(context.userProfileContext.experiences)}
   - education:
-${formatEducation(context.candidateContext.education)}
+${formatEducation(context.userProfileContext.education)}
   - organizations:
-${formatOrganizations(context.candidateContext.organizations)}
+${formatOrganizations(context.userProfileContext.organizations)}
   - internshipsOrEarlyExperience:
-${formatInternships(context.candidateContext.internships)}
-  - usefulStrengths: ${joinList(context.candidateContext.strengthsForInterview)}
-  - knownRisksOrGaps: ${joinList(context.candidateContext.risks)}
+${formatInternships(context.userProfileContext.internships)}
+  - usefulStrengths: ${joinList(context.userProfileContext.usefulStrengths)}
+  - knownRisksOrGaps: ${joinList(context.userProfileContext.risks)}
 
 - meetingContext:
-  - organizationOrCounterparty: ${context.applicationContext.companyName || "unknown"}
-  - sessionTitleOrTopic: ${context.applicationContext.roleTitle || "unknown"}
-  - sessionSummary: ${context.applicationContext.jdSummary || "unknown"}
-  - keyRequirementsOrCriteria: ${joinList(context.applicationContext.roleRequirements)}
-  - responsibilitiesOrScope: ${joinList(context.applicationContext.responsibilities)}
-  - optionalConsiderations: ${joinList(context.applicationContext.niceToHave)}
-  - preparationThemes: ${joinList(context.applicationContext.interviewPrepThemes)}
-  - sessionContext: ${context.applicationContext.applicationContext || "unknown"}
+  - organizationOrCounterparty: ${context.meetingContext.contextName || "unknown"}
+  - sessionTitleOrTopic: ${context.meetingContext.meetingTopic || "unknown"}
+  - sessionSummary: ${context.meetingContext.meetingSummary || "unknown"}
+  - keyRequirementsOrCriteria: ${joinList(context.meetingContext.keyCriteria)}
+  - responsibilitiesOrScope: ${joinList(context.meetingContext.responsibilities)}
+  - optionalConsiderations: ${joinList(context.meetingContext.niceToHave)}
+  - preparationThemes: ${joinList(context.meetingContext.preparationThemes)}
+  - sessionContext: ${context.meetingContext.contextText || "unknown"}
 
 - domainProfile:
   - primaryDomain: ${context.domainProfile.primaryDomain || "unknown"}
@@ -47,18 +47,18 @@ ${formatInternships(context.candidateContext.internships)}
   - relevanceGuidance: ${context.domainProfile.relevanceGuidance || "unknown"}
 
 - liveSession:
-  - legacyStageType: ${context.stageContext.stageType}
-  - focusHints: ${joinList(context.stageContext.focus)}`;
+  - legacySessionType: ${context.sessionContext.sessionType}
+  - focusHints: ${joinList(context.sessionContext.focus)}`;
 }
 
 function joinList(items: string[]) {
   return items.map((item) => item.trim()).filter(Boolean).join(", ") || "none";
 }
 
-function formatExperiences(items: RealtimeContext["candidateContext"]["experiences"]) {
+function formatExperiences(items: RealtimeContext["userProfileContext"]["experiences"]) {
   if (!items.length) return "    none";
   return items.map((item) => [
-    `    - ${item.roleTitle || "Role"} at ${item.companyName || "organization"} (${item.dateRange || item.duration || "date unknown"})`,
+    `    - ${item.roleTitle || "Role"} at ${item.organizationName || "organization"} (${item.dateRange || item.duration || "date unknown"})`,
     item.projects.length ? `      projects: ${joinList(item.projects)}` : "",
     item.responsibilities.length ? `      responsibilities: ${joinList(item.responsibilities)}` : "",
     item.impact.length ? `      impact: ${joinList(item.impact)}` : "",
@@ -66,7 +66,7 @@ function formatExperiences(items: RealtimeContext["candidateContext"]["experienc
   ].filter(Boolean).join("\n")).join("\n");
 }
 
-function formatEducation(items: RealtimeContext["candidateContext"]["education"]) {
+function formatEducation(items: RealtimeContext["userProfileContext"]["education"]) {
   if (!items.length) return "    none";
   return items.map((item) => [
     `    - ${item.institution || "Institution"}${item.major ? `, ${item.major}` : ""}${item.degree ? ` (${item.degree})` : ""}${item.dateRange ? `, ${item.dateRange}` : ""}`,
@@ -74,7 +74,7 @@ function formatEducation(items: RealtimeContext["candidateContext"]["education"]
   ].filter(Boolean).join("\n")).join("\n");
 }
 
-function formatOrganizations(items: RealtimeContext["candidateContext"]["organizations"]) {
+function formatOrganizations(items: RealtimeContext["userProfileContext"]["organizations"]) {
   if (!items.length) return "    none";
   return items.map((item) => [
     `    - ${item.roleTitle || "Role"} at ${item.organizationName || "organization"}${item.dateRange ? ` (${item.dateRange})` : ""}`,
@@ -82,12 +82,11 @@ function formatOrganizations(items: RealtimeContext["candidateContext"]["organiz
   ].filter(Boolean).join("\n")).join("\n");
 }
 
-function formatInternships(items: RealtimeContext["candidateContext"]["internships"]) {
+function formatInternships(items: RealtimeContext["userProfileContext"]["internships"]) {
   if (!items.length) return "    none";
   return items.map((item) => [
-    `    - ${item.roleTitle || "Experience"} at ${item.companyName || "organization"} (${item.dateRange || item.duration || "date unknown"})`,
+    `    - ${item.roleTitle || "Experience"} at ${item.organizationName || "organization"} (${item.dateRange || item.duration || "date unknown"})`,
     item.responsibilities.length ? `      responsibilities: ${joinList(item.responsibilities)}` : "",
     item.projects.length ? `      projects: ${joinList(item.projects)}` : ""
   ].filter(Boolean).join("\n")).join("\n");
 }
-
