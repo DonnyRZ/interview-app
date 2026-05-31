@@ -1,6 +1,6 @@
 # Windows Audio Capture
 
-Dokumen ini menjelaskan status current build untuk audio interview di Windows.
+Dokumen ini menjelaskan status current build untuk audio meeting live di Windows.
 
 ## Current State
 
@@ -12,7 +12,7 @@ Helper ini dipakai untuk menangkap system audio lawan bicara, misalnya audio dar
 
 Target utama current build:
 
-- tangkap suara lawan bicara dari active system output
+- tangkap suara peserta meeting dari active system output
 - stream PCM mono 24 kHz ke Electron
 - Electron meneruskan audio chunk ke OpenAI Realtime
 - `gpt-realtime-mini` menjadi satu-satunya live runtime model
@@ -44,7 +44,7 @@ Catatan penting:
 
 - mic bisa menangkap bocoran speaker dari ruangan, tapi itu bukan capture system audio yang reliable
 - mic user belum menjadi bagian utama patch runtime live saat ini
-- desain dual-source audio user + interviewer adalah tahap berikutnya, bukan asumsi current build
+- desain dual-source audio user + meeting participant adalah tahap berikutnya, bukan asumsi current build
 
 ### 3. Virtual/System Input
 
@@ -84,7 +84,7 @@ Overlay status harus jujur.
 Status yang valid secara konsep:
 
 - `Menghubungkan Realtime`
-- `Mencari audio interview`
+- `Mencari audio meeting`
 - `Listening via <device>`
 - `Menangkap ucapan`
 - `Konteks siap`
@@ -97,7 +97,7 @@ Jangan tampilkan status listening hanya karena WebSocket Realtime sudah terbuka.
 Flow current build:
 
 ```text
-Start Interview
+Mulai Meeting
 -> Electron open overlay
 -> backend create OpenAI Realtime client secret
 -> overlay connect WebSocket ke OpenAI Realtime
@@ -121,17 +121,17 @@ OpenAI Realtime config saat ini:
 
 ## Important Guardrails
 
-- Do not fallback silently to `gpt-5-mini` for live interview buttons.
+- Do not fallback silently to `gpt-5-mini` for live meeting buttons.
 - Do not fallback to `gpt-realtime-1.5`.
 - Do not treat local mic signal as proof that system audio is captured.
-- Do not require user to manually understand Windows audio routing for normal start interview flow.
+- Do not require user to manually understand Windows audio routing for normal meeting flow.
 - Do not stop the helper just because audio becomes silent.
 
 ## Known Limitations
 
 - Current runtime focuses on system audio lawan bicara.
 - User mic is not yet part of the primary live context.
-- Public Windows distribution still needs careful packaging/signing flow. For current beta QA, use the self-signed beta flow documented in `apps/desktop/WIN_UNPACKED.md`.
+- Public Windows distribution should go through Microsoft Store packaging/submission. Local packaged builds are only for engineering QA.
 
 ## Verification Checklist
 
@@ -145,4 +145,4 @@ Manual QA should verify:
 - switching output device during session triggers rescan
 - transcript starts near the beginning of speech, not only the final few words
 - latest conversation focus follows the newest topic
-- `Bantu Jawab`, `Bantu Follow-up`, and `Jelaskan Maksudnya` use fresh conversation context
+- `Jawab Pertanyaan`, `Tanggapi`, `Pertanyaan Follow-up`, and `Jelaskan Maksudnya` use fresh conversation context

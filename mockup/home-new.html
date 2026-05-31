@@ -1,0 +1,674 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Interview Assistant - Home Dashboard Mockup</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --surface: rgba(255, 255, 255, 0.86);
+      --surface-solid: #ffffff;
+      --ink: #17191f;
+      --muted: #647086;
+      --line: #dbe2ee;
+      --line-strong: #c8d1df;
+      --green: #28a36a;
+      --green-soft: #e8f8ef;
+      --cyan-soft: #d9fbf7;
+      --amber: #f4a900;
+      --red: #d63c3c;
+      --shadow: 0 22px 60px rgba(28, 42, 72, 0.12);
+      --radius: 8px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at 10% 6%, rgba(181, 249, 228, 0.62), transparent 30%),
+        radial-gradient(circle at 86% 12%, rgba(208, 229, 255, 0.72), transparent 34%),
+        linear-gradient(180deg, #f7fafc 0%, #f1f4f9 58%, #eef2f6 100%);
+      letter-spacing: 0;
+    }
+
+    .app-shell {
+      max-width: 1420px;
+      margin: 0 auto;
+      padding: 40px 40px 64px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 44px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 260px;
+    }
+
+    .logo {
+      display: grid;
+      place-items: center;
+      width: 46px;
+      height: 46px;
+      border-radius: 8px;
+      background: #17191f;
+      color: #ffffff;
+      font-size: 22px;
+      font-weight: 900;
+      box-shadow: 0 12px 28px rgba(23, 25, 31, 0.14);
+    }
+
+    .brand strong {
+      display: block;
+      font-size: 22px;
+      line-height: 1.05;
+    }
+
+    .brand span {
+      display: block;
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 16px;
+      font-weight: 750;
+    }
+
+    .cv-pill {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      max-width: 520px;
+      padding: 10px 12px 10px 18px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.78);
+      box-shadow: 0 10px 30px rgba(48, 63, 90, 0.08);
+      color: #5f6b82;
+      font-weight: 850;
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .cv-pill span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .status-dot {
+      width: 34px;
+      height: 34px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #d2faf2, #bff4ec);
+    }
+
+    .hero-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 24px;
+      align-items: end;
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(46px, 5vw, 72px);
+      line-height: 0.95;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      margin: 0;
+      max-width: 720px;
+      color: var(--muted);
+      font-size: 18px;
+      line-height: 1.55;
+    }
+
+    .primary-action {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 52px;
+      padding: 0 22px;
+      border: 2px solid var(--amber);
+      border-radius: 8px;
+      background: #16181d;
+      color: #ffffff;
+      box-shadow: 0 10px 24px rgba(22, 24, 29, 0.18);
+      font-size: 20px;
+      font-weight: 950;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .primary-action small {
+      margin-right: 8px;
+      font-size: 22px;
+      line-height: 1;
+    }
+
+    .summary-strip {
+      display: grid;
+      grid-template-columns: 1.35fr 0.9fr 0.9fr;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .summary-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      min-height: 82px;
+      padding: 18px 20px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.82);
+    }
+
+    .summary-item b {
+      display: block;
+      margin-bottom: 4px;
+      color: #69758b;
+      font-size: 12px;
+      font-weight: 950;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .summary-item span {
+      display: block;
+      color: var(--ink);
+      font-size: 18px;
+      font-weight: 850;
+    }
+
+    .summary-item p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.35;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 34px;
+      padding: 0 14px;
+      border-radius: 999px;
+      background: var(--green-soft);
+      color: #15643f;
+      font-weight: 950;
+      white-space: nowrap;
+    }
+
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 18px;
+    }
+
+    .panel {
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 22px 28px 12px;
+    }
+
+    .panel-header h2 {
+      margin: 0;
+      font-size: 26px;
+      line-height: 1.1;
+    }
+
+    .panel-header p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .table {
+      padding: 8px 28px 28px;
+    }
+
+    .table-head,
+    .app-row {
+      display: grid;
+      grid-template-columns: minmax(260px, 1.4fr) 0.8fr 0.75fr 0.75fr auto;
+      gap: 18px;
+      align-items: center;
+    }
+
+    .table-head {
+      padding: 0 18px 10px;
+      color: #7a8498;
+      font-size: 12px;
+      font-weight: 950;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .app-row {
+      min-height: 96px;
+      margin-top: 10px;
+      padding: 18px;
+      border: 1px solid #e2e8f1;
+      border-radius: var(--radius);
+      background: var(--surface-solid);
+    }
+
+    .app-title {
+      min-width: 0;
+    }
+
+    .app-title strong {
+      display: block;
+      overflow: hidden;
+      color: var(--ink);
+      font-size: 22px;
+      font-weight: 950;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .app-title span,
+    .metric span {
+      display: block;
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.35;
+    }
+
+    .metric strong {
+      display: block;
+      color: var(--ink);
+      font-size: 17px;
+      font-weight: 900;
+    }
+
+    .stage-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 34px;
+      padding: 0 12px;
+      border-radius: 999px;
+      background: #eef3ff;
+      color: #36547f;
+      font-weight: 900;
+    }
+
+    .row-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 40px;
+      padding: 0 14px;
+      border-radius: 8px;
+      border: 1px solid var(--line-strong);
+      background: #ffffff;
+      color: var(--ink);
+      font-weight: 950;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .button.dark {
+      border-color: #17191f;
+      background: #17191f;
+      color: #ffffff;
+    }
+
+    .button.danger {
+      border-color: #ffc7c7;
+      background: #fff8f8;
+      color: #a92121;
+    }
+
+    .button.small {
+      min-height: 34px;
+      padding: 0 12px;
+      font-size: 13px;
+    }
+
+    .button.upload {
+      border-color: #17191f;
+      background: #17191f;
+      color: #ffffff;
+    }
+
+    .button.disabled {
+      border-color: #d9dee8;
+      background: #eef1f6;
+      color: #8a94a7;
+      pointer-events: none;
+      box-shadow: none;
+    }
+
+    .profile-section {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr 1.2fr;
+      gap: 14px;
+      padding: 0 28px 28px;
+    }
+
+    .profile-card {
+      min-height: 148px;
+      padding: 18px;
+      border: 1px solid #e2e8f1;
+      border-radius: var(--radius);
+      background: #ffffff;
+    }
+
+    .profile-card b {
+      display: block;
+      margin-bottom: 12px;
+      color: #6c768b;
+      font-size: 12px;
+      font-weight: 950;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .profile-card strong {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 18px;
+      line-height: 1.25;
+    }
+
+    .profile-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.45;
+    }
+
+    .profile-card.ready {
+      border-color: #aeecc7;
+      background: #effbf4;
+    }
+
+    .profile-actions,
+    .card-actions {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .cv-history {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .cv-history-panel {
+      padding: 0 28px 28px;
+    }
+
+    .cv-history-panel h3 {
+      margin: 0 0 10px;
+      font-size: 18px;
+      line-height: 1.2;
+    }
+
+    .cv-version {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      padding: 12px;
+      border: 1px solid #e2e8f1;
+      border-radius: 8px;
+      background: #fbfcfe;
+    }
+
+    .cv-version strong {
+      overflow: hidden;
+      margin: 0 0 4px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .cv-version p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .empty-cv-note {
+      margin: 18px 0;
+      padding: 18px;
+      border: 1px dashed #b9c5d6;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.62);
+    }
+
+    .empty-cv-note strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 18px;
+    }
+
+    @media (max-width: 980px) {
+      .app-shell {
+        padding: 28px 18px 48px;
+      }
+
+      .topbar,
+      .hero-row {
+        align-items: flex-start;
+        flex-direction: column;
+        display: flex;
+      }
+
+      .cv-pill,
+      .primary-action {
+        width: 100%;
+      }
+
+      .top-actions {
+        width: 100%;
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .summary-strip,
+      .profile-section {
+        grid-template-columns: 1fr;
+      }
+
+      .table-head {
+        display: none;
+      }
+
+      .app-row {
+        grid-template-columns: 1fr;
+        gap: 14px;
+      }
+
+      .row-actions {
+        justify-content: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo">I</div>
+        <div>
+          <strong>Interview Assistant</strong>
+          <span>MVP workspace</span>
+        </div>
+      </div>
+
+      <div class="top-actions">
+        <div class="cv-pill" aria-label="Active CV">
+          <span>CV aktif: Data Science Resume V2.pdf</span>
+          <i class="status-dot" aria-hidden="true"></i>
+        </div>
+      </div>
+    </header>
+
+    <section class="hero-row">
+      <div>
+        <h1>Applications</h1>
+        <p class="subtitle">Buat context per company dan role, lalu mulai interview round dari application yang sama.</p>
+      </div>
+      <a class="primary-action" href="#"><small>+</small> New Application</a>
+    </section>
+
+    <div class="dashboard-grid">
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Applications</h2>
+            <p>Kelola role target, interview context, dan riwayat round.</p>
+          </div>
+        </div>
+
+        <div class="table">
+          <div class="table-head">
+            <span>Application</span>
+            <span>Status</span>
+            <span>Rounds</span>
+            <span>Last activity</span>
+            <span>Actions</span>
+          </div>
+
+          <article class="app-row">
+            <div class="app-title">
+              <strong>Malaka Corp - Marketing</strong>
+              <span>CV linked - Context ready - Focus: marketing strategy and campaign planning</span>
+            </div>
+            <div><span class="stage-pill">Application</span></div>
+            <div class="metric">
+              <strong>18 rounds</strong>
+              <span>HR and case practice</span>
+            </div>
+            <div class="metric">
+              <strong>Today</strong>
+              <span>Last interview test</span>
+            </div>
+            <div class="row-actions">
+              <a class="button dark" href="#">Open</a>
+              <a class="button danger" href="#">Delete</a>
+            </div>
+          </article>
+
+          <article class="app-row">
+            <div class="app-title">
+              <strong>Top G Corp - Data Scientist</strong>
+              <span>CV linked - Context ready - Focus: ML projects, metrics, and product analytics</span>
+            </div>
+            <div><span class="stage-pill">Application</span></div>
+            <div class="metric">
+              <strong>18 rounds</strong>
+              <span>Technical practice</span>
+            </div>
+            <div class="metric">
+              <strong>9 Mei</strong>
+              <span>Transcript saved</span>
+            </div>
+            <div class="row-actions">
+              <a class="button dark" href="#">Open</a>
+              <a class="button danger" href="#">Delete</a>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Profile Context</h2>
+            <p>CV diproses sekali di profile level dan dipakai ulang untuk semua application.</p>
+          </div>
+        </div>
+
+        <div class="profile-section">
+          <article class="profile-card">
+            <b>Active CV</b>
+            <strong>Data Science Resume V2.pdf</strong>
+            <p>Uploaded 9 Mei 2026, 19.50. File terbaru menjadi profile context utama setelah AI processing selesai.</p>
+            <div class="card-actions">
+              <a class="button small upload" href="#">Upload new CV</a>
+            </div>
+          </article>
+
+          <article class="profile-card ready">
+            <b>AI Ready</b>
+            <strong>Profile context ready</strong>
+            <p>CV sudah diproses AI dan siap dipakai untuk application baru maupun existing.</p>
+          </article>
+
+          <article class="profile-card">
+            <b>Candidate Summary</b>
+            <strong>Machine Learning Engineer / Prompt Engineer</strong>
+            <p>Berpengalaman membangun model prediktif, sistem rekomendasi, pipeline AI, dan dashboard operasional.</p>
+          </article>
+        </div>
+
+        <div class="cv-history-panel">
+          <h3>CV Version History</h3>
+          <div class="cv-history">
+            <div class="cv-version">
+              <div>
+                <strong>Data Science Resume V2.pdf</strong>
+                <p>Active - ready - uploaded 9 Mei 2026, 19.50</p>
+              </div>
+              <span class="badge">active</span>
+            </div>
+            <div class="cv-version">
+              <div>
+                <strong>Data Science Resume V1.pdf</strong>
+                <p>Processed - uploaded 2 Mei 2026, 12.20</p>
+              </div>
+              <a class="button small" href="#">Set active</a>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

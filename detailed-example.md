@@ -1,127 +1,276 @@
-# Contoh Help Button
+# Contoh Behavior Orviko: QnA Mode & Convo Mode
 
-## Adegan 1 (08.45)
-Saya buka link zoom meeting, menunggu meeting dimulai pukul 09.00
+Dokumen ini menjelaskan contoh behavior Orviko untuk konteks meeting online umum. Contoh di sini adalah acceptance scenario/test fixture, bukan vocabulary produksi yang boleh di-hardcode ke prompt.
 
-## Adegan 2 (08.55)
-Meeting sudah mau dimulai, saya membuka MVP yang application nya sudah terisi sejak kemarin. Saya klik start interview, tidak apa-apa lebih baik klik sekarang daripada tunggu 09.00
+Orviko memiliki 2 mode respons utama:
 
-## Adegan 3 (09.02)
-Interview dimulai
+1. **QnA Mode**
+   Dipakai saat user ingin menjawab pertanyaan, implied question, request for opinion, decision, clarification, atau situasi user diminta memberi jawaban.
 
-HR / Interviewer:
-“Halo Donny, makasih udah join hari ini. Bisa perkenalkan diri singkat dan cerita pengalaman yang paling relevan untuk posisi Data Scientist ini?”
+2. **Convo Mode**
+   Dipakai saat user ingin menanggapi statement, cerita, opini, concern, feedback, update, konteks, atau insight dari lawan bicara.
 
-Behavior MVP:
-mengambil informasi dari CV dan JD terkait data relevan yang ditanyakan “pengalaman yang paling relevan untuk posisi Data Scientist”
+## Tombol Yang Digunakan
 
-MVP akan memastikan:
-1. Apakah ada data relevan di CV
-2. Apakah ada data relevan di JD
+1. **Jawab Pertanyaan**
+   Menghasilkan respons QnA-style. Output boleh berupa jawaban langsung, reasoning singkat, trade-off, klarifikasi aman, atau next step yang relevan.
 
-Catatan: 
-Bisa saja masih ada ketidaksempurnaan dari metode CV dan JD pada MVP eksisting, bukan karena datanya tidak ada, kalau tidak ada ya mau gimana lagi.
-1. Untuk CV, harus jelas pengalaman di masing-masing perusahaan sebelumnya, range tanggal (berapa lama), posisinya sebagai apa, project yang dikerjakan apa aja. Selain itu, harus di list juga kuliahnya dimana, jurusan apa, pengalaman organisasi dan posisinya apa. Kalau ada, pernah magang dimana, berapa lama, apa tanggung jawab utamanya
-2. Job Description (JD) seminimalnya adalah nama perusahaan, posisi yang dilamar sebagai apa, tanggung jawab utamanya apa, kalau ada list juga nice to have nya yang disebutkan
-Data relevan yang sudah diambil kemudian ditahan dulu, hingga kemudian dimanfaatkan pada saat kandidat klik salah satu tombol
+2. **Tanggapi**
+   Menghasilkan respons Convo-style. Output harus natural dan siap diucapkan, biasanya berisi acknowledge, useful angle, dan optional next step.
 
-Kandidat klik “Bantu Jawab”
+3. **Pertanyaan Follow-up**
+   Menghasilkan pertanyaan balik yang relevan.
 
-Output MVP:
-1. Halo kak, saya Donny. 
-2. Background saya fokus di data dan AI. 
-3. Sebelumnya saya bekerja di PT INALUM sebagai data scientist, tugas saya adalah membuat model prediksi harga Alumunium yang akan digunakan untuk mempermudah pengambilan Keputusan tim marketing INALUM.
-4.  Selain itu, saya juga pernah menjadi Data Scientsit RS Bundamedik, tugas saya adalah membuat aplikasi Speech to Text untuk membantu dokter dalam proses Anamnesis.
+4. **Jelaskan Maksudnya**
+   Menjelaskan maksud ucapan lawan bicara agar user memahami konteks.
 
-Catatan:
-1.  Jawaban ini dibuat dalam bentuk points
-2. Jawaban ini dibuat berdasarkan konteks dari CV (mayoritas) dan JD
-3. Data JD yang digunakan untuk perkenalan harus hati-hati, jangan terlalu niche focus di perkenalan, cukup tau aja di JD role yang diminta itu apa, misalkan Data Scientist, dah cukup itu aja yang dipakai buat perkenalan, gak perlu sampai fokus kedalam detail JD hingga nice to have nya
+5. **Keyword chips**
+   Menjelaskan topik konkret yang muncul dari transcript terbaru.
 
-## Adegan 4 (pertanyaan teknis)
-Interviewer:
-“Oke mas Donny, sekarang aku mau nanya. Kalau ada tabel transaksi e-commerce, gimana cara mencari top 5 customer dengan total pembelian terbesar bulan lalu?”
+6. **Ask**
+   Bantuan bebas berdasarkan instruksi pendek dari user.
 
-Behavior MVP:
-AI dapat menilai, pertanyaan ini tidak membutuhkan konteks CV dan JD, jadi tidak ada pengambilan data.
+## Prinsip Umum
 
-Jadi AI hanya akan memahami intent pertanyaan dan memberikan respon terbaik untuk digunakan kandidat tergantung tombol apa yang di klik kandidat.
+- Orviko tidak menjawab otomatis tanpa trigger user.
+- User memilih mode lewat tombol, bukan classifier AI yang menebak diam-diam.
+- `Jawab Pertanyaan` wajib memakai QnA mode walaupun transcript ambigu.
+- `Tanggapi` wajib memakai Convo mode walaupun transcript mengandung tanda tanya.
+- Output harus singkat, natural, dan siap diucapkan saat meeting.
+- Jangan mengarang data. Jika data tidak tersedia, beri respons aman.
+- Jangan bias ke use case, relasi bisnis, atau domain tertentu kecuali runtime data memang menyebutnya.
 
-Kandidat klik “Bantu Jawab”
+## Contoh QnA Mode
 
-Output MVP:
-1. Pertama saya filter transaksi bulan lalu menggunakan WHERE pada tanggal transaksi
-2. Setelah itu GROUP BY customer_id lalu SUM(amount)
-3. Kemudian ORDER BY total DESC dan LIMIT 5
+### Adegan 1: Pertanyaan Prioritas
 
-Catatan:
-Hampir semua pertanyaan teknis, baik itu terkait coding, manajemen inventori, supply chain, sales, konten kreasi, dll biasanya gak perlu ambil data dari CV dan JD, cukup AI berikan jawaban terbaiknya aja yang sesuai.
+Lawan bicara:
 
-## Adegan 5 (Behavioral + Technical Combination)
-Interviewer:
-“Ceritakan project paling sulit.”
+```txt
+Menurut kamu bagian mana yang harus kita prioritaskan minggu ini?
+```
 
-Behavior MVP:
-Ini akan tricky, karena informasi terkait “mana yang paling susah” tidak ada di CV (di CV ada pengalamannya tapi tidak ada yang menyebutkan yang paling sulit mana). Jadi best practice kandidat adalah menjawabnya sendiri tanpa bantuan MVP.
+User klik:
 
-Tapi jika kandidat kebingungan, karena misal, CV yang dia buat itu fake, kandidat bisa meminta bantuan MVP dengan klik “Bantu Jawab” (best option) atau “Jelaskan Makdusnya”.
+```txt
+Jawab Pertanyaan
+```
 
-AI akan mengambil data dari CV lalu menilainya, kemdian AI akan membuatkan cerita masuk akal. Dalam cerita ini harus jelas di Perusahaan apa, project nya apa, dan secara spesifik apa yang bikin susah/blocker nya.
+Output yang baik:
 
-Tidak boleh hanya menyebutkan bagian dari proses secara general yang sulit seperti: “Salah satu tantangan terbesar saya adalah data yang sangat kotor dan inconsistent antar source. Saya harus membuat pipeline cleaning dan validasi sebelum modeling. Setelah data stabil, performa model meningkat cukup signifikan.”
-Harus personalized jawabannya.
+1. Saya akan prioritaskan bagian yang paling dekat dengan risiko keputusan.
+2. Kalau ada dependency yang menahan tim lain, itu perlu dinaikkan dulu.
+3. Setelah itu baru kita urutkan pekerjaan berdasarkan dampak dan effort.
+4. Jadi fokus minggu ini bukan menyelesaikan semuanya, tapi mengunci hal yang paling menentukan progress.
 
-Ouput MVP:
-1. Pengalaman paling sulit saya adalah di INALUM
-2. Pada dasarnya, data financial timeseries itu tidak siap langsung dipakai karena tipe datanya itu random walk
-3. Jadi saya membutuhkan dataset exogenous
-4. Masalahnya disini adalah saya juga harus memahami ilmu ekonomi domain supaya bisa menentukan dataset exogenous apa yang sebaiknya digunakan
-5. Solusi saya adalah menggunakan dataset inventori Alumunium karena akan berpengaruh langsung terhadap supply Alumunium tersebut
+Kenapa baik:
 
-Catatan:
-Jangan cuman berikan masalahnya, jelaskan juga solusinya apa
+- menjawab pertanyaan langsung
+- memberi reasoning singkat
+- tidak mengarang status project spesifik
 
-## Adegan 6 (Penutup)
-Interviewer:
-“Ada pertanyaan?”
+### Adegan 2: Implied Question Tanpa Tanda Tanya
 
-Behavior AI:
-AI akan mengambil data dari JD, yaitu job description dan terutama PENTING jika ada adalah nice to have nya. Lalu dikaitkan CV tapi jangan dipaksakan, INI HARUS HATI-HATI kalau dipaksakan akan terlihat bohongnya.
+Lawan bicara:
 
-Kandidat klik “Pertanyaan Follow-up”
+```txt
+Aku masih belum yakin pendekatan ini cukup aman untuk timeline sekarang.
+```
 
-Ouput MVP:
-Saya melihat pada poin nice to have job posting, bagus jika ada pengalaman di Rumah Sakit. Kebetulan saya punya pengalaman sebagai Data Scietist Bundamedik. Kalau boleh tau, produk apa yang sedang digarap untuk rumah sakit ya?
+User klik:
 
-# Contoh Bantuan Keywords
-Keywords diambil dari kata/topik penting yang disebut interviewer, bukan dari “jenis pertanyaan”
+```txt
+Jawab Pertanyaan
+```
 
-## Contoh 1
-Interviewer:
-“Saya dulu handle campaign TikTok Ads untuk produk skincare.”
+Output yang baik:
 
-Keywords: campaign, TikTok Ads, skincare
+1. Kekhawatirannya valid, jadi saya akan pisahkan dulu antara scope wajib dan scope tambahan.
+2. Untuk timeline sekarang, opsi paling aman adalah mengunci versi minimal yang tetap memberi value.
+3. Bagian yang belum kritikal bisa kita siapkan sebagai follow-up supaya tidak mengganggu delivery utama.
+4. Dengan begitu risikonya lebih terkendali tanpa menghentikan progress.
 
-## Contoh 2
-Interviewer:
-“Biasanya saya lihat dulu CAC dan conversion rate sebelum scale budget.”
+Kenapa baik:
 
-Keywords: CAC, conversion rate, scale budget
+- memperlakukan statement sebagai permintaan pendapat karena user memilih QnA
+- memberi jawaban keputusan/trade-off
+- tetap aman tanpa detail palsu
 
-## Contoh 3
-Interviewer:
-“Kalau konten organik, saya lebih fokus ke hook dan retention.”
+### Adegan 3: Pertanyaan Teknis Umum
 
-Keywords: konten organik, hook, retention
+Lawan bicara:
 
-## Contoh 4
-Interviewer:
-“Di perusahaan sebelumnya, masalah terbesar kami adalah leads banyak tapi kualitasnya rendah.”
+```txt
+Kenapa proses ini bisa lambat kalau jumlah request naik?
+```
 
-Keywords: leads, lead quality
+User klik:
 
-## Contoh 5
-Interviewer:
-“Saya pernah pegang campaign Ramadan, tapi ROAS-nya kurang bagus.”
+```txt
+Jawab Pertanyaan
+```
 
-Keywords: campaign Ramadan, ROAS
+Output yang baik:
+
+1. Biasanya bottleneck muncul di query, proses blocking, antrean job, atau resource yang tidak cukup.
+2. Saya akan cek dulu latency per endpoint, query paling berat, dan penggunaan CPU/memory.
+3. Kalau bottleneck-nya database, solusinya bisa indexing, query rewrite, atau caching.
+4. Kalau bottleneck-nya worker, kita perlu lihat concurrency dan queue depth.
+
+Kenapa baik:
+
+- menjawab secara teknis tetapi tetap general
+- tidak memaksakan profil user atau konteks yang tidak tersedia
+
+## Contoh Convo Mode
+
+### Adegan 4: Concern Timeline
+
+Lawan bicara:
+
+```txt
+Timeline minggu ini kelihatannya cukup padat, dan tim juga sedang banyak parallel work.
+```
+
+User klik:
+
+```txt
+Tanggapi
+```
+
+Output yang baik:
+
+1. Iya, concern itu masuk akal.
+2. Supaya tetap realistis, kita bisa pisahkan dulu mana yang benar-benar harus selesai minggu ini dan mana yang bisa menjadi follow-up.
+3. Dengan begitu tim tetap punya arah yang jelas tanpa memaksakan semua hal selesai sekaligus.
+
+Kenapa baik:
+
+- mengakui concern
+- memberi angle praktis
+- tidak berubah menjadi jawaban QnA kaku
+- tidak default bertanya balik
+
+### Adegan 5: Feedback Umum
+
+Lawan bicara:
+
+```txt
+Versi terakhirnya sudah jauh lebih jelas, cuma masih ada beberapa bagian yang terasa terlalu ramai.
+```
+
+User klik:
+
+```txt
+Tanggapi
+```
+
+Output yang baik:
+
+1. Noted, berarti arahnya sudah membaik tapi kita masih perlu sederhanakan bagian yang terlalu padat.
+2. Saya akan fokus merapikan elemen yang mengganggu scanning dulu, lalu menjaga bagian yang sudah membantu clarity tetap dipertahankan.
+3. Jadi revisinya tidak perlu mengubah semuanya, cukup mengurangi noise di area yang paling terasa ramai.
+
+Kenapa baik:
+
+- respons natural terhadap feedback
+- siap diucapkan
+- tidak menjadi artikel panjang
+
+### Adegan 6: Update Urgensi
+
+Lawan bicara:
+
+```txt
+Kita baru dapat update, deadline-nya dimajukan dua hari.
+```
+
+User klik:
+
+```txt
+Tanggapi
+```
+
+Output yang baik:
+
+1. Oke, berarti kita perlu langsung menyesuaikan scope dengan deadline baru.
+2. Saya akan lihat dulu item yang paling kritikal untuk tetap dipertahankan, lalu turunkan prioritas bagian yang tidak menghambat keputusan utama.
+3. Dengan deadline lebih pendek, fokusnya harus ke versi yang paling aman untuk dikirim, bukan versi yang paling lengkap.
+
+Kenapa baik:
+
+- menanggapi update
+- memberi next step
+- tidak bertanya balik secara default
+
+## Contoh Tombol Lain
+
+### Pertanyaan Follow-up
+
+Lawan bicara:
+
+```txt
+Ada beberapa hal yang masih belum align antara kebutuhan user dan batasan teknis.
+```
+
+User klik:
+
+```txt
+Pertanyaan Follow-up
+```
+
+Output yang baik:
+
+1. Bagian mana yang paling besar gap-nya saat ini?
+2. Apakah gap itu lebih banyak karena scope, timeline, atau constraint teknis?
+3. Keputusan apa yang paling perlu kita kunci supaya alignment-nya lebih jelas?
+
+### Jelaskan Maksudnya
+
+Lawan bicara:
+
+```txt
+Kita perlu memastikan keputusan ini tidak cuma optimal secara lokal.
+```
+
+User klik:
+
+```txt
+Jelaskan Maksudnya
+```
+
+Output yang baik:
+
+1. Maksudnya, keputusan ini jangan hanya terlihat bagus untuk satu bagian kecil.
+2. Perlu dicek juga dampaknya ke proses, tim, atau sistem lain yang terkait.
+3. Intinya mereka ingin keputusan yang lebih menyeluruh, bukan optimasi yang menimbulkan masalah di tempat lain.
+
+## Anti-Pattern
+
+Untuk `Tanggapi`, hindari:
+
+- membuka dengan “Berikut adalah...”
+- membuat list terlalu formal seperti artikel
+- default memberi pertanyaan balik
+- berubah menjadi jawaban QnA meskipun user memilih Convo
+- memakai framing use case, relasi bisnis, atau domain tertentu jika tidak ada di transcript
+
+Untuk `Jawab Pertanyaan`, hindari:
+
+- meta-intro seperti “Berikut adalah jawaban...”
+- jawaban yang terlalu panjang
+- mengarang angka, status, atau fakta eksternal
+- memaksa user profile ketika konteksnya tidak relevan
+
+## Search
+
+Search adalah capability terpisah dan tidak menjadi tombol utama di current build. Jika fakta eksternal/current facts dibutuhkan tetapi tool search belum tersedia di flow tersebut, output harus aman dan tidak mengarang.
+
+## Acceptance Ringkas
+
+- Klik `Jawab Pertanyaan` selalu menghasilkan QnA-style.
+- Klik `Tanggapi` selalu menghasilkan Convo-style.
+- `Tanggapi` tidak default menjadi pertanyaan follow-up.
+- `Jawab Pertanyaan` tidak memakai meta-intro.
+- Keyword chips hanya muncul dari konteks meeting terbaru yang accepted.
+- Output tetap general dan tidak bias domain.

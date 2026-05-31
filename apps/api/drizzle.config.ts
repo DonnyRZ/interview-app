@@ -5,7 +5,7 @@ export default defineConfig({
   out: "./migrations",
   dialect: "postgresql",
   dbCredentials: {
-    url: process.env.DATABASE_URL || "postgres://postgres:postgres@127.0.0.1:5432/interview_app"
+    url: process.env.DATABASE_URL || "postgres://postgres:postgres@127.0.0.1:5432/orviko_dev"
   },
   strict: true,
   verbose: true

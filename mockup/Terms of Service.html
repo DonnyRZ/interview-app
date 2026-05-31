@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Terms of Service - Orviko</title>
+  <style>
+    :root {
+      --text: #12305e;
+      --muted: #4b6388;
+      --muted-soft: #6f83a5;
+      --line: rgba(73, 116, 186, 0.16);
+      --blue: #2d74ff;
+      --bg-soft: #f6faff;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background: #ffffff;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .container {
+      width: min(1060px, calc(100% - 40px));
+      margin: 0 auto;
+    }
+
+    .site-header {
+      padding: 18px 0 0;
+      background: #ffffff;
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+      color: #1d4481;
+      font-size: clamp(1.22rem, 1.4vw, 1.62rem);
+      line-height: 1;
+      font-weight: 780;
+      letter-spacing: -0.035em;
+    }
+
+    .brand-mark {
+      width: clamp(34px, 4vw, 42px);
+      height: auto;
+      display: block;
+      flex: 0 0 auto;
+    }
+
+    .nav-link {
+      color: #3f5b82;
+      font-size: 0.94rem;
+      font-weight: 680;
+    }
+
+    .hero {
+      padding: 76px 0 44px;
+      background: #ffffff;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .eyebrow {
+      margin: 0 0 18px;
+      color: var(--blue);
+      font-size: 0.86rem;
+      font-weight: 820;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    h1 {
+      max-width: 760px;
+      margin: 0;
+      color: #173c74;
+      font-size: clamp(2.7rem, 6vw, 5.4rem);
+      line-height: 0.98;
+      font-weight: 760;
+      letter-spacing: -0.065em;
+    }
+
+    .hero-sub {
+      max-width: 760px;
+      margin: 22px 0 0;
+      color: #49658c;
+      font-size: clamp(1rem, 1.8vw, 1.16rem);
+      line-height: 1.65;
+      font-weight: 560;
+    }
+
+    .meta {
+      margin-top: 22px;
+      color: var(--muted-soft);
+      font-size: 0.94rem;
+      line-height: 1.55;
+      font-weight: 600;
+    }
+
+    .legal-layout {
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr);
+      gap: 44px;
+      align-items: start;
+      padding: 48px 0 92px;
+    }
+
+    .toc {
+      position: sticky;
+      top: 18px;
+      padding: 6px 0;
+      border-right: 1px solid var(--line);
+    }
+
+    .toc strong {
+      display: block;
+      margin-bottom: 12px;
+      color: #173c74;
+      font-size: 0.95rem;
+    }
+
+    .toc a {
+      display: block;
+      padding: 7px 20px 7px 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.35;
+      font-weight: 620;
+    }
+
+    .toc a:hover {
+      color: var(--blue);
+    }
+
+    .legal-content {
+      max-width: 760px;
+    }
+
+    .legal-section {
+      padding: 0 0 34px;
+      border-bottom: 1px solid var(--line);
+      scroll-margin-top: 20px;
+    }
+
+    .legal-section + .legal-section {
+      padding-top: 34px;
+    }
+
+    .legal-section h2 {
+      margin: 0 0 16px;
+      color: #173c74;
+      font-size: clamp(1.45rem, 2.4vw, 2rem);
+      line-height: 1.12;
+      font-weight: 760;
+      letter-spacing: -0.04em;
+    }
+
+    .legal-section p,
+    .legal-section li {
+      color: var(--muted);
+      font-size: 1rem;
+      line-height: 1.72;
+      font-weight: 520;
+    }
+
+    .legal-section p {
+      margin: 0 0 14px;
+    }
+
+    .legal-section p:last-child,
+    .legal-section ul:last-child {
+      margin-bottom: 0;
+    }
+
+    .legal-section ul {
+      margin: 0 0 14px;
+      padding-left: 22px;
+    }
+
+    .legal-section li + li {
+      margin-top: 8px;
+    }
+
+    .site-footer {
+      padding: 28px 0 34px;
+      border-top: 1px solid var(--line);
+      background: var(--bg-soft);
+    }
+
+    .footer-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      color: var(--muted-soft);
+      font-size: 0.92rem;
+      font-weight: 600;
+    }
+
+    @media (max-width: 860px) {
+      .container {
+        width: min(100% - 28px, 1060px);
+      }
+
+      .nav {
+        padding-bottom: 10px;
+      }
+
+      .brand span {
+        display: none;
+      }
+
+      .hero {
+        padding: 56px 0 34px;
+      }
+
+      .legal-layout {
+        grid-template-columns: 1fr;
+        gap: 28px;
+        padding: 34px 0 72px;
+      }
+
+      .toc {
+        position: static;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 22px;
+      }
+
+      .toc a {
+        padding-right: 0;
+      }
+
+      .footer-inner {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="site-header">
+      <div class="container">
+        <nav class="nav" aria-label="Main navigation">
+          <a class="brand" href="./landing-mockup.html">
+            <img class="brand-mark" src="./assets/Logo-2.png" alt="Orviko logo" />
+            <span>Orviko</span>
+          </a>
+          <a class="nav-link" href="./pricing_page.html">Lihat Paket</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="container">
+          <p class="eyebrow">Terms of Service</p>
+          <h1>Ketentuan Layanan Orviko</h1>
+          <p class="hero-sub">
+            Ketentuan ini mengatur akses dan penggunaan Orviko, termasuk aplikasi desktop, fitur AI, paket berlangganan, dan layanan terkait untuk user di Indonesia.
+          </p>
+          <p class="meta">Terakhir diperbarui: 30 Mei 2026</p>
+        </div>
+      </section>
+
+      <section class="container legal-layout">
+        <aside class="toc" aria-label="Daftar isi">
+          <strong>Daftar Isi</strong>
+          <a href="#penerimaan">1. Penerimaan Ketentuan</a>
+          <a href="#layanan">2. Layanan Orviko</a>
+          <a href="#akun">3. Akun dan Akses</a>
+          <a href="#data">4. Data dan Privasi</a>
+          <a href="#ai">5. Fitur AI dan Output</a>
+          <a href="#penggunaan">6. Penggunaan yang Dilarang</a>
+          <a href="#pembayaran">7. Paket dan Pembayaran</a>
+          <a href="#kekayaan-intelektual">8. Hak Kekayaan Intelektual</a>
+          <a href="#pengakhiran">9. Pengakhiran</a>
+          <a href="#tanggung-jawab">10. Batasan Tanggung Jawab</a>
+          <a href="#hukum">11. Hukum yang Berlaku</a>
+          <a href="#kontak">12. Kontak</a>
+        </aside>
+
+        <div class="legal-content">
+          <section class="legal-section" id="penerimaan">
+            <h2>1. Penerimaan Ketentuan</h2>
+            <p>
+              Dengan membuat akun, membeli paket, mengunduh aplikasi, atau menggunakan Orviko, kamu menyatakan telah membaca, memahami, dan menyetujui Ketentuan ini.
+            </p>
+            <p>
+              Jika kamu menggunakan Orviko atas nama perusahaan atau organisasi, kamu menyatakan bahwa kamu berwenang untuk menyetujui Ketentuan ini atas nama pihak tersebut.
+            </p>
+          </section>
+
+          <section class="legal-section" id="layanan">
+            <h2>2. Layanan Orviko</h2>
+            <p>
+              Orviko adalah desktop AI assistant untuk membantu user saat online meeting. Orviko dapat memproses konteks yang kamu berikan, seperti profil referensi, brief meeting, dan potongan percakapan terbaru, untuk menampilkan bantuan yang ringkas dan relevan.
+            </p>
+            <ul>
+              <li>Orviko tidak mengikuti meeting, mengirim pesan, atau berbicara otomatis atas nama user.</li>
+              <li>User tetap bertanggung jawab penuh atas keputusan, ucapan, dan tindakan yang diambil selama meeting.</li>
+              <li>Fitur tertentu dapat bergantung pada platform pihak ketiga seperti Zoom, Google Meet, Microsoft Teams, sistem operasi, penyedia model AI, dan layanan pembayaran.</li>
+            </ul>
+          </section>
+
+          <section class="legal-section" id="akun">
+            <h2>3. Akun dan Akses</h2>
+            <p>
+              Kamu bertanggung jawab menjaga keamanan akun, perangkat, kredensial login, dan akses pembayaran yang digunakan untuk Orviko. Semua aktivitas yang terjadi melalui akun kamu dianggap sebagai aktivitas kamu, kecuali terbukti terjadi penyalahgunaan yang telah kamu laporkan kepada Orviko.
+            </p>
+            <p>
+              Orviko dapat menolak, membatasi, menangguhkan, atau mengakhiri akses apabila terdapat indikasi pelanggaran Ketentuan, penyalahgunaan layanan, risiko keamanan, pembayaran bermasalah, atau kewajiban hukum.
+            </p>
+          </section>
+
+          <section class="legal-section" id="data">
+            <h2>4. Data dan Privasi</h2>
+            <p>
+              Kamu tetap memiliki hak atas data yang kamu unggah atau masukkan ke Orviko, termasuk profil referensi, brief meeting, input manual, dan konteks percakapan. Kamu memberikan Orviko hak terbatas untuk memproses data tersebut sejauh diperlukan untuk menyediakan, menjaga keamanan, memperbaiki, dan mengembangkan layanan.
+            </p>
+            <p>
+              Penggunaan data pribadi tunduk pada Kebijakan Privasi Orviko dan peraturan perundang-undangan yang berlaku di Indonesia, termasuk ketentuan perlindungan data pribadi. Kamu bertanggung jawab memastikan bahwa data yang kamu masukkan ke Orviko dapat diproses secara sah.
+            </p>
+            <p>
+              Jika kamu menggunakan Orviko dalam meeting yang melibatkan orang lain, kamu bertanggung jawab untuk mematuhi aturan internal, kewajiban kerahasiaan, serta persetujuan atau pemberitahuan yang diwajibkan oleh hukum dan kebijakan organisasi.
+            </p>
+          </section>
+
+          <section class="legal-section" id="ai">
+            <h2>5. Fitur AI dan Output</h2>
+            <p>
+              Orviko menggunakan teknologi AI untuk menghasilkan saran, ringkasan, penjelasan, pertanyaan follow-up, dan bantuan respons. Output AI bersifat probabilistik dan dapat tidak akurat, tidak lengkap, tidak sesuai konteks, atau tidak cocok untuk situasi tertentu.
+            </p>
+            <ul>
+              <li>Output Orviko bukan nasihat hukum, medis, keuangan, pajak, keamanan, atau profesional lainnya.</li>
+              <li>Kamu harus meninjau dan menggunakan penilaian sendiri sebelum mengandalkan atau menyampaikan output.</li>
+              <li>Orviko dapat menolak atau membatasi permintaan tertentu untuk alasan keamanan, hukum, kebijakan, atau kualitas layanan.</li>
+            </ul>
+          </section>
+
+          <section class="legal-section" id="penggunaan">
+            <h2>6. Penggunaan yang Dilarang</h2>
+            <p>Kamu setuju untuk tidak menggunakan Orviko untuk:</p>
+            <ul>
+              <li>melanggar hukum, hak pihak ketiga, kewajiban kerahasiaan, atau kebijakan platform meeting yang kamu gunakan;</li>
+              <li>menipu, memalsukan identitas, atau menyamarkan keterlibatan AI dengan cara yang melanggar hukum atau kebijakan organisasi;</li>
+              <li>mengunggah data yang tidak berhak kamu proses, termasuk data rahasia, data pribadi sensitif, atau informasi milik pihak ketiga tanpa dasar yang sah;</li>
+              <li>mencoba membongkar, menyalin, melakukan reverse engineering, scraping, atau mengganggu sistem Orviko;</li>
+              <li>menggunakan layanan untuk membuat konten berbahaya, mengancam, melecehkan, diskriminatif, melanggar hak cipta, atau melanggar hukum.</li>
+            </ul>
+          </section>
+
+          <section class="legal-section" id="pembayaran">
+            <h2>7. Paket dan Pembayaran</h2>
+            <p>
+              Orviko menyediakan paket berbayar bulanan sebagaimana tercantum pada halaman harga atau checkout. Paket yang tersedia saat ini adalah Mini, Starter, dan Pro. Harga, fitur, kuota sesi, dan batas penggunaan dapat berubah dari waktu ke waktu.
+            </p>
+            <p>
+              Pembayaran diproses melalui penyedia pembayaran pihak ketiga yang tersedia di Indonesia. Kecuali diwajibkan oleh hukum atau dinyatakan lain pada checkout, biaya yang telah dibayarkan bersifat tidak dapat dikembalikan.
+            </p>
+            <p>
+              Jika paket diperpanjang otomatis, Orviko akan menampilkan informasi perpanjangan pada checkout atau halaman akun. Kamu dapat membatalkan perpanjangan sesuai mekanisme yang disediakan sebelum periode berikutnya dimulai.
+            </p>
+          </section>
+
+          <section class="legal-section" id="kekayaan-intelektual">
+            <h2>8. Hak Kekayaan Intelektual</h2>
+            <p>
+              Orviko, termasuk aplikasi, antarmuka, desain, merek, logo, dokumentasi, sistem, dan teknologi yang mendasarinya, dimiliki oleh Orviko atau pemberi lisensinya. Ketentuan ini tidak memberikan hak kepemilikan apa pun kepada kamu selain hak terbatas untuk menggunakan layanan sesuai Ketentuan.
+            </p>
+            <p>
+              Kamu tetap memiliki konten dan data yang kamu masukkan ke Orviko. Dengan mengirim masukan, ide, atau saran, kamu mengizinkan Orviko untuk menggunakannya tanpa kewajiban kompensasi, selama tidak mengungkapkan data rahasia atau data pribadi kamu secara tidak sah.
+            </p>
+          </section>
+
+          <section class="legal-section" id="pengakhiran">
+            <h2>9. Pengakhiran</h2>
+            <p>
+              Kamu dapat berhenti menggunakan Orviko kapan saja. Jika kamu memiliki paket berbayar, penghentian atau pembatalan berlaku sesuai ketentuan paket dan siklus pembayaran yang berlaku.
+            </p>
+            <p>
+              Orviko dapat menangguhkan atau mengakhiri akses jika kamu melanggar Ketentuan ini, menimbulkan risiko terhadap sistem atau user lain, tidak membayar tagihan, atau jika diwajibkan oleh hukum.
+            </p>
+          </section>
+
+          <section class="legal-section" id="tanggung-jawab">
+            <h2>10. Batasan Tanggung Jawab</h2>
+            <p>
+              Orviko disediakan sebagaimana adanya dan sebagaimana tersedia. Sejauh diizinkan oleh hukum Indonesia, Orviko tidak menjamin bahwa layanan akan selalu tersedia, bebas gangguan, bebas kesalahan, atau selalu menghasilkan output yang akurat.
+            </p>
+            <p>
+              Sejauh diizinkan oleh hukum, Orviko tidak bertanggung jawab atas kerugian tidak langsung, kehilangan keuntungan, kehilangan data, gangguan bisnis, keputusan yang kamu ambil berdasarkan output, atau konsekuensi dari penggunaan platform pihak ketiga.
+            </p>
+          </section>
+
+          <section class="legal-section" id="hukum">
+            <h2>11. Hukum yang Berlaku dan Penyelesaian Sengketa</h2>
+            <p>
+              Ketentuan ini diatur oleh hukum Republik Indonesia. Para pihak akan terlebih dahulu berupaya menyelesaikan sengketa melalui musyawarah dalam waktu 30 hari kalender sejak salah satu pihak menyampaikan pemberitahuan tertulis.
+            </p>
+            <p>
+              Jika tidak tercapai penyelesaian, sengketa akan diselesaikan melalui forum yang ditentukan oleh entitas hukum Orviko dalam perjanjian final, checkout, atau kebijakan resmi yang berlaku.
+            </p>
+          </section>
+
+          <section class="legal-section" id="kontak">
+            <h2>12. Kontak</h2>
+            <p>
+              Untuk pertanyaan terkait Ketentuan ini, pembayaran, privasi, atau permintaan dukungan, hubungi Orviko melalui kanal resmi berikut:
+            </p>
+            <ul>
+              <li>Email dukungan: support@orviko.id</li>
+              <li>Email legal/privacy: legal@orviko.id</li>
+              <li>Alamat entitas hukum: akan dilengkapi pada versi final</li>
+            </ul>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <span>2026 Orviko</span>
+        <span>Terms of Service untuk Indonesia.</span>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>

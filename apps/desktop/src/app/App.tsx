@@ -1,4 +1,4 @@
-import { CvDashboard } from "../features/cv/CvDashboard.js";
+import { ProfileDocumentDashboard } from "../features/profile-documents/ProfileDocumentDashboard.js";
 import { InterviewOverlay } from "../features/overlay/InterviewOverlay.js";
 
 export function App() {
@@ -6,5 +6,5 @@ export function App() {
     return <InterviewOverlay />;
   }
 
-  return <CvDashboard />;
+  return <ProfileDocumentDashboard />;
 }

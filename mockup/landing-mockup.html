@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Orviko Landing Mockup</title>
   <style>
-    :root {
+:root {
       --bg: #ffffff;
       --bg-soft: #f3f8ff;
       --line: rgba(73, 116, 186, 0.16);
@@ -31,9 +31,7 @@
       margin: 0;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       color: var(--text);
-      background:
-        radial-gradient(circle at top left, rgba(114, 187, 255, 0.20), transparent 26%),
-        linear-gradient(180deg, #f5fbff 0%, #ffffff 46%, #ffffff 100%);
+      background: #ffffff;
     }
 
     a {
@@ -49,6 +47,7 @@
     .page {
       min-height: 100vh;
       overflow-x: hidden;
+      background: #ffffff;
     }
 
     .hero-shell {
@@ -622,7 +621,7 @@
 
     .demo-actions {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 8px;
     }
 
@@ -695,6 +694,235 @@
     @keyframes demo-pulse-wave {
       0%, 100% { opacity: 0.28; transform: translateY(0); }
       50% { opacity: 1; transform: translateY(-2px); }
+    }
+
+    .pressure-section {
+      padding: 54px 0 70px;
+      background:
+        linear-gradient(180deg, #ffffff 0%, #f8fbff 50%, #ffffff 100%);
+    }
+
+    .pressure-intro {
+      max-width: 850px;
+      margin: 0 auto 34px;
+      text-align: center;
+    }
+
+    .pressure-intro .section-heading {
+      margin-bottom: 18px;
+    }
+
+    .pressure-intro p {
+      max-width: 650px;
+      margin: 0 auto;
+      color: #49658c;
+      font-size: clamp(1rem, 1.7vw, 1.18rem);
+      line-height: 1.65;
+      font-weight: 580;
+    }
+
+    .pressure-stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      max-width: 960px;
+      margin: 0 auto;
+      border-block: 1px solid rgba(73, 116, 186, 0.16);
+      background: rgba(255, 255, 255, 0.62);
+    }
+
+    .pressure-stat {
+      display: grid;
+      align-content: start;
+      gap: 10px;
+      min-height: 128px;
+      padding: 28px 28px 26px;
+      text-align: center;
+    }
+
+    .pressure-stat + .pressure-stat {
+      border-left: 1px solid rgba(73, 116, 186, 0.16);
+    }
+
+    .pressure-stat strong {
+      color: #173c74;
+      font-size: clamp(1.9rem, 3.5vw, 3rem);
+      line-height: 1;
+      font-weight: 820;
+      letter-spacing: -0.045em;
+    }
+
+    .pressure-stat span {
+      color: #587097;
+      font-size: 0.98rem;
+      line-height: 1.45;
+      font-weight: 620;
+    }
+
+    .faq-section {
+      padding: 72px 0 96px;
+      background: #ffffff;
+    }
+
+    .faq-heading {
+      max-width: 980px;
+      margin: 0 0 52px;
+      color: #071221;
+      font-size: clamp(2.5rem, 4.4vw, 4.2rem);
+      line-height: 1.02;
+      font-weight: 720;
+      letter-spacing: -0.055em;
+    }
+
+    .faq-list {
+      display: grid;
+      border-top: 1px solid rgba(15, 23, 42, 0.12);
+    }
+
+    .faq-item {
+      border-bottom: 1px solid rgba(15, 23, 42, 0.12);
+    }
+
+    .faq-item summary {
+      list-style: none;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 28px;
+      align-items: center;
+      gap: 24px;
+      min-height: 86px;
+      color: #071221;
+      font-size: clamp(1.25rem, 2vw, 1.65rem);
+      line-height: 1.25;
+      font-weight: 720;
+      letter-spacing: -0.035em;
+      cursor: pointer;
+    }
+
+    .faq-item summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .faq-item summary::after {
+      content: "";
+      width: 13px;
+      height: 13px;
+      border-right: 3px solid #707783;
+      border-bottom: 3px solid #707783;
+      transform: translateY(-3px) rotate(45deg);
+      transition: transform 0.2s ease;
+      justify-self: center;
+    }
+
+    .faq-item[open] summary::after {
+      transform: translateY(3px) rotate(225deg);
+    }
+
+    .faq-item p {
+      max-width: 860px;
+      margin: -4px 56px 28px 0;
+      color: #53657d;
+      font-size: 1.05rem;
+      line-height: 1.65;
+      font-weight: 520;
+    }
+
+    .final-cta-section {
+      padding: 24px 0 80px;
+      background:
+        radial-gradient(circle at 50% 10%, rgba(45, 116, 255, 0.12), transparent 36%),
+        linear-gradient(180deg, #ffffff 0%, #f4f9ff 100%);
+    }
+
+    .final-cta-inner {
+      max-width: 860px;
+      margin: 0 auto;
+      display: grid;
+      justify-items: center;
+      text-align: center;
+      padding: 64px 28px 68px;
+    }
+
+    .final-cta-kicker {
+      margin: 0 0 16px;
+      color: #2d74ff;
+      font-size: 0.86rem;
+      font-weight: 820;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .final-cta-inner h2 {
+      max-width: 720px;
+      margin: 0;
+      color: #173c74;
+      font-size: clamp(2.4rem, 5vw, 4.8rem);
+      line-height: 1.02;
+      font-weight: 760;
+      letter-spacing: -0.055em;
+    }
+
+    .final-cta-inner p:not(.final-cta-kicker) {
+      max-width: 620px;
+      margin: 20px 0 30px;
+      color: #49658c;
+      font-size: clamp(1rem, 1.8vw, 1.18rem);
+      line-height: 1.65;
+      font-weight: 580;
+    }
+
+    .site-footer {
+      padding: 34px 0;
+      background: #f4f9ff;
+      border-top: 1px solid rgba(73, 116, 186, 0.14);
+    }
+
+    .footer-inner {
+      display: grid;
+      grid-template-columns: auto minmax(180px, 1fr) auto auto;
+      align-items: center;
+      gap: 22px;
+      color: #5a7096;
+      font-size: 0.92rem;
+      font-weight: 600;
+    }
+
+    .footer-brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      color: #173c74;
+      font-size: 1.2rem;
+      line-height: 1;
+      font-weight: 820;
+      letter-spacing: -0.03em;
+    }
+
+    .footer-brand .brand-mark {
+      width: 34px;
+    }
+
+    .footer-inner p {
+      margin: 0;
+    }
+
+    .footer-links {
+      display: inline-flex;
+      align-items: center;
+      gap: 20px;
+      color: #3f5b82;
+    }
+
+    .footer-links a {
+      transition: opacity 0.2s ease;
+    }
+
+    .footer-links a:hover {
+      opacity: 0.72;
+    }
+
+    .footer-copy {
+      color: #6880a6;
+      white-space: nowrap;
     }
 
     .how-section {
@@ -954,76 +1182,111 @@
       font-weight: 800;
     }
 
-    .comic-section {
-      padding: 10px 0 92px;
-      background: #ffffff;
+    .compat-section {
+      padding: 0 0 108px;
+      background:
+        radial-gradient(circle at 50% 46%, rgba(47, 128, 255, 0.08), transparent 34%),
+        #ffffff;
     }
 
-    .comic-heading {
-      margin-bottom: 28px;
+    .compat-heading {
+      max-width: 820px;
+      margin-bottom: 36px;
+      font-size: clamp(2rem, 4vw, 3.8rem);
     }
 
-    .comic-frame {
+    .compat-showcase {
+      position: relative;
+      display: grid;
+      place-items: center;
+      min-height: 520px;
+    }
+
+    .compat-visual {
+      width: min(100%, 760px);
       overflow: hidden;
-      border-radius: 28px;
+      border-radius: 34px;
       border: 1px solid rgba(72, 119, 190, 0.16);
-      background: #f6faff;
+      background: #eef6ff;
       box-shadow:
-        0 24px 54px rgba(55, 109, 192, 0.12),
-        0 0 0 8px rgba(232, 242, 255, 0.60);
+        0 32px 80px rgba(31, 76, 143, 0.16),
+        0 0 0 8px rgba(232, 242, 255, 0.74);
     }
 
-    .comic-frame img {
+    .compat-visual img {
       display: block;
       width: 100%;
       height: auto;
     }
 
-    .compat-section {
-      padding: 0 0 96px;
-      background: #ffffff;
-    }
-
-    .compat-heading {
-      max-width: 760px;
-      margin-bottom: 30px;
-      font-size: clamp(2rem, 4vw, 3.7rem);
-    }
-
-    .compat-tools {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 18px;
-      align-items: stretch;
-    }
-
-    .compat-tool {
-      min-height: 118px;
+    .compat-pill {
+      position: absolute;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 18px;
-      padding: 24px;
-      border-radius: 26px;
-      background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(242, 248, 255, 0.96) 100%);
-      border: 1px solid rgba(72, 119, 190, 0.16);
+      gap: 14px;
+      min-height: 78px;
+      padding: 13px 22px 13px 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid rgba(74, 119, 188, 0.16);
       box-shadow:
-        0 20px 48px rgba(55, 109, 192, 0.10),
-        inset 0 1px 0 rgba(255, 255, 255, 0.80);
+        0 22px 52px rgba(31, 76, 143, 0.16),
+        inset 0 1px 0 rgba(255, 255, 255, 0.86);
+      backdrop-filter: blur(18px);
+      z-index: 2;
     }
 
-    .compat-tool img {
+    .compat-pill.zoom {
+      left: 22px;
+      top: 62px;
+    }
+
+    .compat-pill.meet {
+      right: 14px;
+      top: 132px;
+    }
+
+    .compat-pill.teams {
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%);
+    }
+
+    .compat-logo {
+      width: 52px;
+      height: 52px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 52px;
+    }
+
+    .compat-logo img {
       width: 48px;
       height: 48px;
       object-fit: contain;
       display: block;
-      filter: drop-shadow(0 8px 14px rgba(27, 68, 132, 0.12));
+      filter: drop-shadow(0 14px 18px rgba(27, 68, 132, 0.16));
     }
 
-    .compat-tool span {
-      color: #263857;
-      font-size: clamp(1.15rem, 2vw, 1.55rem);
+    .compat-logo.zoom img {
+      width: 44px;
+      height: 44px;
+    }
+
+    .compat-logo.meet img {
+      width: 54px;
+      height: 54px;
+    }
+
+    .compat-logo.teams img {
+      width: 62px;
+      height: 62px;
+    }
+
+    .compat-pill span:last-child {
+      color: #343949;
+      font-size: clamp(1.18rem, 2vw, 1.52rem);
       font-weight: 760;
       letter-spacing: -0.035em;
       white-space: nowrap;
@@ -1203,6 +1466,127 @@
         height: 34px;
       }
 
+      .pressure-section {
+        padding: 44px 0 58px;
+      }
+
+      .pressure-intro {
+        margin-bottom: 22px;
+      }
+
+      .pressure-intro .section-heading {
+        margin-bottom: 14px;
+      }
+
+      .pressure-intro p {
+        max-width: 340px;
+        font-size: 1rem;
+        line-height: 1.58;
+      }
+
+      .pressure-stats {
+        grid-template-columns: 1fr;
+        max-width: 360px;
+        border-block: 1px solid rgba(73, 116, 186, 0.14);
+      }
+
+      .pressure-stat {
+        min-height: 0;
+        padding: 22px 18px;
+      }
+
+      .pressure-stat + .pressure-stat {
+        border-left: 0;
+        border-top: 1px solid rgba(73, 116, 186, 0.14);
+      }
+
+      .pressure-stat strong {
+        font-size: 2.15rem;
+      }
+
+      .pressure-stat span {
+        max-width: 260px;
+        margin: 0 auto;
+      }
+
+      .faq-section {
+        padding: 52px 0 72px;
+      }
+
+      .faq-heading {
+        margin-bottom: 32px;
+        font-size: 2.55rem;
+        line-height: 1.04;
+        letter-spacing: -0.045em;
+      }
+
+      .faq-item summary {
+        grid-template-columns: minmax(0, 1fr) 24px;
+        min-height: 72px;
+        gap: 18px;
+        font-size: 1.24rem;
+        letter-spacing: -0.03em;
+      }
+
+      .faq-item summary::after {
+        width: 11px;
+        height: 11px;
+        border-right-width: 3px;
+        border-bottom-width: 3px;
+      }
+
+      .faq-item p {
+        margin: -2px 42px 22px 0;
+        font-size: 0.98rem;
+        line-height: 1.58;
+      }
+
+      .final-cta-section {
+        padding: 16px 0 56px;
+      }
+
+      .final-cta-inner {
+        padding: 46px 0 52px;
+      }
+
+      .final-cta-kicker {
+        margin-bottom: 14px;
+        font-size: 0.78rem;
+      }
+
+      .final-cta-inner h2 {
+        font-size: 2.55rem;
+        letter-spacing: -0.045em;
+      }
+
+      .final-cta-inner p:not(.final-cta-kicker) {
+        max-width: 340px;
+        margin: 18px 0 24px;
+        font-size: 1rem;
+        line-height: 1.58;
+      }
+
+      .final-cta-inner .btn {
+        width: 100%;
+      }
+
+      .site-footer {
+        padding: 28px 0 34px;
+      }
+
+      .footer-inner {
+        grid-template-columns: 1fr;
+        justify-items: center;
+        text-align: center;
+        gap: 16px;
+      }
+
+      .footer-links {
+        gap: 18px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+
       .how-section {
         padding: 52px 0 68px;
       }
@@ -1274,46 +1658,86 @@
         max-width: 100%;
       }
 
-      .comic-section {
-        padding: 0 0 68px;
-      }
-
-      .comic-frame {
-        border-radius: 22px;
-        box-shadow:
-          0 18px 42px rgba(55, 109, 192, 0.12),
-          0 0 0 6px rgba(232, 242, 255, 0.60);
-      }
-
       .compat-section {
         padding: 0 0 72px;
       }
 
       .compat-heading {
-        margin-bottom: 22px;
+        max-width: 340px;
+        margin-bottom: 18px;
+        font-size: 2.25rem;
+        line-height: 1.02;
       }
 
-      .compat-tools {
-        grid-template-columns: 1fr;
-        gap: 12px;
+      .compat-showcase {
+        min-height: auto;
+        display: grid;
+        position: relative;
+        margin-top: 24px;
       }
 
-      .compat-tool {
-        min-height: 86px;
-        justify-content: flex-start;
-        padding: 18px 20px;
+      .compat-visual {
+        width: 100%;
         border-radius: 22px;
       }
 
-      .compat-tool img {
-        width: 40px;
-        height: 40px;
+      .compat-pill {
+        position: absolute;
+        inset: auto;
+        width: max-content;
+        min-height: 34px;
+        gap: 6px;
+        justify-content: center;
+        padding: 5px 9px 5px 6px;
+        border-color: rgba(74, 119, 188, 0.12);
+        box-shadow:
+          0 8px 20px rgba(31, 76, 143, 0.12),
+          inset 0 1px 0 rgba(255, 255, 255, 0.86);
       }
 
-      .compat-tool span {
-        font-size: 1.25rem;
+      .compat-pill.zoom {
+        left: 22px;
+        top: -12px;
+      }
+
+      .compat-pill.meet {
+        right: 22px;
+        top: -12px;
+      }
+
+      .compat-pill.teams {
+        left: 50%;
+        bottom: -12px;
+        transform: translateX(-50%);
+      }
+
+      .compat-logo {
+        width: 22px;
+        height: 22px;
+        flex-basis: 22px;
+      }
+
+      .compat-logo.zoom img {
+        width: 20px;
+        height: 20px;
+      }
+
+      .compat-logo.meet img {
+        width: 25px;
+        height: 25px;
+      }
+
+      .compat-logo.teams img {
+        width: 30px;
+        height: 30px;
+      }
+
+      .compat-pill span:last-child {
+        font-size: 0.74rem;
+        letter-spacing: 0;
       }
     }
+
   </style>
 </head>
 <body>
@@ -1328,17 +1752,15 @@
             </a>
 
             <div class="nav-links">
-              <a href="#">Cara Kerja</a>
-              <a href="#">Contoh Hasil</a>
-              <a href="#">FAQ</a>
+              <a href="mailto:support@orviko.id">Contact Us</a>
+              <a href="./Privacy Policy.html">Privacy Policy</a>
+              <a href="./Terms of Service.html">Terms of Service</a>
+              <a href="#faq">FAQ</a>
             </div>
 
             <div class="cta-row">
               <a class="btn btn-primary" href="#download">
-                <span class="windows-icon" aria-hidden="true">
-                  <span></span><span></span><span></span><span></span>
-                </span>
-                Download untuk Windows
+                Lihat Paket
               </a>
             </div>
           </nav>
@@ -1350,20 +1772,17 @@
           <div class="hero-inner">
             <div class="eyebrow">
               <span class="eyebrow-dot" aria-hidden="true"></span>
-              Desktop AI assistant untuk interview online
+              Desktop AI assistant untuk online meeting
             </div>
 
-            <h1>Jangan blank saat interview kerja</h1>
+            <h1>Lebih siap saat meeting online</h1>
             <p class="hero-sub">
-              Orviko membantu kamu menyusun jawaban yang lebih tenang, jelas, dan meyakinkan saat interview online berlangsung.
+              Orviko membantu kamu merespons percakapan meeting dengan lebih tenang, jelas, dan relevan saat meeting berlangsung.
             </p>
 
             <div class="hero-actions">
               <a class="btn btn-primary" href="#download">
-                <span class="windows-icon" aria-hidden="true">
-                  <span></span><span></span><span></span><span></span>
-                </span>
-                Download untuk Windows
+                Lihat Paket
               </a>
             </div>
 
@@ -1374,7 +1793,7 @@
       </main>
     </section>
 
-    <section class="interactive-demo-section" aria-label="Interactive demo">
+    <section class="interactive-demo-section" id="contoh-hasil" aria-label="Interactive demo">
       <div class="container">
         <h2 class="demo-section-title">Klik <span class="demo-title-ask">Ask</span> untuk coba Orviko</h2>
         <div class="interactive-demo-frame">
@@ -1390,7 +1809,7 @@
                 <span class="demo-chip"><span class="demo-pulse"></span> Listening 02:14</span>
                 <span class="demo-chip warn">System OK</span>
                 <button class="demo-btn" id="demoOpenBtn" type="button">Ask *</button>
-                <button class="demo-end-btn" aria-label="End interview" type="button"></button>
+                <button class="demo-end-btn" aria-label="End meeting" type="button"></button>
               </div>
 
               <div class="demo-expanded-shell" id="demoExpandedShell">
@@ -1398,28 +1817,29 @@
                   <div class="demo-overlay-top">
                     <div>
                       <p class="demo-kicker">Listening 02:14</p>
-                      <h2 class="demo-title">TECHNICAL Interview</h2>
-                      <p class="demo-sub">Tokopedia - Marketing Associate</p>
-                      <p class="demo-audio">Realtime listening via active system output</p>
+                      <h2 class="demo-title">Live Meeting</h2>
+                      <p class="demo-sub">Malaka Corp - Strategy Sync</p>
+                      <p class="demo-audio">Listening to active system audio</p>
                     </div>
                     <button class="demo-btn" id="demoHideBtn" type="button">Hide</button>
                   </div>
 
                   <div class="demo-card demo-question-card">
                     <strong>Latest conversation focus</strong>
-                    <p id="demoFocusText">Bagaimana kamu memilih strategi kampanye yang paling efektif ketika data awal belum lengkap?</p>
+                    <p id="demoFocusText">Kita perlu menentukan prioritas minggu ini karena timeline mulai padat dan beberapa keputusan masih menggantung.</p>
                   </div>
 
                   <div class="demo-actions">
-                    <button class="demo-action-btn" data-kind="answer" type="button">Bantu Jawab</button>
-                    <button class="demo-action-btn" data-kind="followup" type="button">Bantu Follow-up</button>
+                    <button class="demo-action-btn" data-kind="answer_qna" type="button">Jawab Pertanyaan</button>
+                    <button class="demo-action-btn" data-kind="answer_convo" type="button">Tanggapi</button>
+                    <button class="demo-action-btn" data-kind="followup" type="button">Pertanyaan Follow-up</button>
                     <button class="demo-action-btn" data-kind="explain" type="button">Jelaskan Maksudnya</button>
                   </div>
 
                   <div class="demo-overlay-keywords">
-                    <button class="demo-keyword-btn" data-kind="keyword" data-label="Campaign Strategy" type="button">Campaign Strategy</button>
-                    <button class="demo-keyword-btn" data-kind="keyword" data-label="Data Validation" type="button">Data Validation</button>
-                    <button class="demo-keyword-btn" data-kind="keyword" data-label="Decision Making" type="button">Decision Making</button>
+                    <button class="demo-keyword-btn" data-kind="keyword" data-label="Prioritas Tim" type="button">Prioritas Tim</button>
+                    <button class="demo-keyword-btn" data-kind="keyword" data-label="Risiko Timeline" type="button">Risiko Timeline</button>
+                    <button class="demo-keyword-btn" data-kind="keyword" data-label="Next Step" type="button">Next Step</button>
                   </div>
 
                   <form class="demo-ask-row" id="demoAskForm">
@@ -1431,7 +1851,7 @@
                 <aside class="demo-response-shell" id="demoResponseShell">
                   <div class="demo-response-top">
                     <div>
-                      <p class="demo-kicker">AI help</p>
+                      <p class="demo-kicker">Meeting help</p>
                       <h2 class="demo-title" id="demoResponseTitle">Generating help...</h2>
                     </div>
                     <button class="demo-btn" id="demoCloseResponseBtn" type="button">Close</button>
@@ -1453,14 +1873,14 @@
 
     <section class="how-section" id="cara-kerja" aria-labelledby="how-title">
       <div class="container">
-        <h2 class="section-heading" id="how-title">Cara Orviko membantumu saat interview</h2>
+        <h2 class="section-heading" id="how-title">Cara Orviko membantumu saat meeting</h2>
 
         <div class="how-grid">
           <article class="how-panel listen">
             <div class="how-content">
               <h3 class="how-title">Orviko mendengarkan percakapan saat meeting</h3>
               <p class="how-description">
-                Orviko menangkap percakapan secara realtime untuk memahami konteks interview yang sedang berjalan.
+                Orviko menangkap percakapan secara realtime untuk memahami konteks meeting yang sedang berjalan.
               </p>
             </div>
 
@@ -1480,7 +1900,7 @@
 
               <div class="context-preview">
                 <strong>Latest conversation focus</strong>
-                <p class="context-line">Bagaimana kamu memilih strategi kampanye saat data awal belum lengkap?</p>
+                <p class="context-line">Kita perlu menentukan prioritas minggu ini karena timeline mulai padat.</p>
               </div>
             </div>
           </article>
@@ -1498,18 +1918,18 @@
                 <div class="preview-top">
                   <div>
                     <p class="preview-kicker">AI help</p>
-                    <h3 class="preview-title">Bantu Jawab</h3>
+                    <h3 class="preview-title">Tanggapi</h3>
                   </div>
                 </div>
 
                 <p class="preview-answer">
-                  Saya biasanya mulai dari objective campaign dulu, lalu cek data minimum seperti target audience, channel historis, budget, dan KPI utama.
+                  Setuju, menurut saya kita perlu kunci dua prioritas paling penting dulu, lalu sisanya masuk parking lot supaya meeting ini tetap menghasilkan keputusan.
                 </p>
 
                 <div class="preview-keywords">
-                  <span>Campaign Strategy</span>
-                  <span>Data Validation</span>
-                  <span>Decision Making</span>
+                  <span>Prioritas Tim</span>
+                  <span>Risiko Timeline</span>
+                  <span>Next Step</span>
                 </div>
               </div>
             </div>
@@ -1518,55 +1938,174 @@
       </div>
     </section>
 
-    <section class="comic-section" aria-labelledby="comic-title">
+    <section class="pressure-section" aria-labelledby="pressure-title">
       <div class="container">
-        <h2 class="section-heading comic-heading" id="comic-title">Ilustrasi Penggunaan Orviko</h2>
+        <div class="pressure-intro">
+          <h2 class="section-heading" id="pressure-title">Dibuat untuk momen meeting yang menegangkan</h2>
+          <p>
+            Saat kamu blank, Orviko memberi bantuan yang cepat dibaca tanpa mengganggu alur meeting.
+          </p>
+        </div>
 
-        <div class="comic-frame">
-          <picture>
-            <source srcset="./assets/Komik-Mobile.png" media="(max-width: 640px)" />
-            <img src="./assets/Komik-Desktop.png" alt="Ilustrasi penggunaan Orviko saat interview online" loading="lazy" />
-          </picture>
+        <div class="pressure-stats" aria-label="Keunggulan Orviko saat meeting live">
+          <article class="pressure-stat">
+            <strong>~800ms</strong>
+            <span>Target response time setelah klik bantuan</span>
+          </article>
+          <article class="pressure-stat">
+            <strong>3 poin</strong>
+            <span>Jawaban singkat, bukan paragraf panjang</span>
+          </article>
+          <article class="pressure-stat">
+            <strong>Konteks live</strong>
+            <span>Memahami profil, konteks meeting, dan percakapan terbaru</span>
+          </article>
         </div>
       </div>
     </section>
 
     <section class="compat-section" aria-labelledby="compat-title">
       <div class="container">
-        <h2 class="section-heading compat-heading" id="compat-title">Orviko bisa kamu gunakan dimanapun</h2>
+        <h2 class="section-heading compat-heading" id="compat-title">Orviko bisa kamu gunakan pada platform apapun</h2>
 
-        <div class="compat-tools" aria-label="Platform interview online yang didukung Orviko">
-          <div class="compat-tool">
-            <img src="./assets/Zoom.png" alt="" loading="lazy" />
+        <div class="compat-showcase" aria-label="Platform meeting online yang didukung Orviko">
+          <div class="compat-visual">
+            <img src="./assets/interview-2.jpg" alt="Ilustrasi Orviko digunakan saat meeting online" loading="lazy" />
+          </div>
+
+          <div class="compat-pill zoom">
+            <span class="compat-logo zoom"><img src="./assets/Zoom.png" alt="" loading="lazy" /></span>
             <span>Zoom</span>
           </div>
 
-          <div class="compat-tool">
-            <img src="./assets/Google Meet.png" alt="" loading="lazy" />
+          <div class="compat-pill meet">
+            <span class="compat-logo meet"><img src="./assets/Google Meet.png" alt="" loading="lazy" /></span>
             <span>Google Meet</span>
           </div>
 
-          <div class="compat-tool">
-            <img src="./assets/Microsoft Teams.png" alt="" loading="lazy" />
+          <div class="compat-pill teams">
+            <span class="compat-logo teams"><img src="./assets/Microsoft Teams.png" alt="" loading="lazy" /></span>
             <span>Microsoft Teams</span>
           </div>
         </div>
       </div>
     </section>
 
+    <section class="faq-section" id="faq" aria-labelledby="faq-title">
+      <div class="container">
+        <h2 class="faq-heading" id="faq-title">Frequently asked questions</h2>
+
+        <div class="faq-list">
+          <details class="faq-item">
+            <summary>
+              <span>Kenapa Orviko real-time, bukan AI notetaker biasa?</span>
+            </summary>
+            <p>
+              Orviko dirancang untuk membantu saat meeting sedang berlangsung, bukan hanya merangkum setelah meeting selesai.
+              Bantuan muncul saat kamu klik, dalam format singkat yang mudah dibaca ketika tekanan sedang tinggi.
+            </p>
+          </details>
+
+          <details class="faq-item">
+            <summary>
+              <span>Untuk siapa Orviko dibuat?</span>
+            </summary>
+            <p>
+              Orviko dibuat untuk user yang ingin lebih siap saat meeting online, terutama ketika perlu mengingat profil,
+              konteks meeting, dan percakapan terbaru tanpa kehilangan fokus.
+            </p>
+          </details>
+
+          <details class="faq-item">
+            <summary>
+              <span>Apakah Orviko menjawab otomatis saat meeting?</span>
+            </summary>
+            <p>
+              Tidak. User tetap memegang kontrol. Orviko hanya menampilkan bantuan ketika kamu menekan tombol seperti Jawab Pertanyaan,
+              Tanggapi, Pertanyaan Follow-up, Jelaskan Maksudnya, atau mengirim pertanyaan manual.
+            </p>
+          </details>
+
+          <details class="faq-item">
+            <summary>
+              <span>Apakah Orviko bisa dipakai di Zoom, Google Meet, dan Microsoft Teams?</span>
+            </summary>
+            <p>
+              Ya. Orviko dirancang untuk mendampingi meeting online di platform meeting umum seperti Zoom, Google Meet,
+              dan Microsoft Teams.
+            </p>
+          </details>
+
+          <details class="faq-item">
+            <summary>
+              <span>Apa yang dipahami Orviko saat meeting berjalan?</span>
+            </summary>
+            <p>
+              Orviko menggunakan konteks dari profil, brief meeting, dan percakapan terbaru agar bantuan yang muncul
+              tetap relevan dengan situasi meeting.
+            </p>
+          </details>
+
+          <details class="faq-item">
+            <summary>
+              <span>Apakah jawaban Orviko panjang?</span>
+            </summary>
+            <p>
+              Tidak. Orviko memprioritaskan jawaban singkat, biasanya dalam beberapa poin, supaya cepat discan dan tidak mengganggu
+              alur meeting.
+            </p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <section class="final-cta-section" id="download" aria-labelledby="final-cta-title">
+      <div class="container">
+        <div class="final-cta-inner">
+          <p class="final-cta-kicker">Orviko untuk Windows</p>
+          <h2 id="final-cta-title">Siap meeting dengan lebih tenang?</h2>
+          <p>
+            Gunakan Orviko dan siapkan bantuan realtime sebelum meeting online berikutnya.
+          </p>
+          <a class="btn btn-primary" href="#download">
+            Lihat Paket
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <footer class="site-footer">
+      <div class="container">
+        <div class="footer-inner">
+          <a class="footer-brand" href="#">
+            <img class="brand-mark" src="./assets/Logo-2.png" alt="Orviko logo" loading="lazy" />
+            <span>Orviko</span>
+          </a>
+
+          <p>Desktop AI assistant untuk online meeting.</p>
+
+          <nav class="footer-links" aria-label="Footer navigation">
+            <a href="mailto:support@orviko.id">Contact Us</a>
+            <a href="./Privacy Policy.html">Privacy Policy</a>
+            <a href="./Terms of Service.html">Terms of Service</a>
+            <a href="#faq">FAQ</a>
+          </nav>
+
+          <span class="footer-copy">© 2026 Orviko. All rights reserved.</span>
+        </div>
+      </div>
+    </footer>
+
     <div class="floating-cta" id="floatingCta" aria-hidden="true">
       <a class="btn btn-primary" href="#download">
-        <span class="windows-icon" aria-hidden="true">
-          <span></span><span></span><span></span><span></span>
-        </span>
-        Download untuk Windows
+        Lihat Paket
       </a>
     </div>
 
   </div>
 
   <script>
-    const demoCanvas = document.getElementById("demoCanvas");
+const demoCanvas = document.getElementById("demoCanvas");
     const demoOverlay = document.getElementById("demoOverlay");
     const demoMiniShell = document.getElementById("demoMiniShell");
     const demoExpandedShell = document.getElementById("demoExpandedShell");
@@ -1582,7 +2121,7 @@
     const interviewVideoWindow = document.querySelector(".interview-video-window");
     const howListeningTimer = document.getElementById("howListeningTimer");
     const floatingCta = document.getElementById("floatingCta");
-    const primaryDownloadButtons = document.querySelectorAll(".cta-row .btn-primary, .hero-actions .btn-primary");
+    const primaryDownloadButtons = document.querySelectorAll(".cta-row .btn-primary, .hero-actions .btn-primary, .final-cta-inner .btn-primary");
     const baseDemoWidth = 1280;
     const baseDemoHeight = 760;
     const maxDemoScale = 0.78;
@@ -1656,28 +2195,36 @@
     mobileDemoQuery.addEventListener("change", syncDemoScale);
 
     const demoResponses = {
-      answer: {
-        title: "Bantu Jawab",
+      answer_qna: {
+        title: "Jawab Pertanyaan",
         points: [
-          "Saya biasanya mulai dari objective campaign dulu, lalu cek data minimum seperti target audience, channel historis, budget, dan KPI utama.",
-          "Kalau data awal belum lengkap, saya buat hipotesis yang paling masuk akal, validasi cepat lewat eksperimen kecil, lalu bandingkan hasilnya dengan baseline.",
-          "Dengan cara itu, keputusan tetap berbasis data, tapi tidak menunggu semua informasi sempurna sebelum campaign bisa bergerak."
+          "Prioritas minggu ini sebaiknya ditentukan dari dampak terbesar, urgensi timeline, dan dependensi antar tim.",
+          "Kalau ada keputusan yang masih menggantung, pisahkan mana yang harus diputuskan sekarang dan mana yang bisa masuk parking lot.",
+          "Dengan begitu meeting tetap menghasilkan arah yang jelas tanpa memaksa semua isu selesai sekaligus."
+        ]
+      },
+      answer_convo: {
+        title: "Tanggapi",
+        points: [
+          "Setuju, menurut saya kita perlu kunci dua prioritas paling penting dulu supaya tim punya arah yang jelas minggu ini.",
+          "Untuk keputusan yang belum matang, kita bisa tandai sebagai risiko dan tentukan owner-nya, jadi tidak hilang setelah meeting.",
+          "Saya usul di akhir sesi kita tutup dengan next step singkat: prioritas, owner, dan deadline."
         ]
       },
       followup: {
-        title: "Bantu Follow-up",
+        title: "Pertanyaan Follow-up",
         points: [
-          "Apakah tim lebih mengutamakan kecepatan eksperimen atau akurasi insight di tahap awal?",
-          "Data minimum apa yang biasanya dianggap cukup sebelum strategi dijalankan?",
-          "Apakah ada KPI utama yang paling menentukan keputusan kampanye di tim ini?"
+          "Dari semua prioritas yang dibahas, mana yang paling perlu diputuskan hari ini?",
+          "Siapa owner untuk risiko timeline yang paling kritis?",
+          "Apa next step paling kecil yang bisa mulai dijalankan setelah meeting ini?"
         ]
       },
       explain: {
         title: "Jelaskan Maksudnya",
         points: [
-          "Interviewer sedang menguji cara kamu mengambil keputusan saat informasinya belum ideal.",
-          "Yang diuji bukan cuma strategi kampanye, tapi juga judgment dan validasi asumsi.",
-          "Angle jawaban terbaik: jelaskan langkah prioritas, validasi cepat, lalu iterasi."
+          "Pembicara sedang menandai bahwa tim belum punya prioritas yang cukup jelas untuk minggu ini.",
+          "Kata kuncinya ada di timeline yang mulai padat dan keputusan yang masih menggantung.",
+          "Respons terbaik adalah membantu merapikan prioritas, risiko, owner, dan next step."
         ]
       }
     };
@@ -1742,7 +2289,7 @@
       window.requestAnimationFrame(() => syncDemoOverlayBounds());
     });
 
-    document.querySelectorAll(".demo-action-btn[data-kind='answer'], .demo-action-btn[data-kind='followup'], .demo-action-btn[data-kind='explain']").forEach((button) => {
+    document.querySelectorAll(".demo-action-btn[data-kind='answer_qna'], .demo-action-btn[data-kind='answer_convo'], .demo-action-btn[data-kind='followup'], .demo-action-btn[data-kind='explain']").forEach((button) => {
       button.addEventListener("click", () => {
         const kind = button.getAttribute("data-kind");
         const data = demoResponses[kind];
@@ -1754,9 +2301,9 @@
       button.addEventListener("click", () => {
         const label = button.getAttribute("data-label") || "Keyword";
         simulateDemoResponse(`Keyword: ${label}`, [
-          `${label} adalah topik yang sedang relevan dengan arah pertanyaan interviewer.`,
+          `${label} adalah topik yang sedang relevan dengan percakapan meeting terbaru.`,
           "Gunakan keyword ini untuk mengaitkan jawaban ke konteks terbaru.",
-          "Jawab singkat, lalu beri contoh keputusan yang konkret."
+          "Respons terbaik tetap singkat, konkret, dan mengarah ke keputusan atau next step."
         ]);
       });
     });
@@ -1831,7 +2378,7 @@
     window.addEventListener("pointermove", moveDemoDrag);
     window.addEventListener("pointerup", endDemoDrag);
 
-    demoFocusText.textContent = "Bagaimana kamu memilih strategi kampanye yang paling efektif ketika data awal belum lengkap?";
+    demoFocusText.textContent = "Kita perlu menentukan prioritas minggu ini karena timeline mulai padat dan beberapa keputusan masih menggantung.";
 
     let howListeningSecond = 1;
     window.setInterval(() => {
@@ -1869,3 +2416,4 @@
   </script>
 </body>
 </html>
+

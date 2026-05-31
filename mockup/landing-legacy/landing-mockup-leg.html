@@ -1,0 +1,2431 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Orviko Landing Mockup</title>
+  <style>
+:root {
+      --bg: #ffffff;
+      --bg-soft: #f3f8ff;
+      --line: rgba(73, 116, 186, 0.16);
+      --line-strong: rgba(73, 116, 186, 0.28);
+      --text: #12305e;
+      --muted: #3f5b82;
+      --muted-soft: #6880a6;
+      --blue: #2d74ff;
+      --blue-deep: #1657d8;
+      --blue-pale: #ebf4ff;
+      --shadow: 0 28px 80px rgba(42, 98, 192, 0.16);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background: #ffffff;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    .page {
+      min-height: 100vh;
+      overflow-x: hidden;
+      background: #ffffff;
+    }
+
+    .hero-shell {
+      position: relative;
+      min-height: 100vh;
+      isolation: isolate;
+      background:
+        linear-gradient(180deg, rgba(235, 247, 255, 0.02) 0%, rgba(255, 255, 255, 0.00) 30%, rgba(255, 255, 255, 0.72) 82%, #ffffff 100%),
+        url("./assets/Hero Section Background.png") center top / cover no-repeat;
+    }
+
+    .hero-shell::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.22) 52%, rgba(255, 255, 255, 0.34) 100%),
+        radial-gradient(ellipse at 50% 34%, rgba(255, 255, 255, 0.64) 0%, rgba(246, 251, 255, 0.44) 22%, rgba(246, 251, 255, 0.18) 44%, transparent 66%),
+        radial-gradient(circle at 50% 22%, rgba(235, 246, 255, 0.28), rgba(235, 246, 255, 0.08) 26%, transparent 52%),
+        linear-gradient(180deg, rgba(219, 241, 255, 0.06) 0%, rgba(255, 255, 255, 0.00) 24%, rgba(255, 255, 255, 0.00) 72%, rgba(255, 255, 255, 0.88) 100%);
+      pointer-events: none;
+    }
+
+    .hero-shell::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: -1px;
+      height: 220px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.72) 56%, #ffffff 100%);
+      pointer-events: none;
+    }
+
+    .container {
+      width: min(1180px, calc(100% - 40px));
+      margin: 0 auto;
+    }
+
+    .site-header {
+      position: relative;
+      z-index: 3;
+      padding-top: 18px;
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 12px 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.52);
+      background: rgba(255, 255, 255, 0.40);
+      box-shadow: 0 16px 44px rgba(72, 129, 211, 0.14);
+      backdrop-filter: blur(18px);
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+      padding: 6px 10px 6px 8px;
+      border-radius: 999px;
+      background: rgba(98, 151, 233, 0.12);
+    }
+
+    .brand-mark {
+      width: clamp(34px, 4vw, 44px);
+      height: auto;
+      display: block;
+      filter: drop-shadow(0 10px 20px rgba(89, 132, 214, 0.18));
+      flex: 0 0 auto;
+    }
+
+    .brand-name {
+      font-size: clamp(1.22rem, 1.4vw, 1.62rem);
+      line-height: 1;
+      font-weight: 780;
+      letter-spacing: -0.035em;
+      color: #1d4481;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      color: #3d5d8c;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .nav-links a {
+      transition: opacity 0.2s ease;
+    }
+
+    .nav-links a:hover {
+      opacity: 0.72;
+    }
+
+    .cta-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      min-height: 48px;
+      padding: 0 20px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .btn-primary {
+      color: #ffffff;
+      background: linear-gradient(135deg, #2e7dff 0%, #246df0 45%, #4aa3ff 100%);
+      box-shadow: 0 18px 38px rgba(37, 107, 227, 0.28);
+    }
+
+    .btn-secondary {
+      color: #0d2954;
+      border-color: rgba(89, 132, 214, 0.20);
+      background: rgba(255, 255, 255, 0.74);
+      backdrop-filter: blur(12px);
+    }
+
+    .windows-icon {
+      width: 15px;
+      height: 15px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 2px;
+      flex: 0 0 auto;
+    }
+
+    .windows-icon span {
+      display: block;
+      background: currentColor;
+      border-radius: 1px;
+    }
+
+    .floating-cta {
+      position: fixed;
+      top: 12px;
+      right: 14px;
+      z-index: 30;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-8px);
+      transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
+    }
+
+    .floating-cta.visible {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+
+    .floating-cta .btn {
+      min-height: 42px;
+      padding: 0 16px;
+      font-size: 13px;
+      box-shadow: 0 14px 30px rgba(37, 107, 227, 0.28);
+    }
+
+    .hero {
+      position: relative;
+      z-index: 2;
+      padding: 84px 0 150px;
+    }
+
+    .hero-inner {
+      max-width: 760px;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    .eyebrow {
+      width: fit-content;
+      margin: 0 auto 20px;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 38px;
+      padding: 0 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.62);
+      background: rgba(28, 70, 132, 0.28);
+      color: #ffffff;
+      font-size: 13px;
+      font-weight: 700;
+      backdrop-filter: blur(12px);
+      box-shadow:
+        0 10px 24px rgba(86, 140, 218, 0.14),
+        inset 0 1px 0 rgba(255, 255, 255, 0.28);
+      text-shadow: 0 1px 8px rgba(16, 46, 92, 0.42);
+    }
+
+    .eyebrow-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #5ee1ff;
+      box-shadow: 0 0 0 6px rgba(94, 225, 255, 0.16);
+    }
+
+    h1 {
+      margin: 0;
+      color: #173c74;
+      font-size: clamp(3rem, 7vw, 5.7rem);
+      line-height: 0.96;
+      letter-spacing: -0.075em;
+      font-weight: 760;
+      text-shadow:
+        0 2px 0 rgba(255, 255, 255, 0.52),
+        0 18px 42px rgba(255, 255, 255, 0.46),
+        0 18px 40px rgba(19, 57, 112, 0.10);
+    }
+
+    .hero-sub {
+      max-width: 700px;
+      margin: 22px auto 0;
+      color: #35527d;
+      font-size: clamp(1rem, 1.9vw, 1.35rem);
+      line-height: 1.65;
+      font-weight: 640;
+      text-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.76),
+        0 12px 28px rgba(255, 255, 255, 0.54);
+    }
+
+    .hero-actions {
+      margin-top: 30px;
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .hero-spacer {
+      height: 44px;
+    }
+
+    .interactive-demo-section {
+      position: relative;
+      z-index: 4;
+      margin-top: -112px;
+      padding: 0 0 48px;
+    }
+
+    .demo-section-title {
+      margin: 0 auto 18px;
+      color: #173760;
+      font-size: clamp(1.5rem, 3vw, 2.45rem);
+      line-height: 1.08;
+      font-weight: 950;
+      text-align: center;
+      letter-spacing: -0.04em;
+      text-shadow:
+        0 2px 0 rgba(255, 255, 255, 0.68),
+        0 18px 34px rgba(30, 70, 132, 0.16);
+    }
+
+    .demo-title-ask {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 1.08em;
+      padding: 0.02em 0.38em 0.08em;
+      border-radius: 999px;
+      color: #0b326f;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(226, 241, 255, 0.96) 100%);
+      border: 1px solid rgba(51, 116, 214, 0.22);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.82),
+        inset 0 -2px 0 rgba(60, 129, 236, 0.10),
+        0 10px 22px rgba(36, 99, 191, 0.16);
+      letter-spacing: -0.035em;
+      line-height: 1;
+      text-shadow: none;
+      vertical-align: -0.04em;
+    }
+
+    .interactive-demo-frame {
+      --demo-scale: 0.78;
+      position: relative;
+      margin: 0 auto;
+      width: min(100%, 1100px);
+      height: calc(760px * var(--demo-scale));
+    }
+
+    .interactive-demo-canvas {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      width: 1280px;
+      height: 760px;
+      border-radius: 30px;
+      overflow: hidden;
+      background: #d9e8f7;
+      border: 1px solid rgba(52, 93, 158, 0.24);
+      box-shadow:
+        0 0 0 8px rgba(45, 116, 255, 0.08),
+        0 18px 34px rgba(21, 58, 112, 0.22),
+        0 46px 96px rgba(37, 92, 176, 0.26);
+      transform: translateX(-50%) scale(var(--demo-scale));
+      transform-origin: top center;
+    }
+
+    .demo-stage {
+      position: absolute;
+      inset: 0;
+      background: #d9e8f7 url("./assets/walpaper-2.png") center center / 100% 100% no-repeat;
+      overflow: hidden;
+    }
+
+    .demo-stage::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(180deg, rgba(247, 251, 255, 0.10), rgba(8, 21, 45, 0.08)),
+        radial-gradient(circle at top left, rgba(255, 255, 255, 0.30), transparent 34%);
+    }
+
+    .interview-video-window {
+      position: absolute;
+      left: 50%;
+      top: 104px;
+      width: 880px;
+      overflow: hidden;
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.34);
+      background: #05070b;
+      box-shadow: 0 26px 70px rgba(18, 49, 97, 0.30);
+      transform: translateX(-50%);
+      z-index: 1;
+    }
+
+    .interview-video-window video {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    .demo-overlay {
+      position: absolute;
+      top: 42px;
+      left: 462px;
+      color: #ffffff;
+      user-select: none;
+      z-index: 2;
+    }
+
+    .demo-overlay.dragging {
+      cursor: grabbing;
+    }
+
+    .demo-mini-shell {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 46px;
+      padding: 7px;
+      border-radius: 999px;
+      background: rgba(17, 19, 24, 0.68);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: 0 18px 46px rgba(0, 0, 0, 0.34);
+      backdrop-filter: blur(18px);
+      cursor: grab;
+    }
+
+    .demo-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 32px;
+      padding: 0 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.09);
+      color: rgba(255, 255, 255, 0.92);
+      font-size: 13px;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    .demo-chip.warn {
+      color: #fde68a;
+    }
+
+    .demo-pulse {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 0 0 5px rgba(34, 197, 94, 0.16);
+    }
+
+    .demo-btn,
+    .demo-action-btn,
+    .demo-keyword-btn {
+      min-height: 34px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: rgba(255, 255, 255, 0.10);
+      color: #ffffff;
+      padding: 0 12px;
+      font-weight: 850;
+      cursor: pointer;
+    }
+
+    .demo-end-btn {
+      width: 34px;
+      min-width: 34px;
+      min-height: 34px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      background: #dc2626;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .demo-end-btn::before {
+      content: "";
+      width: 11px;
+      height: 11px;
+      border-radius: 2px;
+      background: #ffffff;
+      position: absolute;
+      inset: 0;
+      margin: auto;
+    }
+
+    .demo-expanded-shell {
+      display: none;
+      width: 560px;
+      height: 440px;
+      padding: 10px;
+      overflow: hidden;
+      background: transparent;
+    }
+
+    .demo-expanded-shell.active {
+      display: grid;
+    }
+
+    .demo-expanded-shell.with-response {
+      width: 900px;
+      grid-template-columns: minmax(320px, 0.82fr) minmax(360px, 1fr);
+      gap: 10px;
+      align-items: start;
+    }
+
+    .demo-overlay-panel {
+      display: grid;
+      gap: 10px;
+      width: 100%;
+      height: 100%;
+      max-height: 100%;
+      min-height: 0;
+      overflow-y: auto;
+      border-radius: 14px;
+      padding: 14px;
+      align-content: start;
+      grid-auto-rows: max-content;
+      background: rgba(17, 19, 24, 0.70);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: 0 18px 46px rgba(0, 0, 0, 0.34);
+      backdrop-filter: blur(18px);
+      cursor: grab;
+    }
+
+    .demo-overlay-panel.compact-when-response .demo-question-card,
+    .demo-overlay-panel.compact-when-response .demo-actions,
+    .demo-overlay-panel.compact-when-response .demo-keyword-empty-card {
+      display: none;
+    }
+
+    .demo-response-shell {
+      display: none;
+      width: 100%;
+      max-height: 100%;
+      overflow-y: auto;
+      padding: 14px;
+      border-radius: 14px;
+      background: rgba(17, 19, 24, 0.74);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: 0 18px 46px rgba(0, 0, 0, 0.34);
+      backdrop-filter: blur(18px);
+    }
+
+    .demo-response-shell.active {
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    .demo-overlay-top,
+    .demo-response-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .demo-kicker {
+      margin: 0 0 5px;
+      color: rgba(255, 255, 255, 0.58);
+      font-size: 12px;
+      font-weight: 850;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .demo-title {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.1;
+      font-weight: 950;
+      color: #ffffff;
+    }
+
+    .demo-sub {
+      margin: 0;
+      color: rgba(255, 255, 255, 0.76);
+      line-height: 1.4;
+    }
+
+    .demo-audio {
+      margin: 6px 0 0;
+      color: rgba(255, 255, 255, 0.58);
+      font-size: 12px;
+    }
+
+    .demo-card {
+      display: grid;
+      gap: 8px;
+      padding: 11px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.10);
+    }
+
+    .demo-card p,
+    .demo-response-shell li {
+      margin: 0;
+      color: rgba(255, 255, 255, 0.76);
+      line-height: 1.45;
+    }
+
+    .demo-overlay-panel .demo-card:first-of-type {
+      max-height: 112px;
+      overflow-y: auto;
+    }
+
+    .demo-actions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .demo-action-btn {
+      min-height: 42px;
+      border-radius: 10px;
+      white-space: normal;
+    }
+
+    .demo-overlay-keywords {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .demo-overlay-keywords button {
+      min-height: 30px;
+      font-size: 12px;
+    }
+
+    .demo-ask-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+    }
+
+    .demo-ask-input {
+      min-height: 38px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: rgba(255, 255, 255, 0.09);
+      color: #ffffff;
+      padding: 0 14px;
+      outline: none;
+    }
+
+    .demo-ask-input::placeholder {
+      color: rgba(255, 255, 255, 0.50);
+    }
+
+    .demo-response-shell ul {
+      margin: 0;
+      padding-left: 18px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .demo-loading {
+      display: none;
+      gap: 8px;
+      align-items: center;
+      justify-content: flex-start;
+    }
+
+    .demo-loading.active {
+      display: flex;
+    }
+
+    .demo-loading span {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.82);
+      animation: demo-pulse-wave 1s infinite ease-in-out;
+    }
+
+    .demo-loading span:nth-child(2) { animation-delay: 0.15s; }
+    .demo-loading span:nth-child(3) { animation-delay: 0.30s; }
+
+    @keyframes demo-pulse-wave {
+      0%, 100% { opacity: 0.28; transform: translateY(0); }
+      50% { opacity: 1; transform: translateY(-2px); }
+    }
+
+    .pressure-section {
+      padding: 54px 0 70px;
+      background:
+        linear-gradient(180deg, #ffffff 0%, #f8fbff 50%, #ffffff 100%);
+    }
+
+    .pressure-intro {
+      max-width: 850px;
+      margin: 0 auto 34px;
+      text-align: center;
+    }
+
+    .pressure-intro .section-heading {
+      margin-bottom: 18px;
+    }
+
+    .pressure-intro p {
+      max-width: 650px;
+      margin: 0 auto;
+      color: #49658c;
+      font-size: clamp(1rem, 1.7vw, 1.18rem);
+      line-height: 1.65;
+      font-weight: 580;
+    }
+
+    .pressure-stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      max-width: 960px;
+      margin: 0 auto;
+      border-block: 1px solid rgba(73, 116, 186, 0.16);
+      background: rgba(255, 255, 255, 0.62);
+    }
+
+    .pressure-stat {
+      display: grid;
+      align-content: start;
+      gap: 10px;
+      min-height: 128px;
+      padding: 28px 28px 26px;
+      text-align: center;
+    }
+
+    .pressure-stat + .pressure-stat {
+      border-left: 1px solid rgba(73, 116, 186, 0.16);
+    }
+
+    .pressure-stat strong {
+      color: #173c74;
+      font-size: clamp(1.9rem, 3.5vw, 3rem);
+      line-height: 1;
+      font-weight: 820;
+      letter-spacing: -0.045em;
+    }
+
+    .pressure-stat span {
+      color: #587097;
+      font-size: 0.98rem;
+      line-height: 1.45;
+      font-weight: 620;
+    }
+
+    .faq-section {
+      padding: 72px 0 96px;
+      background: #ffffff;
+    }
+
+    .faq-heading {
+      max-width: 980px;
+      margin: 0 0 52px;
+      color: #071221;
+      font-size: clamp(2.5rem, 4.4vw, 4.2rem);
+      line-height: 1.02;
+      font-weight: 720;
+      letter-spacing: -0.055em;
+    }
+
+    .faq-list {
+      display: grid;
+      border-top: 1px solid rgba(15, 23, 42, 0.12);
+    }
+
+    .faq-item {
+      border-bottom: 1px solid rgba(15, 23, 42, 0.12);
+    }
+
+    .faq-item summary {
+      list-style: none;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 28px;
+      align-items: center;
+      gap: 24px;
+      min-height: 86px;
+      color: #071221;
+      font-size: clamp(1.25rem, 2vw, 1.65rem);
+      line-height: 1.25;
+      font-weight: 720;
+      letter-spacing: -0.035em;
+      cursor: pointer;
+    }
+
+    .faq-item summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .faq-item summary::after {
+      content: "";
+      width: 13px;
+      height: 13px;
+      border-right: 3px solid #707783;
+      border-bottom: 3px solid #707783;
+      transform: translateY(-3px) rotate(45deg);
+      transition: transform 0.2s ease;
+      justify-self: center;
+    }
+
+    .faq-item[open] summary::after {
+      transform: translateY(3px) rotate(225deg);
+    }
+
+    .faq-item p {
+      max-width: 860px;
+      margin: -4px 56px 28px 0;
+      color: #53657d;
+      font-size: 1.05rem;
+      line-height: 1.65;
+      font-weight: 520;
+    }
+
+    .final-cta-section {
+      padding: 24px 0 80px;
+      background:
+        radial-gradient(circle at 50% 10%, rgba(45, 116, 255, 0.12), transparent 36%),
+        linear-gradient(180deg, #ffffff 0%, #f4f9ff 100%);
+    }
+
+    .final-cta-inner {
+      max-width: 860px;
+      margin: 0 auto;
+      display: grid;
+      justify-items: center;
+      text-align: center;
+      padding: 64px 28px 68px;
+    }
+
+    .final-cta-kicker {
+      margin: 0 0 16px;
+      color: #2d74ff;
+      font-size: 0.86rem;
+      font-weight: 820;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .final-cta-inner h2 {
+      max-width: 720px;
+      margin: 0;
+      color: #173c74;
+      font-size: clamp(2.4rem, 5vw, 4.8rem);
+      line-height: 1.02;
+      font-weight: 760;
+      letter-spacing: -0.055em;
+    }
+
+    .final-cta-inner p:not(.final-cta-kicker) {
+      max-width: 620px;
+      margin: 20px 0 30px;
+      color: #49658c;
+      font-size: clamp(1rem, 1.8vw, 1.18rem);
+      line-height: 1.65;
+      font-weight: 580;
+    }
+
+    .site-footer {
+      padding: 34px 0;
+      background: #f4f9ff;
+      border-top: 1px solid rgba(73, 116, 186, 0.14);
+    }
+
+    .footer-inner {
+      display: grid;
+      grid-template-columns: auto minmax(180px, 1fr) auto auto;
+      align-items: center;
+      gap: 22px;
+      color: #5a7096;
+      font-size: 0.92rem;
+      font-weight: 600;
+    }
+
+    .footer-brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      color: #173c74;
+      font-size: 1.2rem;
+      line-height: 1;
+      font-weight: 820;
+      letter-spacing: -0.03em;
+    }
+
+    .footer-brand .brand-mark {
+      width: 34px;
+    }
+
+    .footer-inner p {
+      margin: 0;
+    }
+
+    .footer-links {
+      display: inline-flex;
+      align-items: center;
+      gap: 20px;
+      color: #3f5b82;
+    }
+
+    .footer-links a {
+      transition: opacity 0.2s ease;
+    }
+
+    .footer-links a:hover {
+      opacity: 0.72;
+    }
+
+    .footer-copy {
+      color: #6880a6;
+      white-space: nowrap;
+    }
+
+    .how-section {
+      padding: 64px 0 88px;
+      background:
+        linear-gradient(180deg, #ffffff 0%, #f6faff 52%, #ffffff 100%);
+    }
+
+    .section-heading {
+      max-width: 860px;
+      margin: 0 auto 34px;
+      color: #173c74;
+      font-size: clamp(2.3rem, 5vw, 4.6rem);
+      line-height: 1.02;
+      font-weight: 760;
+      letter-spacing: -0.055em;
+      text-align: center;
+    }
+
+    .how-grid {
+      display: grid;
+      grid-template-columns: minmax(300px, 0.9fr) minmax(420px, 1.1fr);
+      gap: 24px;
+      align-items: stretch;
+    }
+
+    .how-panel {
+      min-height: 500px;
+      border-radius: 28px;
+      overflow: hidden;
+      position: relative;
+      border: 1px solid rgba(72, 119, 190, 0.18);
+      box-shadow: 0 28px 70px rgba(55, 109, 192, 0.13);
+    }
+
+    .how-panel.listen {
+      color: #ffffff;
+      background:
+        radial-gradient(circle at 78% 18%, rgba(255, 255, 255, 0.24), transparent 28%),
+        linear-gradient(155deg, #266bea 0%, #5faeff 52%, #1d61e7 100%);
+    }
+
+    .how-panel.help {
+      color: #15305b;
+      background:
+        radial-gradient(circle at 82% 12%, rgba(73, 148, 255, 0.12), transparent 26%),
+        linear-gradient(180deg, #f7fbff 0%, #edf3fb 100%);
+    }
+
+    .how-content {
+      position: relative;
+      z-index: 2;
+      padding: 38px 36px;
+      display: grid;
+      justify-items: center;
+      text-align: center;
+    }
+
+    .how-title {
+      max-width: 620px;
+      margin: 0;
+      font-size: clamp(1.75rem, 2.7vw, 2.32rem);
+      line-height: 1.12;
+      font-weight: 760;
+      letter-spacing: -0.035em;
+    }
+
+    .how-description {
+      max-width: 520px;
+      margin: 18px 0 0;
+      font-size: 1.05rem;
+      line-height: 1.6;
+      font-weight: 560;
+    }
+
+    .listen .how-description {
+      color: rgba(255, 255, 255, 0.86);
+    }
+
+    .help .how-description {
+      color: #5b7197;
+    }
+
+    .listen-visual {
+      position: absolute;
+      left: 42px;
+      right: 42px;
+      bottom: 40px;
+      display: grid;
+      justify-items: center;
+      gap: 16px;
+      z-index: 2;
+    }
+
+    .context-preview {
+      width: min(100%, 520px);
+      display: grid;
+      gap: 10px;
+      padding: 16px;
+      border-radius: 18px;
+      background: rgba(17, 19, 24, 0.34);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      box-shadow: 0 18px 42px rgba(14, 52, 120, 0.22);
+      backdrop-filter: blur(18px);
+    }
+
+    .context-preview strong {
+      color: rgba(255, 255, 255, 0.92);
+      font-size: 13px;
+    }
+
+    .context-line {
+      margin: 0;
+      color: rgba(255, 255, 255, 0.78);
+      line-height: 1.45;
+      font-size: 14px;
+    }
+
+    .recording-visual {
+      width: min(100%, 420px);
+      height: 74px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      opacity: 0.76;
+    }
+
+    .recording-visual span {
+      width: 5px;
+      height: 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.78);
+      animation: recording-wave 1.15s ease-in-out infinite;
+      box-shadow: 0 8px 18px rgba(21, 58, 112, 0.18);
+    }
+
+    .recording-visual span:nth-child(2n) { animation-delay: 0.12s; }
+    .recording-visual span:nth-child(3n) { animation-delay: 0.24s; }
+    .recording-visual span:nth-child(4n) { animation-delay: 0.36s; }
+    .recording-visual span:nth-child(5n) { animation-delay: 0.48s; }
+
+    @keyframes recording-wave {
+      0%, 100% {
+        height: 12px;
+        opacity: 0.42;
+        transform: translateY(0);
+      }
+
+      50% {
+        height: 44px;
+        opacity: 0.92;
+        transform: translateY(-2px);
+      }
+    }
+
+    .listen-mini {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      max-width: 100%;
+      padding: 8px;
+      border-radius: 999px;
+      background: rgba(17, 19, 24, 0.58);
+      border: 1px solid rgba(255, 255, 255, 0.20);
+      box-shadow: 0 20px 44px rgba(14, 52, 120, 0.32);
+      backdrop-filter: blur(18px);
+    }
+
+    .listen-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 34px;
+      padding: 0 11px;
+      border-radius: 999px;
+      color: rgba(255, 255, 255, 0.92);
+      background: rgba(255, 255, 255, 0.10);
+      font-size: 13px;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    .listen-chip.ok {
+      color: #fde68a;
+    }
+
+    .help-visual {
+      position: absolute;
+      left: 42px;
+      right: 42px;
+      bottom: 38px;
+      display: grid;
+      gap: 14px;
+      z-index: 2;
+    }
+
+    .help-overlay-preview {
+      display: grid;
+      gap: 12px;
+      padding: 18px;
+      border-radius: 18px;
+      color: #ffffff;
+      background: rgba(17, 19, 24, 0.72);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      box-shadow: 0 22px 54px rgba(26, 57, 104, 0.24);
+      backdrop-filter: blur(18px);
+    }
+
+    .preview-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: flex-start;
+    }
+
+    .preview-kicker {
+      margin: 0 0 6px;
+      color: rgba(255, 255, 255, 0.58);
+      font-size: 12px;
+      font-weight: 850;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .preview-title {
+      margin: 0;
+      font-size: 1.35rem;
+      line-height: 1.15;
+      font-weight: 850;
+      letter-spacing: -0.02em;
+    }
+
+    .preview-answer {
+      margin: 0;
+      color: rgba(255, 255, 255, 0.78);
+      font-size: 1.05rem;
+      line-height: 1.6;
+    }
+
+    .preview-keywords {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .preview-keywords span {
+      min-height: 30px;
+      padding: 0 11px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.10);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: rgba(255, 255, 255, 0.88);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .compat-section {
+      padding: 0 0 108px;
+      background:
+        radial-gradient(circle at 50% 46%, rgba(47, 128, 255, 0.08), transparent 34%),
+        #ffffff;
+    }
+
+    .compat-heading {
+      max-width: 820px;
+      margin-bottom: 36px;
+      font-size: clamp(2rem, 4vw, 3.8rem);
+    }
+
+    .compat-showcase {
+      position: relative;
+      display: grid;
+      place-items: center;
+      min-height: 520px;
+    }
+
+    .compat-visual {
+      width: min(100%, 760px);
+      overflow: hidden;
+      border-radius: 34px;
+      border: 1px solid rgba(72, 119, 190, 0.16);
+      background: #eef6ff;
+      box-shadow:
+        0 32px 80px rgba(31, 76, 143, 0.16),
+        0 0 0 8px rgba(232, 242, 255, 0.74);
+    }
+
+    .compat-visual img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    .compat-pill {
+      position: absolute;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      min-height: 78px;
+      padding: 13px 22px 13px 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid rgba(74, 119, 188, 0.16);
+      box-shadow:
+        0 22px 52px rgba(31, 76, 143, 0.16),
+        inset 0 1px 0 rgba(255, 255, 255, 0.86);
+      backdrop-filter: blur(18px);
+      z-index: 2;
+    }
+
+    .compat-pill.zoom {
+      left: 22px;
+      top: 62px;
+    }
+
+    .compat-pill.meet {
+      right: 14px;
+      top: 132px;
+    }
+
+    .compat-pill.teams {
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%);
+    }
+
+    .compat-logo {
+      width: 52px;
+      height: 52px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 52px;
+    }
+
+    .compat-logo img {
+      width: 48px;
+      height: 48px;
+      object-fit: contain;
+      display: block;
+      filter: drop-shadow(0 14px 18px rgba(27, 68, 132, 0.16));
+    }
+
+    .compat-logo.zoom img {
+      width: 44px;
+      height: 44px;
+    }
+
+    .compat-logo.meet img {
+      width: 54px;
+      height: 54px;
+    }
+
+    .compat-logo.teams img {
+      width: 62px;
+      height: 62px;
+    }
+
+    .compat-pill span:last-child {
+      color: #343949;
+      font-size: clamp(1.18rem, 2vw, 1.52rem);
+      font-weight: 760;
+      letter-spacing: -0.035em;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 900px) {
+      .how-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .interactive-demo-frame {
+        --demo-scale: 0.62;
+        height: calc(760px * var(--demo-scale));
+      }
+
+      .nav {
+        border-radius: 26px;
+        padding: 14px;
+        align-items: flex-start;
+      }
+
+      .nav-links {
+        display: none;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .container {
+        width: min(calc(100% - 24px), 1180px);
+      }
+
+      .site-header {
+        padding-top: 14px;
+      }
+
+      .interactive-demo-section {
+        margin-top: -72px;
+        padding-bottom: 36px;
+      }
+
+      .interactive-demo-frame {
+        --demo-scale: 1;
+        --mobile-overlay-scale: 1;
+        width: 100%;
+        height: auto;
+      }
+
+      .interactive-demo-canvas {
+        position: relative;
+        left: auto;
+        width: 100%;
+        height: auto;
+        min-height: 430px;
+        padding: 0 0 18px;
+        overflow: visible;
+        border-radius: 24px;
+        background: transparent;
+        border: 0;
+        box-shadow: none;
+        transform: none;
+      }
+
+      .demo-stage {
+        display: none;
+      }
+
+      .interview-video-window {
+        position: relative;
+        top: auto;
+        left: auto;
+        width: 100%;
+        border-radius: 20px;
+        transform: none;
+      }
+
+      .demo-overlay {
+        top: 8px;
+        left: 50%;
+        width: max-content;
+        transform: translateX(-50%) scale(var(--mobile-overlay-scale));
+        transform-origin: top center;
+      }
+
+      .demo-overlay.dragging {
+        cursor: default;
+      }
+
+      .demo-mini-shell {
+        cursor: default;
+      }
+
+      .demo-expanded-shell {
+        width: 560px;
+        height: 440px;
+        padding: 10px;
+        overflow: hidden;
+      }
+
+      .demo-expanded-shell.active {
+        display: grid;
+      }
+
+      .demo-expanded-shell.with-response {
+        width: 900px;
+        grid-template-columns: minmax(320px, 0.82fr) minmax(360px, 1fr);
+        gap: 10px;
+      }
+
+      .demo-overlay-panel,
+      .demo-response-shell {
+        max-height: 100%;
+        cursor: default;
+      }
+
+      .demo-overlay-panel.compact-when-response {
+        height: 100%;
+      }
+
+      .demo-overlay-panel.compact-when-response .demo-question-card,
+      .demo-overlay-panel.compact-when-response .demo-actions,
+      .demo-overlay-panel.compact-when-response .demo-keyword-empty-card {
+        display: none;
+      }
+
+      .demo-ask-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+      }
+
+      .demo-ask-row .demo-btn {
+        min-height: 38px;
+      }
+
+      .demo-response-shell.active {
+        width: 100%;
+      }
+
+      .demo-chip,
+      .demo-mini-shell .demo-btn,
+      .demo-mini-shell .demo-stop-btn {
+        white-space: nowrap;
+      }
+
+      .nav {
+        padding: 12px;
+      }
+
+      .cta-row {
+        display: none;
+      }
+
+      .floating-cta {
+        left: 12px;
+        right: 12px;
+      }
+
+      .floating-cta .btn {
+        width: 100%;
+      }
+
+      .hero {
+        padding: 72px 0 136px;
+      }
+
+      .hero-sub {
+        max-width: 560px;
+      }
+
+      .hero-actions {
+        flex-direction: column;
+      }
+
+      .hero-actions .btn {
+        width: 100%;
+      }
+
+      .hero-spacer {
+        height: 34px;
+      }
+
+      .pressure-section {
+        padding: 44px 0 58px;
+      }
+
+      .pressure-intro {
+        margin-bottom: 22px;
+      }
+
+      .pressure-intro .section-heading {
+        margin-bottom: 14px;
+      }
+
+      .pressure-intro p {
+        max-width: 340px;
+        font-size: 1rem;
+        line-height: 1.58;
+      }
+
+      .pressure-stats {
+        grid-template-columns: 1fr;
+        max-width: 360px;
+        border-block: 1px solid rgba(73, 116, 186, 0.14);
+      }
+
+      .pressure-stat {
+        min-height: 0;
+        padding: 22px 18px;
+      }
+
+      .pressure-stat + .pressure-stat {
+        border-left: 0;
+        border-top: 1px solid rgba(73, 116, 186, 0.14);
+      }
+
+      .pressure-stat strong {
+        font-size: 2.15rem;
+      }
+
+      .pressure-stat span {
+        max-width: 260px;
+        margin: 0 auto;
+      }
+
+      .faq-section {
+        padding: 52px 0 72px;
+      }
+
+      .faq-heading {
+        margin-bottom: 32px;
+        font-size: 2.55rem;
+        line-height: 1.04;
+        letter-spacing: -0.045em;
+      }
+
+      .faq-item summary {
+        grid-template-columns: minmax(0, 1fr) 24px;
+        min-height: 72px;
+        gap: 18px;
+        font-size: 1.24rem;
+        letter-spacing: -0.03em;
+      }
+
+      .faq-item summary::after {
+        width: 11px;
+        height: 11px;
+        border-right-width: 3px;
+        border-bottom-width: 3px;
+      }
+
+      .faq-item p {
+        margin: -2px 42px 22px 0;
+        font-size: 0.98rem;
+        line-height: 1.58;
+      }
+
+      .final-cta-section {
+        padding: 16px 0 56px;
+      }
+
+      .final-cta-inner {
+        padding: 46px 0 52px;
+      }
+
+      .final-cta-kicker {
+        margin-bottom: 14px;
+        font-size: 0.78rem;
+      }
+
+      .final-cta-inner h2 {
+        font-size: 2.55rem;
+        letter-spacing: -0.045em;
+      }
+
+      .final-cta-inner p:not(.final-cta-kicker) {
+        max-width: 340px;
+        margin: 18px 0 24px;
+        font-size: 1rem;
+        line-height: 1.58;
+      }
+
+      .final-cta-inner .btn {
+        width: 100%;
+      }
+
+      .site-footer {
+        padding: 28px 0 34px;
+      }
+
+      .footer-inner {
+        grid-template-columns: 1fr;
+        justify-items: center;
+        text-align: center;
+        gap: 16px;
+      }
+
+      .footer-links {
+        gap: 18px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+
+      .how-section {
+        padding: 52px 0 68px;
+      }
+
+      .how-grid {
+        width: 100%;
+        min-width: 0;
+      }
+
+      .section-heading {
+        font-size: 2.55rem;
+        letter-spacing: -0.045em;
+      }
+
+      .how-panel {
+        min-height: 0;
+        border-radius: 24px;
+        display: grid;
+        gap: 22px;
+        padding: 28px 22px;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        overflow: hidden;
+      }
+
+      .how-content {
+        padding: 0;
+      }
+
+      .listen-visual,
+      .help-visual {
+        position: relative;
+        left: auto;
+        right: auto;
+        bottom: auto;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+      }
+
+      .listen-mini {
+        justify-self: center;
+        gap: 6px;
+        max-width: 100%;
+        padding: 7px;
+        overflow: hidden;
+      }
+
+      .listen-chip {
+        min-height: 30px;
+        padding: 0 9px;
+        font-size: 12px;
+      }
+
+      .help-overlay-preview {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        padding: 18px;
+      }
+
+      .preview-answer {
+        font-size: 1rem;
+        line-height: 1.55;
+      }
+
+      .preview-keywords {
+        max-width: 100%;
+      }
+
+      .compat-section {
+        padding: 0 0 72px;
+      }
+
+      .compat-heading {
+        max-width: 340px;
+        margin-bottom: 18px;
+        font-size: 2.25rem;
+        line-height: 1.02;
+      }
+
+      .compat-showcase {
+        min-height: auto;
+        display: grid;
+        position: relative;
+        margin-top: 24px;
+      }
+
+      .compat-visual {
+        width: 100%;
+        border-radius: 22px;
+      }
+
+      .compat-pill {
+        position: absolute;
+        inset: auto;
+        width: max-content;
+        min-height: 34px;
+        gap: 6px;
+        justify-content: center;
+        padding: 5px 9px 5px 6px;
+        border-color: rgba(74, 119, 188, 0.12);
+        box-shadow:
+          0 8px 20px rgba(31, 76, 143, 0.12),
+          inset 0 1px 0 rgba(255, 255, 255, 0.86);
+      }
+
+      .compat-pill.zoom {
+        left: 22px;
+        top: -12px;
+      }
+
+      .compat-pill.meet {
+        right: 22px;
+        top: -12px;
+      }
+
+      .compat-pill.teams {
+        left: 50%;
+        bottom: -12px;
+        transform: translateX(-50%);
+      }
+
+      .compat-logo {
+        width: 22px;
+        height: 22px;
+        flex-basis: 22px;
+      }
+
+      .compat-logo.zoom img {
+        width: 20px;
+        height: 20px;
+      }
+
+      .compat-logo.meet img {
+        width: 25px;
+        height: 25px;
+      }
+
+      .compat-logo.teams img {
+        width: 30px;
+        height: 30px;
+      }
+
+      .compat-pill span:last-child {
+        font-size: 0.74rem;
+        letter-spacing: 0;
+      }
+    }
+
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="hero-shell">
+      <header class="site-header">
+        <div class="container">
+          <nav class="nav" aria-label="Main navigation">
+            <a class="brand" href="#">
+              <img class="brand-mark" src="./assets/Logo-5.png" alt="Orviko logo" />
+              <span class="brand-name">Orviko</span>
+            </a>
+
+            <div class="nav-links">
+              <a href="mailto:support@orviko.id">Contact Us</a>
+              <a href="../Privacy Policy.html">Privacy Policy</a>
+              <a href="../Terms of Service.html">Terms of Service</a>
+              <a href="#faq">FAQ</a>
+            </div>
+
+            <div class="cta-row">
+              <a class="btn btn-primary" href="#download">
+                <span class="windows-icon" aria-hidden="true">
+                  <span></span><span></span><span></span><span></span>
+                </span>
+                Download untuk Windows
+              </a>
+            </div>
+          </nav>
+        </div>
+      </header>
+
+      <main class="hero">
+        <div class="container">
+          <div class="hero-inner">
+            <div class="eyebrow">
+              <span class="eyebrow-dot" aria-hidden="true"></span>
+              Desktop AI assistant untuk online meeting
+            </div>
+
+            <h1>Lebih siap saat meeting online</h1>
+            <p class="hero-sub">
+              Orviko membantu kamu merespons percakapan meeting dengan lebih tenang, jelas, dan relevan saat meeting berlangsung.
+            </p>
+
+            <div class="hero-actions">
+              <a class="btn btn-primary" href="#download">
+                <span class="windows-icon" aria-hidden="true">
+                  <span></span><span></span><span></span><span></span>
+                </span>
+                Download untuk Windows
+              </a>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="hero-spacer" aria-hidden="true"></div>
+      </main>
+    </section>
+
+    <section class="interactive-demo-section" id="contoh-hasil" aria-label="Interactive demo">
+      <div class="container">
+        <h2 class="demo-section-title">Klik <span class="demo-title-ask">Ask</span> untuk coba Orviko</h2>
+        <div class="interactive-demo-frame">
+          <div class="interactive-demo-canvas" id="demoCanvas">
+            <div class="demo-stage"></div>
+
+            <div class="interview-video-window" aria-hidden="true">
+              <video src="./assets/interview.mp4" autoplay muted loop playsinline></video>
+            </div>
+
+            <div class="demo-overlay" id="demoOverlay">
+              <div class="demo-mini-shell" id="demoMiniShell">
+                <span class="demo-chip"><span class="demo-pulse"></span> Listening 02:14</span>
+                <span class="demo-chip warn">System OK</span>
+                <button class="demo-btn" id="demoOpenBtn" type="button">Ask *</button>
+                <button class="demo-end-btn" aria-label="End meeting" type="button"></button>
+              </div>
+
+              <div class="demo-expanded-shell" id="demoExpandedShell">
+                <section class="demo-overlay-panel" id="demoOverlayPanel">
+                  <div class="demo-overlay-top">
+                    <div>
+                      <p class="demo-kicker">Listening 02:14</p>
+                      <h2 class="demo-title">Live Meeting</h2>
+                      <p class="demo-sub">Malaka Corp - Strategy Sync</p>
+                      <p class="demo-audio">Listening to active system audio</p>
+                    </div>
+                    <button class="demo-btn" id="demoHideBtn" type="button">Hide</button>
+                  </div>
+
+                  <div class="demo-card demo-question-card">
+                    <strong>Latest conversation focus</strong>
+                    <p id="demoFocusText">Kita perlu menentukan prioritas minggu ini karena timeline mulai padat dan beberapa keputusan masih menggantung.</p>
+                  </div>
+
+                  <div class="demo-actions">
+                    <button class="demo-action-btn" data-kind="answer_qna" type="button">Jawab Pertanyaan</button>
+                    <button class="demo-action-btn" data-kind="answer_convo" type="button">Tanggapi</button>
+                    <button class="demo-action-btn" data-kind="followup" type="button">Pertanyaan Follow-up</button>
+                    <button class="demo-action-btn" data-kind="explain" type="button">Jelaskan Maksudnya</button>
+                  </div>
+
+                  <div class="demo-overlay-keywords">
+                    <button class="demo-keyword-btn" data-kind="keyword" data-label="Prioritas Tim" type="button">Prioritas Tim</button>
+                    <button class="demo-keyword-btn" data-kind="keyword" data-label="Risiko Timeline" type="button">Risiko Timeline</button>
+                    <button class="demo-keyword-btn" data-kind="keyword" data-label="Next Step" type="button">Next Step</button>
+                  </div>
+
+                  <form class="demo-ask-row" id="demoAskForm">
+                    <input class="demo-ask-input" id="demoAskInput" placeholder="Tulis bantuan spesifik..." />
+                    <button class="demo-btn" type="submit">Ask</button>
+                  </form>
+                </section>
+
+                <aside class="demo-response-shell" id="demoResponseShell">
+                  <div class="demo-response-top">
+                    <div>
+                      <p class="demo-kicker">Meeting help</p>
+                      <h2 class="demo-title" id="demoResponseTitle">Generating help...</h2>
+                    </div>
+                    <button class="demo-btn" id="demoCloseResponseBtn" type="button">Close</button>
+                  </div>
+                  <div class="demo-loading" id="demoLoadingState">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                  </div>
+                  <ul id="demoResponseList"></ul>
+                </aside>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <section class="how-section" id="cara-kerja" aria-labelledby="how-title">
+      <div class="container">
+        <h2 class="section-heading" id="how-title">Cara Orviko membantumu saat meeting</h2>
+
+        <div class="how-grid">
+          <article class="how-panel listen">
+            <div class="how-content">
+              <h3 class="how-title">Orviko mendengarkan percakapan saat meeting</h3>
+              <p class="how-description">
+                Orviko menangkap percakapan secara realtime untuk memahami konteks meeting yang sedang berjalan.
+              </p>
+            </div>
+
+            <div class="listen-visual" aria-hidden="true">
+              <div class="recording-visual">
+                <span></span><span></span><span></span><span></span><span></span>
+                <span></span><span></span><span></span><span></span><span></span>
+                <span></span><span></span><span></span><span></span><span></span>
+                <span></span><span></span><span></span><span></span><span></span>
+              </div>
+
+              <div class="listen-mini">
+                <span class="listen-chip"><span class="demo-pulse"></span> Listening <span id="howListeningTimer">00:01</span></span>
+                <span class="listen-chip ok">System OK</span>
+                <span class="listen-chip">Ask *</span>
+              </div>
+
+              <div class="context-preview">
+                <strong>Latest conversation focus</strong>
+                <p class="context-line">Kita perlu menentukan prioritas minggu ini karena timeline mulai padat.</p>
+              </div>
+            </div>
+          </article>
+
+          <article class="how-panel help">
+            <div class="how-content">
+              <h3 class="how-title">Saat butuh bantuan, Orviko merespons dengan cepat</h3>
+              <p class="how-description">
+                Saat kamu blank atau butuh arahan, Orviko langsung menampilkan bantuan yang ringkas dan cepat dibaca.
+              </p>
+            </div>
+
+            <div class="help-visual" aria-hidden="true">
+              <div class="help-overlay-preview">
+                <div class="preview-top">
+                  <div>
+                    <p class="preview-kicker">AI help</p>
+                    <h3 class="preview-title">Tanggapi</h3>
+                  </div>
+                </div>
+
+                <p class="preview-answer">
+                  Setuju, menurut saya kita perlu kunci dua prioritas paling penting dulu, lalu sisanya masuk parking lot supaya meeting ini tetap menghasilkan keputusan.
+                </p>
+
+                <div class="preview-keywords">
+                  <span>Prioritas Tim</span>
+                  <span>Risiko Timeline</span>
+                  <span>Next Step</span>
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="pressure-section" aria-labelledby="pressure-title">
+      <div class="container">
+        <div class="pressure-intro">
+          <h2 class="section-heading" id="pressure-title">Dibuat untuk momen meeting yang menegangkan</h2>
+          <p>
+            Saat kamu blank, Orviko memberi bantuan yang cepat dibaca tanpa mengganggu alur meeting.
+          </p>
+        </div>
+
+        <div class="pressure-stats" aria-label="Keunggulan Orviko saat meeting live">
+          <article class="pressure-stat">
+            <strong>~800ms</strong>
+            <span>Target response time setelah klik bantuan</span>
+          </article>
+          <article class="pressure-stat">
+            <strong>3 poin</strong>
+            <span>Jawaban singkat, bukan paragraf panjang</span>
+          </article>
+          <article class="pressure-stat">
+            <strong>Konteks live</strong>
+            <span>Memahami profil, konteks meeting, dan percakapan terbaru</span>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="compat-section" aria-labelledby="compat-title">
+      <div class="container">
+        <h2 class="section-heading compat-heading" id="compat-title">Orviko bisa kamu gunakan pada platform apapun</h2>
+
+        <div class="compat-showcase" aria-label="Platform meeting online yang didukung Orviko">
+          <div class="compat-visual">
+            <img src="./assets/interview-2.jpg" alt="Ilustrasi Orviko digunakan saat meeting online" loading="lazy" />
+          </div>
+
+          <div class="compat-pill zoom">
+            <span class="compat-logo zoom"><img src="./assets/Zoom.png" alt="" loading="lazy" /></span>
+            <span>Zoom</span>
+          </div>
+
+          <div class="compat-pill meet">
+            <span class="compat-logo meet"><img src="./assets/Google Meet.png" alt="" loading="lazy" /></span>
+            <span>Google Meet</span>
+          </div>
+
+          <div class="compat-pill teams">
+            <span class="compat-logo teams"><img src="./assets/Microsoft Teams.png" alt="" loading="lazy" /></span>
+            <span>Microsoft Teams</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="faq-section" id="faq" aria-labelledby="faq-title">
+      <div class="container">
+        <h2 class="faq-heading" id="faq-title">Frequently asked questions</h2>
+
+        <div class="faq-list">
+          <details class="faq-item">
+            <summary>
+              <span>Kenapa Orviko real-time, bukan AI notetaker biasa?</span>
+            </summary>
+            <p>
+              Orviko dirancang untuk membantu saat meeting sedang berlangsung, bukan hanya merangkum setelah meeting selesai.
+              Bantuan muncul saat kamu klik, dalam format singkat yang mudah dibaca ketika tekanan sedang tinggi.
+            </p>
+          </details>
+
+          <details class="faq-item">
+            <summary>
+              <span>Untuk siapa Orviko dibuat?</span>
+            </summary>
+            <p>
+              Orviko dibuat untuk user yang ingin lebih siap saat meeting online, terutama ketika perlu mengingat profil,
+              konteks meeting, dan percakapan terbaru tanpa kehilangan fokus.
+            </p>
+          </details>
+
+          <details class="faq-item">
+            <summary>
+              <span>Apakah Orviko menjawab otomatis saat meeting?</span>
+            </summary>
+            <p>
+              Tidak. User tetap memegang kontrol. Orviko hanya menampilkan bantuan ketika kamu menekan tombol seperti Jawab Pertanyaan,
+              Tanggapi, Pertanyaan Follow-up, Jelaskan Maksudnya, atau mengirim pertanyaan manual.
+            </p>
+          </details>
+
+          <details class="faq-item">
+            <summary>
+              <span>Apakah Orviko bisa dipakai di Zoom, Google Meet, dan Microsoft Teams?</span>
+            </summary>
+            <p>
+              Ya. Orviko dirancang untuk mendampingi meeting online di platform meeting umum seperti Zoom, Google Meet,
+              dan Microsoft Teams.
+            </p>
+          </details>
+
+          <details class="faq-item">
+            <summary>
+              <span>Apa yang dipahami Orviko saat meeting berjalan?</span>
+            </summary>
+            <p>
+              Orviko menggunakan konteks dari profil, brief meeting, dan percakapan terbaru agar bantuan yang muncul
+              tetap relevan dengan situasi meeting.
+            </p>
+          </details>
+
+          <details class="faq-item">
+            <summary>
+              <span>Apakah jawaban Orviko panjang?</span>
+            </summary>
+            <p>
+              Tidak. Orviko memprioritaskan jawaban singkat, biasanya dalam beberapa poin, supaya cepat discan dan tidak mengganggu
+              alur meeting.
+            </p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <section class="final-cta-section" id="download" aria-labelledby="final-cta-title">
+      <div class="container">
+        <div class="final-cta-inner">
+          <p class="final-cta-kicker">Orviko untuk Windows</p>
+          <h2 id="final-cta-title">Siap meeting dengan lebih tenang?</h2>
+          <p>
+            Download Orviko dan siapkan bantuan realtime sebelum meeting online berikutnya.
+          </p>
+          <a class="btn btn-primary" href="#download">
+            <span class="windows-icon" aria-hidden="true">
+              <span></span><span></span><span></span><span></span>
+            </span>
+            Download untuk Windows
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <footer class="site-footer">
+      <div class="container">
+        <div class="footer-inner">
+          <a class="footer-brand" href="#">
+            <img class="brand-mark" src="./assets/Logo-2.png" alt="Orviko logo" loading="lazy" />
+            <span>Orviko</span>
+          </a>
+
+          <p>Desktop AI assistant untuk online meeting.</p>
+
+          <nav class="footer-links" aria-label="Footer navigation">
+            <a href="mailto:support@orviko.id">Contact Us</a>
+            <a href="../Privacy Policy.html">Privacy Policy</a>
+            <a href="../Terms of Service.html">Terms of Service</a>
+            <a href="#faq">FAQ</a>
+          </nav>
+
+          <span class="footer-copy">© 2026 Orviko. All rights reserved.</span>
+        </div>
+      </div>
+    </footer>
+
+    <div class="floating-cta" id="floatingCta" aria-hidden="true">
+      <a class="btn btn-primary" href="#download">
+        <span class="windows-icon" aria-hidden="true">
+          <span></span><span></span><span></span><span></span>
+        </span>
+        Download untuk Windows
+      </a>
+    </div>
+
+  </div>
+
+  <script>
+const demoCanvas = document.getElementById("demoCanvas");
+    const demoOverlay = document.getElementById("demoOverlay");
+    const demoMiniShell = document.getElementById("demoMiniShell");
+    const demoExpandedShell = document.getElementById("demoExpandedShell");
+    const demoOverlayPanel = document.getElementById("demoOverlayPanel");
+    const demoResponseShell = document.getElementById("demoResponseShell");
+    const demoLoadingState = document.getElementById("demoLoadingState");
+    const demoResponseTitle = document.getElementById("demoResponseTitle");
+    const demoResponseList = document.getElementById("demoResponseList");
+    const demoFocusText = document.getElementById("demoFocusText");
+    const demoAskForm = document.getElementById("demoAskForm");
+    const demoAskInput = document.getElementById("demoAskInput");
+    const demoFrame = document.querySelector(".interactive-demo-frame");
+    const interviewVideoWindow = document.querySelector(".interview-video-window");
+    const howListeningTimer = document.getElementById("howListeningTimer");
+    const floatingCta = document.getElementById("floatingCta");
+    const primaryDownloadButtons = document.querySelectorAll(".cta-row .btn-primary, .hero-actions .btn-primary, .final-cta-inner .btn-primary");
+    const baseDemoWidth = 1280;
+    const baseDemoHeight = 760;
+    const maxDemoScale = 0.78;
+    const mobileDemoQuery = window.matchMedia("(max-width: 640px)");
+
+    function syncDemoScale() {
+      if (!demoFrame) return;
+
+      if (mobileDemoQuery.matches) {
+        demoFrame.style.setProperty("--demo-scale", "1");
+
+        const availableWidth = Math.max(demoFrame.clientWidth - 24, 1);
+        const activeShell = demoExpandedShell.classList.contains("active") ? demoExpandedShell : demoMiniShell;
+        const mobileMaxOverlayWidth = 900;
+        const overlayScale = Math.min(0.52, availableWidth / mobileMaxOverlayWidth);
+        const boundedOverlayScale = Math.max(0.32, overlayScale);
+        demoFrame.style.setProperty("--mobile-overlay-scale", boundedOverlayScale.toFixed(3));
+
+        const videoHeight = interviewVideoWindow?.offsetHeight || 0;
+        const overlayHeight = (activeShell.offsetHeight || demoOverlay?.offsetHeight || 0) * boundedOverlayScale;
+        const isExpanded = demoExpandedShell.classList.contains("active");
+        const safeHeight = isExpanded
+          ? Math.max(videoHeight + 28, overlayHeight + 24)
+          : Math.max(videoHeight + 28, 360);
+
+        demoFrame.style.height = `${Math.ceil(safeHeight)}px`;
+        demoCanvas.style.minHeight = `${Math.ceil(safeHeight)}px`;
+        demoCanvas.style.height = "auto";
+        demoOverlay.style.left = "";
+        demoOverlay.style.top = "";
+        return;
+      }
+
+      demoCanvas.style.minHeight = "";
+      demoCanvas.style.height = "";
+      demoFrame.style.removeProperty("--mobile-overlay-scale");
+      const nextScale = Math.min(maxDemoScale, demoFrame.clientWidth / baseDemoWidth);
+      demoFrame.style.setProperty("--demo-scale", nextScale.toFixed(4));
+      demoFrame.style.height = `${baseDemoHeight * nextScale}px`;
+    }
+
+    function scheduleDemoScaleSync() {
+      window.requestAnimationFrame(syncDemoScale);
+    }
+
+    function syncDemoOverlayBounds(preferCenter = false) {
+      if (mobileDemoQuery.matches) return;
+
+      const activeWidth = demoExpandedShell.classList.contains("with-response") ? 900 : 560;
+      const activeHeight = demoExpandedShell.classList.contains("active") ? 440 : demoMiniShell.offsetHeight;
+      const currentLeft = Number.parseFloat(demoOverlay.style.left) || demoOverlay.offsetLeft;
+      const currentTop = Number.parseFloat(demoOverlay.style.top) || demoOverlay.offsetTop;
+      const centeredLeft = (baseDemoWidth - activeWidth) / 2;
+      const nextLeft = preferCenter ? centeredLeft : currentLeft;
+      const clampedLeft = Math.max(0, Math.min(baseDemoWidth - activeWidth, nextLeft));
+      const clampedTop = Math.max(0, Math.min(baseDemoHeight - activeHeight, currentTop));
+
+      demoOverlay.style.left = `${clampedLeft}px`;
+      demoOverlay.style.top = `${clampedTop}px`;
+    }
+
+    syncDemoScale();
+
+    if (window.ResizeObserver && demoFrame) {
+      const demoResizeObserver = new ResizeObserver(syncDemoScale);
+      demoResizeObserver.observe(demoFrame);
+    }
+
+    window.addEventListener("resize", syncDemoScale);
+    interviewVideoWindow?.querySelector("video")?.addEventListener("loadedmetadata", syncDemoScale);
+    mobileDemoQuery.addEventListener("change", syncDemoScale);
+
+    const demoResponses = {
+      answer_qna: {
+        title: "Jawab Pertanyaan",
+        points: [
+          "Prioritas minggu ini sebaiknya ditentukan dari dampak terbesar, urgensi timeline, dan dependensi antar tim.",
+          "Kalau ada keputusan yang masih menggantung, pisahkan mana yang harus diputuskan sekarang dan mana yang bisa masuk parking lot.",
+          "Dengan begitu meeting tetap menghasilkan arah yang jelas tanpa memaksa semua isu selesai sekaligus."
+        ]
+      },
+      answer_convo: {
+        title: "Tanggapi",
+        points: [
+          "Setuju, menurut saya kita perlu kunci dua prioritas paling penting dulu supaya tim punya arah yang jelas minggu ini.",
+          "Untuk keputusan yang belum matang, kita bisa tandai sebagai risiko dan tentukan owner-nya, jadi tidak hilang setelah meeting.",
+          "Saya usul di akhir sesi kita tutup dengan next step singkat: prioritas, owner, dan deadline."
+        ]
+      },
+      followup: {
+        title: "Pertanyaan Follow-up",
+        points: [
+          "Dari semua prioritas yang dibahas, mana yang paling perlu diputuskan hari ini?",
+          "Siapa owner untuk risiko timeline yang paling kritis?",
+          "Apa next step paling kecil yang bisa mulai dijalankan setelah meeting ini?"
+        ]
+      },
+      explain: {
+        title: "Jelaskan Maksudnya",
+        points: [
+          "Pembicara sedang menandai bahwa tim belum punya prioritas yang cukup jelas untuk minggu ini.",
+          "Kata kuncinya ada di timeline yang mulai padat dan keputusan yang masih menggantung.",
+          "Respons terbaik adalah membantu merapikan prioritas, risiko, owner, dan next step."
+        ]
+      }
+    };
+
+    function showDemoMini() {
+      demoMiniShell.style.display = "flex";
+      demoExpandedShell.classList.remove("active");
+      demoExpandedShell.classList.remove("with-response");
+      demoOverlayPanel.classList.remove("compact-when-response");
+      demoResponseShell.classList.remove("active");
+      demoResponseList.innerHTML = "";
+      demoLoadingState.classList.remove("active");
+      scheduleDemoScaleSync();
+      window.requestAnimationFrame(() => syncDemoOverlayBounds());
+    }
+
+    function showDemoExpanded() {
+      demoMiniShell.style.display = "none";
+      demoExpandedShell.classList.add("active");
+      scheduleDemoScaleSync();
+      window.requestAnimationFrame(() => syncDemoOverlayBounds());
+    }
+
+    function renderDemoResponse(title, points) {
+      demoResponseTitle.textContent = title;
+      demoResponseList.innerHTML = "";
+      points.forEach((point) => {
+        const li = document.createElement("li");
+        li.textContent = point;
+        demoResponseList.appendChild(li);
+      });
+    }
+
+    function simulateDemoResponse(title, points) {
+      showDemoExpanded();
+      demoExpandedShell.classList.add("with-response");
+      demoOverlayPanel.classList.add("compact-when-response");
+      demoResponseShell.classList.add("active");
+      demoResponseTitle.textContent = "Generating help...";
+      demoResponseList.innerHTML = "";
+      demoLoadingState.classList.add("active");
+      scheduleDemoScaleSync();
+      window.requestAnimationFrame(() => syncDemoOverlayBounds(true));
+
+      window.setTimeout(() => {
+        demoLoadingState.classList.remove("active");
+        renderDemoResponse(title, points);
+        scheduleDemoScaleSync();
+        window.requestAnimationFrame(() => syncDemoOverlayBounds());
+      }, 550);
+    }
+
+    document.getElementById("demoOpenBtn").addEventListener("click", showDemoExpanded);
+    document.getElementById("demoHideBtn").addEventListener("click", showDemoMini);
+    document.getElementById("demoCloseResponseBtn").addEventListener("click", () => {
+      demoExpandedShell.classList.remove("with-response");
+      demoOverlayPanel.classList.remove("compact-when-response");
+      demoResponseShell.classList.remove("active");
+      demoResponseList.innerHTML = "";
+      demoLoadingState.classList.remove("active");
+      scheduleDemoScaleSync();
+      window.requestAnimationFrame(() => syncDemoOverlayBounds());
+    });
+
+    document.querySelectorAll(".demo-action-btn[data-kind='answer_qna'], .demo-action-btn[data-kind='answer_convo'], .demo-action-btn[data-kind='followup'], .demo-action-btn[data-kind='explain']").forEach((button) => {
+      button.addEventListener("click", () => {
+        const kind = button.getAttribute("data-kind");
+        const data = demoResponses[kind];
+        simulateDemoResponse(data.title, data.points);
+      });
+    });
+
+    document.querySelectorAll(".demo-keyword-btn[data-kind='keyword']").forEach((button) => {
+      button.addEventListener("click", () => {
+        const label = button.getAttribute("data-label") || "Keyword";
+        simulateDemoResponse(`Keyword: ${label}`, [
+          `${label} adalah topik yang sedang relevan dengan percakapan meeting terbaru.`,
+          "Gunakan keyword ini untuk mengaitkan jawaban ke konteks terbaru.",
+          "Respons terbaik tetap singkat, konkret, dan mengarah ke keputusan atau next step."
+        ]);
+      });
+    });
+
+    demoAskForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const value = demoAskInput.value.trim();
+      if (!value) return;
+      simulateDemoResponse("Ask", [
+        `Dummy jawaban untuk: "${value}".`,
+        "Saya sengaja buat singkat, cepat discan, dan siap dibaca.",
+        "Kalau ini runtime asli, isi response akan mengikuti transcript terbaru."
+      ]);
+      demoAskInput.value = "";
+    });
+
+    const demoDragState = {
+      active: false,
+      offsetX: 0,
+      offsetY: 0
+    };
+
+    function getDemoScale() {
+      return Number.parseFloat(getComputedStyle(demoFrame).getPropertyValue("--demo-scale")) || 1;
+    }
+
+    function getDemoPoint(event) {
+      const rect = demoCanvas.getBoundingClientRect();
+      const scale = getDemoScale();
+      return {
+        x: (event.clientX - rect.left) / scale,
+        y: (event.clientY - rect.top) / scale
+      };
+    }
+
+    function beginDemoDrag(event) {
+      if (mobileDemoQuery.matches) {
+        return;
+      }
+
+      if (event.target.closest("button, input")) {
+        return;
+      }
+
+      const point = getDemoPoint(event);
+      demoDragState.active = true;
+      demoDragState.offsetX = point.x - demoOverlay.offsetLeft;
+      demoDragState.offsetY = point.y - demoOverlay.offsetTop;
+      demoOverlay.classList.add("dragging");
+    }
+
+    function moveDemoDrag(event) {
+      if (!demoDragState.active) return;
+
+      const point = getDemoPoint(event);
+      const activeWidth = demoExpandedShell.classList.contains("with-response") ? 900 : 560;
+      const activeHeight = 440;
+      const nextLeft = Math.max(0, Math.min(1280 - activeWidth, point.x - demoDragState.offsetX));
+      const nextTop = Math.max(0, Math.min(760 - activeHeight, point.y - demoDragState.offsetY));
+      demoOverlay.style.left = `${nextLeft}px`;
+      demoOverlay.style.top = `${nextTop}px`;
+    }
+
+    function endDemoDrag() {
+      demoDragState.active = false;
+      demoOverlay.classList.remove("dragging");
+    }
+
+    demoMiniShell.addEventListener("pointerdown", beginDemoDrag);
+    demoExpandedShell.addEventListener("pointerdown", beginDemoDrag);
+    demoResponseShell.addEventListener("pointerdown", beginDemoDrag);
+    window.addEventListener("pointermove", moveDemoDrag);
+    window.addEventListener("pointerup", endDemoDrag);
+
+    demoFocusText.textContent = "Kita perlu menentukan prioritas minggu ini karena timeline mulai padat dan beberapa keputusan masih menggantung.";
+
+    let howListeningSecond = 1;
+    window.setInterval(() => {
+      if (!howListeningTimer) return;
+
+      howListeningSecond = howListeningSecond >= 30 ? 1 : howListeningSecond + 1;
+      howListeningTimer.textContent = `00:${String(howListeningSecond).padStart(2, "0")}`;
+    }, 1000);
+
+    if (floatingCta && primaryDownloadButtons.length) {
+      const visibleDownloadButtons = new Set();
+
+      function syncFloatingCta() {
+        const shouldShow = visibleDownloadButtons.size === 0;
+        floatingCta.classList.toggle("visible", shouldShow);
+        floatingCta.setAttribute("aria-hidden", String(!shouldShow));
+      }
+
+      const downloadObserver = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            visibleDownloadButtons.add(entry.target);
+          } else {
+            visibleDownloadButtons.delete(entry.target);
+          }
+        });
+
+        syncFloatingCta();
+      }, { threshold: 0.08 });
+
+      primaryDownloadButtons.forEach((button) => downloadObserver.observe(button));
+      syncFloatingCta();
+    }
+
+  </script>
+</body>
+</html>
+

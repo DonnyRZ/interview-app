@@ -12,24 +12,31 @@ import {
 } from "./runtime-rules/overlay-response-copy.js";
 import { buildRealtimeActionPrompt } from "./runtime-rules/realtime-action-prompt.js";
 import {
+  getExplicitActionConversationMode,
+  isConversationHelpActionName
+} from "./runtime-rules/realtime-action-types.js";
+import {
   areSameTranscript,
   buildConversationWindow,
   buildKeywordSourceText,
   chooseMostCompleteTranscript,
+  classifyMeetingConversationMode,
+  classifyTranscriptQuality,
   deriveLatestConversationFocus,
   isDomainRelatedText,
-  isLikelyTranscriptNoise,
-  looksLikeInterviewerQuestion
+  looksLikeMeetingQuestion,
+  type ConversationMode,
+  type TranscriptQualityResult
 } from "./runtime-rules/transcript-focus-rules.js";
 
 type OverlayMode = "mini" | "expanded" | "loading" | "response";
 
 type OverlayContext = {
-  interviewRoundId?: string;
-  applicationId?: string;
-  companyName?: string;
-  roleTitle?: string;
-  stageType?: string;
+  liveMeetingSessionId?: string;
+  meetingContextId?: string;
+  contextName?: string;
+  meetingTopic?: string;
+  sessionType?: string;
   audioStatus?: string;
   audioDeviceLabel?: string;
   audioSourceKind?: string;
@@ -56,6 +63,7 @@ type StableConversationSnapshot = {
   windowText: string;
   capturedAt: string;
   sourceVersion: number;
+  conversationMode: ConversationMode;
 };
 
 type RuntimeKeywordRequestPayload = {
@@ -65,9 +73,21 @@ type RuntimeKeywordRequestPayload = {
   transcriptSegment: string;
 };
 
+type RejectedTranscriptMetadata = {
+  source: "realtime" | "dev";
+  reason: string;
+  status: TranscriptQualityResult["status"];
+  capturedAt: string;
+  sample: string;
+};
+
 type ActiveRealtimeResponse = {
   requestId: number;
   action: RealtimeOverlayAction["action"];
+  conversationMode?: RealtimeOverlayAction["conversationMode"];
+  sourceText?: string;
+  payload?: RealtimeOverlayAction;
+  retryCount?: number;
   responseId?: string;
 };
 
@@ -78,15 +98,15 @@ type ActiveKeywordRealtimeResponse = {
   responseId?: string;
 };
 
-const waitingFocusText = "Menunggu konteks percakapan interviewer.";
+const waitingFocusText = "Menunggu konteks percakapan meeting.";
 const conversationMemoryMs = 120_000;
 const runtimeKeywordThrottleMs = 350;
 
 const fallbackContext: OverlayContext = {
-  companyName: "Interview",
-  roleTitle: "Active session",
-  stageType: "HR",
-  domainLabel: "application domain",
+  contextName: "Meeting",
+  meetingTopic: "Active session",
+  sessionType: "HR",
+  domainLabel: "meeting context",
   runtimeKeywords: []
 };
 
@@ -128,6 +148,7 @@ export function InterviewOverlay() {
   const latestFocusRef = useRef(waitingFocusText);
   const conversationWindowRef = useRef("");
   const lastStableConversationRef = useRef<StableConversationSnapshot | null>(null);
+  const lastRejectedTranscriptRef = useRef<RejectedTranscriptMetadata | null>(null);
   const stableConversationSourceVersionRef = useRef(0);
   const keywordTranscriptVersionRef = useRef(0);
 
@@ -135,8 +156,8 @@ export function InterviewOverlay() {
     if (!payload || typeof payload !== "object") return;
 
     const nextContext = payload as OverlayContext;
-    const incomingRoundId = typeof nextContext.interviewRoundId === "string" ? nextContext.interviewRoundId : undefined;
-    const currentRoundId = typeof contextRef.current.interviewRoundId === "string" ? contextRef.current.interviewRoundId : undefined;
+    const incomingRoundId = typeof nextContext.liveMeetingSessionId === "string" ? nextContext.liveMeetingSessionId : undefined;
+    const currentRoundId = typeof contextRef.current.liveMeetingSessionId === "string" ? contextRef.current.liveMeetingSessionId : undefined;
     const isNewRound = Boolean(incomingRoundId) && incomingRoundId !== currentRoundId;
     const mergedContext = {
       ...(isNewRound ? fallbackContext : contextRef.current),
@@ -171,6 +192,7 @@ export function InterviewOverlay() {
       latestFocusRef.current = waitingFocusText;
       conversationWindowRef.current = "";
       lastStableConversationRef.current = null;
+      lastRejectedTranscriptRef.current = null;
       stableConversationSourceVersionRef.current = 0;
       keywordTranscriptVersionRef.current = 0;
       setActiveResponse(null);
@@ -272,7 +294,7 @@ export function InterviewOverlay() {
         if (!isCurrentRequest(requestId)) return;
         streamingResponseRef.current = "";
         setActiveResponse({
-          title: typeof event.title === "string" ? event.title : "AI Help",
+          title: typeof event.title === "string" ? event.title : "Meeting Help",
           kind: "help",
           points: ["Menyiapkan bantuan realtime..."]
         });
@@ -285,7 +307,11 @@ export function InterviewOverlay() {
         const delta = typeof event.delta === "string" ? event.delta : "";
         if (!isCurrentRequest(requestId)) return;
         streamingResponseRef.current += delta;
-        const points = formatRealtimeResponsePoints(streamingResponseRef.current);
+        const points = formatRealtimeResponsePoints(streamingResponseRef.current, {
+          action: activeRealtimeResponseRef.current?.action,
+          conversationMode: activeRealtimeResponseRef.current?.conversationMode,
+          sourceText: activeRealtimeResponseRef.current?.sourceText
+        });
         setActiveResponse((current) => current
           ? { ...current, points: points.length ? points : ["Menyiapkan bantuan realtime..."] }
           : current);
@@ -299,11 +325,19 @@ export function InterviewOverlay() {
         if (!isCurrentRequest(requestId)) return;
         const finalText = doneText || streamingResponseRef.current.trim();
         setActiveResponse((current) => current
-          ? { ...current, points: formatRealtimeResponsePoints(finalText) }
+          ? { ...current, points: formatRealtimeResponsePoints(finalText, {
+            action: activeRealtimeResponseRef.current?.action,
+            conversationMode: activeRealtimeResponseRef.current?.conversationMode,
+            sourceText: activeRealtimeResponseRef.current?.sourceText
+          }) }
           : {
-            title: "AI Help",
+            title: "Meeting Help",
             kind: "help",
-            points: formatRealtimeResponsePoints(finalText)
+            points: formatRealtimeResponsePoints(finalText, {
+              action: activeRealtimeResponseRef.current?.action,
+              conversationMode: activeRealtimeResponseRef.current?.conversationMode,
+              sourceText: activeRealtimeResponseRef.current?.sourceText
+            })
           });
         streamingResponseRef.current = "";
         setMode("response");
@@ -364,7 +398,7 @@ export function InterviewOverlay() {
     }
 
     queueRuntimeKeywordRequest(snapshot);
-  }, [context.interviewRoundId, context.realtimeContext, context.realtimeStatus, stableConversationVersion, keywordTranscriptVersion]);
+  }, [context.liveMeetingSessionId, context.realtimeContext, context.realtimeStatus, stableConversationVersion, keywordTranscriptVersion]);
 
   function beginDrag(event: PointerEvent<HTMLElement>) {
     const target = event.target as HTMLElement;
@@ -440,7 +474,7 @@ export function InterviewOverlay() {
     }
 
     const fingerprint = buildKeywordRequestFingerprint(keywordSourceText);
-    const requestKey = `${contextRef.current.interviewRoundId || "draft"}::${fingerprint}`;
+    const requestKey = `${contextRef.current.liveMeetingSessionId || "draft"}::${fingerprint}`;
     if (
       runtimeKeywordLastRequestedKeyRef.current === requestKey
       || runtimeKeywordPendingRef.current?.requestKey === requestKey
@@ -558,7 +592,7 @@ export function InterviewOverlay() {
 
     socket.addEventListener("open", () => {
       if (realtimeSocketRef.current !== socket) return;
-      updateRealtimeStatus("audio_waiting", "Mencari audio interview dari active system output...");
+      updateRealtimeStatus("audio_waiting", "Mencari audio meeting dari active system output...");
       void window.interviewDesktop?.reportRealtimeClientEvent?.({ type: "open" });
     });
 
@@ -646,7 +680,7 @@ export function InterviewOverlay() {
     if (type === "input_audio_buffer.speech_started") {
       pendingSpeechRef.current = true;
       currentSpeechStartedAtRef.current = Date.now();
-      updateRealtimeStatus("listening", "Menangkap ucapan interviewer...");
+      updateRealtimeStatus("listening", "Menangkap ucapan lawan bicara...");
       return;
     }
 
@@ -743,7 +777,11 @@ export function InterviewOverlay() {
       if (!isActiveRealtimeResponseEvent(event)) return;
 
       streamingResponseRef.current += delta;
-      const points = formatRealtimeResponsePoints(streamingResponseRef.current);
+      const points = formatRealtimeResponsePoints(streamingResponseRef.current, {
+        action: activeRealtimeResponseRef.current?.action,
+        conversationMode: activeRealtimeResponseRef.current?.conversationMode,
+        sourceText: activeRealtimeResponseRef.current?.sourceText
+      });
       setActiveResponse((current) => current
         ? { ...current, points: points.length ? points : ["Menyiapkan bantuan realtime..."] }
         : current);
@@ -775,12 +813,40 @@ export function InterviewOverlay() {
 
       if (!isActiveRealtimeResponseEvent(event)) return;
       const finalText = extractRealtimeResponseText(event) || streamingResponseRef.current.trim();
+      if (!finalText) {
+        if (retryEmptyRealtimeResponse()) {
+          return;
+        }
+
+        setActiveResponse((current) => current
+          ? { ...current, points: buildEmptyRealtimeResponsePoints() }
+          : {
+            title: "Meeting Help",
+            kind: "notice",
+            points: buildEmptyRealtimeResponsePoints()
+          });
+        streamingResponseRef.current = "";
+        activeResponseFinalRef.current = true;
+        activeRealtimeResponseRef.current = null;
+        updateRealtimeStatus("listening", "Realtime tersambung. Bantuan kosong, coba kirim ulang jika perlu.");
+        setMode("response");
+        return;
+      }
+
       setActiveResponse((current) => current
-        ? { ...current, points: formatRealtimeResponsePoints(finalText) }
+        ? { ...current, points: formatRealtimeResponsePoints(finalText, {
+          action: activeRealtimeResponseRef.current?.action,
+          conversationMode: activeRealtimeResponseRef.current?.conversationMode,
+          sourceText: activeRealtimeResponseRef.current?.sourceText
+        }) }
         : {
-          title: "AI Help",
+          title: "Meeting Help",
           kind: "help",
-          points: formatRealtimeResponsePoints(finalText)
+          points: formatRealtimeResponsePoints(finalText, {
+            action: activeRealtimeResponseRef.current?.action,
+            conversationMode: activeRealtimeResponseRef.current?.conversationMode,
+            sourceText: activeRealtimeResponseRef.current?.sourceText
+          })
         });
       streamingResponseRef.current = "";
       activeResponseFinalRef.current = true;
@@ -789,7 +855,7 @@ export function InterviewOverlay() {
       const nextStatus = audioReady ? "listening" : "connected";
       const nextMessage = audioReady
         ? `Listening via ${contextRef.current.audioDeviceLabel || "active system output"}`
-        : "Realtime tersambung. Menunggu audio interview.";
+        : "Realtime tersambung. Menunggu audio meeting.";
       updateRealtimeStatus(nextStatus, nextMessage);
       void window.interviewDesktop?.reportRealtimeClientEvent?.({
         type: "listening",
@@ -846,7 +912,8 @@ export function InterviewOverlay() {
             text: buildRealtimeActionPrompt({
               action: "surface_keywords",
               latestQuestion: snapshot?.focus || latestFocusRef.current,
-              recentTranscript: payload.transcriptSegment
+              recentTranscript: payload.transcriptSegment,
+              conversationMode: snapshot?.conversationMode || classifyMeetingConversationMode(payload.transcriptSegment)
             })
           }
         ]
@@ -988,6 +1055,12 @@ export function InterviewOverlay() {
       return null;
     }
 
+    const quality = classifyTranscriptQuality(event.transcriptText);
+    if (quality.status !== "accept") {
+      rememberRejectedTranscript("dev", event.transcriptText, quality, event.capturedAt || new Date().toISOString());
+      return null;
+    }
+
     const fingerprint = buildTranscriptEventFingerprint(event);
     if (lastTranscriptEventFingerprintRef.current === fingerprint) {
       return null;
@@ -1010,7 +1083,12 @@ export function InterviewOverlay() {
   }) {
     const existing = transcriptDeltaItemsRef.current.get(input.itemId);
     const nextText = `${existing?.text || ""}${input.delta}`.replace(/\s+/g, " ").trim();
-    if (!nextText || isLikelyTranscriptNoise(nextText)) {
+    const quality = classifyTranscriptQuality(nextText);
+    if (!nextText || quality.status !== "accept") {
+      if (nextText) {
+        transcriptDeltaItemsRef.current.delete(input.itemId);
+        rememberRejectedTranscript("realtime", nextText, quality, input.capturedAt);
+      }
       return;
     }
 
@@ -1043,7 +1121,11 @@ export function InterviewOverlay() {
     capturedAt: string;
   }) {
     const normalized = input.text.replace(/\s+/g, " ").trim();
-    if (!normalized || isLikelyTranscriptNoise(normalized)) {
+    const quality = classifyTranscriptQuality(normalized);
+    if (!normalized || quality.status !== "accept") {
+      if (normalized) {
+        rememberRejectedTranscript("realtime", normalized, quality, input.capturedAt);
+      }
       return null;
     }
 
@@ -1070,6 +1152,21 @@ export function InterviewOverlay() {
     }
     rebuildConversationFromTranscriptItems();
     return turn;
+  }
+
+  function rememberRejectedTranscript(
+    source: RejectedTranscriptMetadata["source"],
+    text: string,
+    quality: TranscriptQualityResult,
+    capturedAt: string
+  ) {
+    lastRejectedTranscriptRef.current = {
+      source,
+      reason: quality.reason || "unknown",
+      status: quality.status,
+      capturedAt,
+      sample: text.slice(0, 160)
+    };
   }
 
   function ensureTranscriptOrder(itemId: string, previousItemId?: string) {
@@ -1102,7 +1199,7 @@ export function InterviewOverlay() {
 
     const nextWindow = buildConversationWindow(visibleTurns);
     const latestTurn = visibleTurns.at(-1);
-    const nextFocus = deriveLatestConversationFocus(nextWindow, latestTurn?.text || "", contextRef.current) || latestTurn?.text || waitingFocusText;
+    const nextFocus = deriveLatestConversationFocus(nextWindow, latestTurn?.text || "", contextRef.current) || waitingFocusText;
 
     conversationWindowRef.current = nextWindow;
     latestFocusRef.current = nextFocus;
@@ -1140,7 +1237,8 @@ export function InterviewOverlay() {
       focus: normalizedFocus,
       windowText: normalizedWindow,
       capturedAt: latestTurn.capturedAt,
-      sourceVersion
+      sourceVersion,
+      conversationMode: classifyMeetingConversationMode(`${normalizedWindow}\n${normalizedFocus}`)
     };
     setStableConversationVersion(sourceVersion);
   }
@@ -1164,8 +1262,7 @@ export function InterviewOverlay() {
         ...conversationTurnsRef.current.filter((turn) => turn.itemId !== latestInterimTurn.itemId).slice(-9),
         latestInterimTurn
       ]);
-      const interimFocus = deriveLatestConversationFocus(interimWindow, latestInterimTurn.text, contextRef.current)
-        || latestInterimTurn.text;
+      const interimFocus = deriveLatestConversationFocus(interimWindow, latestInterimTurn.text, contextRef.current);
       const interimSnapshot = buildConversationSnapshot(interimFocus, interimWindow, latestInterimTurn, options.maxAgeMs);
       if (interimSnapshot) {
         return interimSnapshot;
@@ -1200,7 +1297,8 @@ export function InterviewOverlay() {
       focus: normalizedFocus,
       windowText: normalizedWindow,
       capturedAt: turn.capturedAt,
-      sourceVersion: stableConversationSourceVersionRef.current
+      sourceVersion: stableConversationSourceVersionRef.current,
+      conversationMode: classifyMeetingConversationMode(`${normalizedWindow}\n${normalizedFocus}`)
     };
   }
 
@@ -1250,7 +1348,11 @@ export function InterviewOverlay() {
     activeResponseFinalRef.current = false;
     activeRealtimeResponseRef.current = {
       requestId: payload.requestId,
-      action: payload.action
+      action: payload.action,
+      conversationMode: payload.conversationMode,
+      sourceText: [payload.recentTranscript, payload.latestQuestion, payload.triggerText].filter(Boolean).join("\n"),
+      payload,
+      retryCount: 0
     };
     updateRealtimeStatus("responding", "Realtime sedang membuat bantuan...");
     void window.interviewDesktop?.reportRealtimeClientEvent?.({
@@ -1264,6 +1366,17 @@ export function InterviewOverlay() {
     });
     setMode("response");
 
+    const sent = sendRealtimeActionEvents(payload);
+
+    if (!sent) {
+      updateRealtimeStatus("error", "Realtime session belum aktif.");
+      return false;
+    }
+
+    return true;
+  }
+
+  function sendRealtimeActionEvents(payload: RealtimeOverlayAction) {
     const itemSent = sendRealtimeClientEvent({
       type: "conversation.item.create",
       item: {
@@ -1285,12 +1398,26 @@ export function InterviewOverlay() {
       }
     });
 
-    if (!itemSent || !responseSent) {
-      updateRealtimeStatus("error", "Realtime session belum aktif.");
+    return itemSent && responseSent;
+  }
+
+  function retryEmptyRealtimeResponse() {
+    const active = activeRealtimeResponseRef.current;
+    if (!active?.payload || (active.retryCount || 0) >= 1) {
       return false;
     }
 
-    return true;
+    const retryCount = (active.retryCount || 0) + 1;
+    activeRealtimeResponseRef.current = {
+      ...active,
+      responseId: undefined,
+      retryCount
+    };
+    streamingResponseRef.current = "";
+    setActiveResponse((current) => current
+      ? { ...current, points: ["Mencoba ulang bantuan realtime..."] }
+      : current);
+    return sendRealtimeActionEvents(active.payload);
   }
 
   async function requestHelp(type: string, triggerText?: string) {
@@ -1320,7 +1447,7 @@ export function InterviewOverlay() {
       return;
     }
 
-    const shouldRequireConversation = type === "answer" || type === "followup" || type === "explain" || type === "keyword";
+    const shouldRequireConversation = isConversationHelpActionName(type);
     if (shouldRequireConversation && pendingSpeechRef.current) {
       if (!getStableConversationSnapshot({ blockPendingSpeech: true })) {
         window.setTimeout(() => {
@@ -1335,7 +1462,7 @@ export function InterviewOverlay() {
   }
 
   async function sendHelpAction(requestId: number, type: string, triggerText?: string) {
-    const shouldRequireConversation = type === "answer" || type === "followup" || type === "explain" || type === "keyword";
+    const shouldRequireConversation = isConversationHelpActionName(type);
     const freshContext = getStableConversationSnapshot({ blockPendingSpeech: shouldRequireConversation });
 
     if (shouldRequireConversation && !freshContext) {
@@ -1345,12 +1472,16 @@ export function InterviewOverlay() {
       return;
     }
 
+    const inferredMode = freshContext?.conversationMode || classifyMeetingConversationMode(triggerText || latestFocusRef.current);
+    const conversationMode = getExplicitActionConversationMode(type) || inferredMode;
+
     const response = await sendRealtimeActionToSocket({
       requestId,
       action: type as RealtimeOverlayAction["action"],
       latestQuestion: freshContext?.focus || latestFocusRef.current,
       recentTranscript: freshContext?.windowText || getRecentTranscriptText(),
-      triggerText
+      triggerText,
+      conversationMode
     });
 
     if (!response) {
@@ -1367,7 +1498,7 @@ export function InterviewOverlay() {
     const text = String(formData.get("ask") || "").trim();
     if (!text) return;
     form.reset();
-    if (looksLikeInterviewerQuestion(text) || isDomainRelatedText(text, context)) {
+    if (looksLikeMeetingQuestion(text) || isDomainRelatedText(text, context)) {
       void window.interviewDesktop?.updateOverlayContext?.({
         latestQuestion: text
       });
@@ -1377,8 +1508,8 @@ export function InterviewOverlay() {
 
   function endInterview() {
     void window.interviewDesktop?.endOverlayInterview?.({
-      interviewRoundId: context.interviewRoundId,
-      applicationId: context.applicationId,
+      liveMeetingSessionId: context.liveMeetingSessionId,
+      meetingContextId: context.meetingContextId,
       transcriptText: getFullTranscriptText()
     });
   }
@@ -1393,7 +1524,7 @@ export function InterviewOverlay() {
       .join("\n")
       .trim();
 
-    return transcript || `Interview ${context.stageType || "HR"} untuk ${context.companyName || "company"} - ${context.roleTitle || "role"}. Transcript live belum tertangkap.`;
+    return transcript || `Meeting untuk ${context.contextName || "context"} - ${context.meetingTopic || "topic"}. Transcript live belum tertangkap.`;
   }
 
   if (mode === "mini") {
@@ -1405,7 +1536,7 @@ export function InterviewOverlay() {
             {context.audioStatus === "ready" ? `${getOverlayAudioSourceLabel(context)} OK` : "Audio setup"}
           </span>
           <button className="overlay-button no-drag" onClick={toggleExpanded}>Ask *</button>
-          <button className="overlay-end no-drag" onClick={endInterview} aria-label="End interview" />
+          <button className="overlay-end no-drag" onClick={endInterview} aria-label="End meeting" />
         </section>
       </main>
     );
@@ -1420,8 +1551,8 @@ export function InterviewOverlay() {
         <div className="overlay-top">
           <div>
             <p className="overlay-kicker">Listening {formatTime(seconds)}</p>
-            <h1>{context.stageType} Interview</h1>
-            <p>{context.companyName} - {context.roleTitle}</p>
+            <h1>Live Meeting</h1>
+            <p>{context.contextName} - {context.meetingTopic}</p>
             <p className="overlay-audio-status">
               {getOverlayAudioStatusText(context)}
             </p>
@@ -1435,8 +1566,9 @@ export function InterviewOverlay() {
         </div>
 
         <div className="overlay-actions">
-          <button onClick={() => requestHelp("answer")}>Bantu Jawab</button>
-          <button onClick={() => requestHelp("followup")}>Bantu Follow-up</button>
+          <button onClick={() => requestHelp("answer_qna")}>Jawab Pertanyaan</button>
+          <button onClick={() => requestHelp("answer_convo")}>Tanggapi</button>
+          <button onClick={() => requestHelp("followup")}>Pertanyaan Follow-up</button>
           <button onClick={() => requestHelp("explain")}>Jelaskan Maksudnya</button>
         </div>
 
@@ -1470,7 +1602,7 @@ export function InterviewOverlay() {
 
       {mode === "loading" ? (
         <aside className="response-shell drag-region" onPointerDown={beginDrag}>
-          <h2>Generating help...</h2>
+          <h2>Menyiapkan bantuan...</h2>
           <div className="overlay-loading">
             <span />
             <span />
@@ -1483,7 +1615,7 @@ export function InterviewOverlay() {
         <aside className="response-shell drag-region" onPointerDown={beginDrag}>
           <div className="response-top">
             <div>
-              <p className="overlay-kicker">AI help</p>
+              <p className="overlay-kicker">Meeting help</p>
               <h2>{activeResponse.title}</h2>
             </div>
             <button className="overlay-button no-drag" onClick={closeResponse}>Close</button>
@@ -1507,11 +1639,11 @@ function getOverlayAudioStatusText(context: OverlayContext) {
   }
 
   if (context.realtimeStatus === "connected") {
-    return context.realtimeMessage || "Realtime tersambung. Mencari audio interview";
+    return context.realtimeMessage || "Realtime tersambung. Mencari audio meeting";
   }
 
   if (context.realtimeStatus === "audio_waiting") {
-    return context.realtimeMessage || "Mencari audio interview";
+    return context.realtimeMessage || "Mencari audio meeting";
   }
 
   if (context.realtimeStatus === "listening") {
@@ -1560,11 +1692,21 @@ function isRealtimeLive(context: OverlayContext) {
 }
 
 function getRealtimeActionTitle(payload: RealtimeOverlayAction) {
-  if (payload.action === "answer") return "Bantu Jawab";
-  if (payload.action === "followup") return "Bantu Follow-up";
+  if (payload.action === "answer_qna") return "Jawab Pertanyaan";
+  if (payload.action === "answer_convo") return "Tanggapi";
+  if (payload.action === "answer") return "Jawab Pertanyaan";
+  if (payload.action === "followup") return "Pertanyaan Follow-up";
   if (payload.action === "explain") return "Jelaskan Maksudnya";
   if (payload.action === "keyword") return `Keyword: ${payload.triggerText || "Keyword"}`;
   return "Ask";
+}
+
+function buildEmptyRealtimeResponsePoints() {
+  return [
+    "Bantuan realtime belum menghasilkan teks.",
+    "Konteks meeting tetap tersimpan; coba klik tombol bantuan lagi jika respons belum muncul.",
+    "Jika ini sering terjadi, tutup dan buka ulang overlay untuk menyegarkan koneksi Realtime."
+  ];
 }
 
 function formatTime(totalSeconds: number) {

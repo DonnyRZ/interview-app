@@ -1,6 +1,6 @@
 {
-  "id": "956aa492-8e58-4318-9d8b-5228dc858df9",
-  "prevId": "34645a20-e9f0-4159-8d39-cd92d648ced5",
+  "id": "eaad51a2-ec14-47e4-93e4-95b7001fee75",
+  "prevId": "ac73ffee-a5b6-4a8a-be71-84906ae7291c",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -15,6 +15,12 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
+        "google_sub": {
+          "name": "google_sub",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "email": {
           "name": "email",
           "type": "text",
@@ -26,6 +32,19 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "picture": {
+          "name": "picture",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "auth_provider": {
+          "name": "auth_provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'google'"
         },
         "created_at": {
           "name": "created_at",
@@ -46,6 +65,13 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
+        "users_google_sub_unique": {
+          "name": "users_google_sub_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "google_sub"
+          ]
+        },
         "users_email_unique": {
           "name": "users_email_unique",
           "nullsNotDistinct": false,
@@ -58,8 +84,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.candidate_profiles": {
-      "name": "candidate_profiles",
+    "public.user_profiles": {
+      "name": "user_profiles",
       "schema": "",
       "columns": {
         "id": {
@@ -75,8 +101,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "active_cv_id": {
-          "name": "active_cv_id",
+        "active_profile_document_id": {
+          "name": "active_profile_document_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
@@ -105,9 +131,9 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "candidate_profiles_user_id_users_id_fk": {
-          "name": "candidate_profiles_user_id_users_id_fk",
-          "tableFrom": "candidate_profiles",
+        "user_profiles_user_id_users_id_fk": {
+          "name": "user_profiles_user_id_users_id_fk",
+          "tableFrom": "user_profiles",
           "tableTo": "users",
           "columnsFrom": [
             "user_id"
@@ -125,8 +151,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.candidate_cvs": {
-      "name": "candidate_cvs",
+    "public.profile_documents": {
+      "name": "profile_documents",
       "schema": "",
       "columns": {
         "id": {
@@ -172,6 +198,19 @@
           "primaryKey": false,
           "notNull": false
         },
+        "processing_status": {
+          "name": "processing_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'ready'"
+        },
+        "processing_error": {
+          "name": "processing_error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "is_active": {
           "name": "is_active",
           "type": "boolean",
@@ -187,11 +226,28 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "profile_documents_one_active_per_user_idx": {
+          "name": "profile_documents_one_active_per_user_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"profile_documents\".\"is_active\" = true",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
-        "candidate_cvs_user_id_users_id_fk": {
-          "name": "candidate_cvs_user_id_users_id_fk",
-          "tableFrom": "candidate_cvs",
+        "profile_documents_user_id_users_id_fk": {
+          "name": "profile_documents_user_id_users_id_fk",
+          "tableFrom": "profile_documents",
           "tableTo": "users",
           "columnsFrom": [
             "user_id"
@@ -206,11 +262,16 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "profile_documents_processing_status_check": {
+          "name": "profile_documents_processing_status_check",
+          "value": "\"profile_documents\".\"processing_status\" in ('uploaded', 'processing', 'ready', 'failed')"
+        }
+      },
       "isRLSEnabled": false
     },
-    "public.applications": {
-      "name": "applications",
+    "public.meeting_contexts": {
+      "name": "meeting_contexts",
       "schema": "",
       "columns": {
         "id": {
@@ -226,38 +287,38 @@
           "primaryKey": false,
           "notNull": true
         },
-        "cv_id": {
-          "name": "cv_id",
+        "profile_document_id": {
+          "name": "profile_document_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "company_name": {
-          "name": "company_name",
+        "context_name": {
+          "name": "context_name",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "role_title": {
-          "name": "role_title",
+        "meeting_topic": {
+          "name": "meeting_topic",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "job_description": {
-          "name": "job_description",
+        "meeting_brief": {
+          "name": "meeting_brief",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "job_summary_json": {
-          "name": "job_summary_json",
+        "meeting_summary_json": {
+          "name": "meeting_summary_json",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         },
-        "company_context": {
-          "name": "company_context",
+        "meeting_context_text": {
+          "name": "meeting_context_text",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -286,9 +347,9 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "applications_user_id_users_id_fk": {
-          "name": "applications_user_id_users_id_fk",
-          "tableFrom": "applications",
+        "meeting_contexts_user_id_users_id_fk": {
+          "name": "meeting_contexts_user_id_users_id_fk",
+          "tableFrom": "meeting_contexts",
           "tableTo": "users",
           "columnsFrom": [
             "user_id"
@@ -299,12 +360,12 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "applications_cv_id_candidate_cvs_id_fk": {
-          "name": "applications_cv_id_candidate_cvs_id_fk",
-          "tableFrom": "applications",
-          "tableTo": "candidate_cvs",
+        "meeting_contexts_profile_document_id_profile_documents_id_fk": {
+          "name": "meeting_contexts_profile_document_id_profile_documents_id_fk",
+          "tableFrom": "meeting_contexts",
+          "tableTo": "profile_documents",
           "columnsFrom": [
-            "cv_id"
+            "profile_document_id"
           ],
           "columnsTo": [
             "id"
@@ -316,7 +377,258 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "meeting_contexts_status_check": {
+          "name": "meeting_contexts_status_check",
+          "value": "\"meeting_contexts\".\"status\" in ('active', 'archived')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.live_meeting_sessions": {
+      "name": "live_meeting_sessions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "meeting_context_id": {
+          "name": "meeting_context_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "session_type": {
+          "name": "session_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "language_detected": {
+          "name": "language_detected",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "transcript_text": {
+          "name": "transcript_text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "summary_json": {
+          "name": "summary_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "ended_at": {
+          "name": "ended_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "live_meeting_sessions_meeting_context_id_meeting_contexts_id_fk": {
+          "name": "live_meeting_sessions_meeting_context_id_meeting_contexts_id_fk",
+          "tableFrom": "live_meeting_sessions",
+          "tableTo": "meeting_contexts",
+          "columnsFrom": [
+            "meeting_context_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "live_meeting_sessions_user_id_users_id_fk": {
+          "name": "live_meeting_sessions_user_id_users_id_fk",
+          "tableFrom": "live_meeting_sessions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "live_meeting_sessions_session_type_check": {
+          "name": "live_meeting_sessions_session_type_check",
+          "value": "\"live_meeting_sessions\".\"session_type\" in ('HR', 'TECHNICAL', 'USER', 'FINAL', 'OTHER')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.payments": {
+      "name": "payments",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "order_id": {
+          "name": "order_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "plan": {
+          "name": "plan",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gross_amount": {
+          "name": "gross_amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'IDR'"
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'created'"
+        },
+        "snap_token": {
+          "name": "snap_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "snap_redirect_url": {
+          "name": "snap_redirect_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "midtrans_transaction_id": {
+          "name": "midtrans_transaction_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "midtrans_order_id": {
+          "name": "midtrans_order_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "raw_notification": {
+          "name": "raw_notification",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "payments_user_id_users_id_fk": {
+          "name": "payments_user_id_users_id_fk",
+          "tableFrom": "payments",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "payments_order_id_unique": {
+          "name": "payments_order_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "order_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "payments_plan_check": {
+          "name": "payments_plan_check",
+          "value": "\"payments\".\"plan\" in ('mini', 'starter', 'pro')"
+        },
+        "payments_status_check": {
+          "name": "payments_status_check",
+          "value": "\"payments\".\"status\" in ('created', 'pending', 'capture', 'settlement', 'deny', 'cancel', 'expire', 'failure', 'unknown')"
+        }
+      },
       "isRLSEnabled": false
     }
   },

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const healthResponseSchema = z.object({
   ok: z.boolean(),
-  service: z.literal("interview-api"),
+  service: z.literal("orviko-api"),
   timestamp: z.string().datetime()
 });
 

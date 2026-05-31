@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Orviko - Pembayaran Berhasil</title>
+  <link rel="stylesheet" href="/src/checkout.css" />
+</head>
+<body data-page="payment-status" data-status-tone="success">
+  <main class="status-page">
+    <section class="status-shell">
+      <a class="brand status-brand" href="/">
+        <img class="brand-mark" src="/assets/Logo-2.png" alt="Orviko logo" />
+        <span class="brand-name">Orviko</span>
+      </a>
+      <p class="eyebrow">Pembayaran Berhasil</p>
+      <h1>Pembayaran berhasil diproses.</h1>
+      <p id="statusBody">Status final tetap mengikuti konfirmasi Midtrans.</p>
+      <dl class="payment-details" id="paymentDetails"></dl>
+      <a class="status-cta" href="/pricing.html">Kembali ke paket</a>
+    </section>
+  </main>
+  <script type="module" src="/src/checkout.js"></script>
+</body>
+</html>

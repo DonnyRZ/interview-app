@@ -1,4 +1,4 @@
-﻿const demoCanvas = document.getElementById("demoCanvas");
+const demoCanvas = document.getElementById("demoCanvas");
     const demoOverlay = document.getElementById("demoOverlay");
     const demoMiniShell = document.getElementById("demoMiniShell");
     const demoExpandedShell = document.getElementById("demoExpandedShell");
@@ -88,28 +88,36 @@
     mobileDemoQuery.addEventListener("change", syncDemoScale);
 
     const demoResponses = {
-      answer: {
-        title: "Bantu Jawab",
+      answer_qna: {
+        title: "Jawab Pertanyaan",
         points: [
-          "Saya biasanya mulai dari objective campaign dulu, lalu cek data minimum seperti target audience, channel historis, budget, dan KPI utama.",
-          "Kalau data awal belum lengkap, saya buat hipotesis yang paling masuk akal, validasi cepat lewat eksperimen kecil, lalu bandingkan hasilnya dengan baseline.",
-          "Dengan cara itu, keputusan tetap berbasis data, tapi tidak menunggu semua informasi sempurna sebelum campaign bisa bergerak."
+          "Prioritas minggu ini sebaiknya ditentukan dari dampak terbesar, urgensi timeline, dan dependensi antar tim.",
+          "Kalau ada keputusan yang masih menggantung, pisahkan mana yang harus diputuskan sekarang dan mana yang bisa masuk parking lot.",
+          "Dengan begitu meeting tetap menghasilkan arah yang jelas tanpa memaksa semua isu selesai sekaligus."
+        ]
+      },
+      answer_convo: {
+        title: "Tanggapi",
+        points: [
+          "Setuju, menurut saya kita perlu kunci dua prioritas paling penting dulu supaya tim punya arah yang jelas minggu ini.",
+          "Untuk keputusan yang belum matang, kita bisa tandai sebagai risiko dan tentukan owner-nya, jadi tidak hilang setelah meeting.",
+          "Saya usul di akhir sesi kita tutup dengan next step singkat: prioritas, owner, dan deadline."
         ]
       },
       followup: {
-        title: "Bantu Follow-up",
+        title: "Pertanyaan Follow-up",
         points: [
-          "Apakah tim lebih mengutamakan kecepatan eksperimen atau akurasi insight di tahap awal?",
-          "Data minimum apa yang biasanya dianggap cukup sebelum strategi dijalankan?",
-          "Apakah ada KPI utama yang paling menentukan keputusan kampanye di tim ini?"
+          "Dari semua prioritas yang dibahas, mana yang paling perlu diputuskan hari ini?",
+          "Siapa owner untuk risiko timeline yang paling kritis?",
+          "Apa next step paling kecil yang bisa mulai dijalankan setelah meeting ini?"
         ]
       },
       explain: {
         title: "Jelaskan Maksudnya",
         points: [
-          "Interviewer sedang menguji cara kamu mengambil keputusan saat informasinya belum ideal.",
-          "Yang diuji bukan cuma strategi kampanye, tapi juga judgment dan validasi asumsi.",
-          "Angle jawaban terbaik: jelaskan langkah prioritas, validasi cepat, lalu iterasi."
+          "Pembicara sedang menandai bahwa tim belum punya prioritas yang cukup jelas untuk minggu ini.",
+          "Kata kuncinya ada di timeline yang mulai padat dan keputusan yang masih menggantung.",
+          "Respons terbaik adalah membantu merapikan prioritas, risiko, owner, dan next step."
         ]
       }
     };
@@ -174,7 +182,7 @@
       window.requestAnimationFrame(() => syncDemoOverlayBounds());
     });
 
-    document.querySelectorAll(".demo-action-btn[data-kind='answer'], .demo-action-btn[data-kind='followup'], .demo-action-btn[data-kind='explain']").forEach((button) => {
+    document.querySelectorAll(".demo-action-btn[data-kind='answer_qna'], .demo-action-btn[data-kind='answer_convo'], .demo-action-btn[data-kind='followup'], .demo-action-btn[data-kind='explain']").forEach((button) => {
       button.addEventListener("click", () => {
         const kind = button.getAttribute("data-kind");
         const data = demoResponses[kind];
@@ -186,9 +194,9 @@
       button.addEventListener("click", () => {
         const label = button.getAttribute("data-label") || "Keyword";
         simulateDemoResponse(`Keyword: ${label}`, [
-          `${label} adalah topik yang sedang relevan dengan arah pertanyaan interviewer.`,
+          `${label} adalah topik yang sedang relevan dengan percakapan meeting terbaru.`,
           "Gunakan keyword ini untuk mengaitkan jawaban ke konteks terbaru.",
-          "Jawab singkat, lalu beri contoh keputusan yang konkret."
+          "Respons terbaik tetap singkat, konkret, dan mengarah ke keputusan atau next step."
         ]);
       });
     });
@@ -263,7 +271,7 @@
     window.addEventListener("pointermove", moveDemoDrag);
     window.addEventListener("pointerup", endDemoDrag);
 
-    demoFocusText.textContent = "Bagaimana kamu memilih strategi kampanye yang paling efektif ketika data awal belum lengkap?";
+    demoFocusText.textContent = "Kita perlu menentukan prioritas minggu ini karena timeline mulai padat dan beberapa keputusan masih menggantung.";
 
     let howListeningSecond = 1;
     window.setInterval(() => {
@@ -297,3 +305,5 @@
       primaryDownloadButtons.forEach((button) => downloadObserver.observe(button));
       syncFloatingCta();
     }
+
+  

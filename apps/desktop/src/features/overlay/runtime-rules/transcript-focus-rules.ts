@@ -5,7 +5,16 @@ export type TranscriptFocusContext = {
   realtimeContext?: RealtimeContext;
 };
 
-const waitingQuestionPrefix = "Menunggu pertanyaan interviewer";
+export type TranscriptQualityStatus = "accept" | "reject" | "quarantine";
+
+export type TranscriptQualityResult = {
+  status: TranscriptQualityStatus;
+  reason?: string;
+};
+
+export type ConversationMode = "qna" | "convo" | "unknown";
+
+const waitingQuestionPrefix = "Menunggu konteks percakapan";
 const genericAdNoiseSignals = [
   "sponsored",
   "apply now",
@@ -22,16 +31,86 @@ const genericAdNoiseSignals = [
   "learn more at"
 ];
 
-const broadInterviewSignals = [
-  "achievement", "analisis", "analysis", "approach", "assessment", "audit", "background", "budget",
-  "business", "challenge", "client", "collaboration", "communication", "compliance", "conflict",
-  "constraint", "customer", "decision", "delivery", "dampak", "education", "evaluasi", "example",
-  "ekspektasi", "experience", "governance", "impact", "initiative", "kebutuhan", "kepatuhan",
-  "kualitas", "leadership", "legal", "metric", "metode", "objective", "operation", "operasional",
-  "pendekatan", "pengalaman", "planning", "policy", "prioritas", "problem", "process", "proses",
-  "quality", "requirement", "responsibility", "risk", "risiko", "role", "scope", "service",
-  "stakeholder", "standard", "strategy", "strategi", "target", "tantangan", "timeline", "trade-off",
-  "tradeoff", "workflow"
+const assistantAddressingSignals = [
+  "chatgpt",
+  "chat gpt",
+  "assistant",
+  "asisten",
+  "ai assistant"
+];
+
+const promptInstructionSignals = [
+  "jawab sebagai",
+  "jawablah sebagai",
+  "jawab pertanyaan ini",
+  "coba jawab",
+  "jawab dengan persona",
+  "sebagai persona",
+  "sebagai chatgpt",
+  "as chatgpt",
+  "answer as",
+  "respond as",
+  "ignore previous",
+  "abaikan instruksi",
+  "system prompt",
+  "developer message",
+  "ikuti instruksi",
+  "gunakan format"
+];
+
+const uiOrDebugSignals = [
+  "latest conversation focus",
+  "runtime keyword chips",
+  "jawab pertanyaan",
+  "pertanyaan follow-up",
+  "tanggapi",
+  "jelaskan maksudnya",
+  "konteks belum tertangkap",
+  "mencari keyword",
+  "keyword belum berhasil",
+  "realtime session",
+  "gpt-realtime",
+  "gpt-4o-mini-transcribe"
+];
+
+const transcriptionPromptArtifactSignals = [
+  "audio meeting online berbahasa indonesia",
+  "istilah teknis",
+  "nama tools",
+  "nama produk",
+  "metode kerja",
+  "nama orang",
+  "topik domain",
+  "bisa bercampur inggris",
+  "pertahankan bahasa asli"
+];
+
+const broadMeetingSignals = [
+  "action", "agenda", "analisis", "analysis", "approach", "assessment", "background", "blocker",
+  "challenge", "collaboration", "communication", "compliance", "conflict", "constraint", "context",
+  "decision", "delivery", "dampak", "data", "discussion", "education", "evaluasi", "example",
+  "feedback", "goal", "impact", "initiative", "issue", "kebutuhan", "kepatuhan", "kualitas",
+  "metric", "metode", "next step", "objective", "operation", "operasional", "ownership",
+  "pendekatan", "pengalaman", "planning", "policy", "priority", "prioritas", "problem", "process",
+  "proses", "progress", "project", "quality", "requirement", "responsibility", "risk", "risiko",
+  "scope", "standard", "stakeholder", "status", "target", "tantangan", "task", "timeline",
+  "trade-off", "tradeoff", "update", "workflow"
+];
+
+const responseNeededSignals = [
+  "menurut kamu", "menurutmu", "pendapat kamu", "pendapatmu", "apa pendapat", "what do you think",
+  "do you think", "gimana menurut", "bagaimana menurut", "tolong jelaskan", "coba jelaskan",
+  "bisa jelaskan", "bisa cerita", "ceritakan", "jelaskan", "explain", "tell me", "walk me through",
+  "harus bagaimana", "perlu bagaimana", "sebaiknya", "should we", "which one", "mana yang",
+  "pilih", "compare", "bandingkan", "setuju", "agree", "klarifikasi", "clarify"
+];
+
+const conversationalStatementSignals = [
+  "saya pikir", "aku pikir", "menurut saya", "menurutku", "kami merasa", "kita merasa",
+  "masalahnya", "concern", "kekhawatiran", "ragu", "feedback", "update", "progress",
+  "diskusi", "menarik", "interesting",
+  "kelihatannya", "sepertinya", "ternyata", "kami sedang", "kita sedang", "mereka sedang",
+  "sudah", "belum", "agak", "cukup", "terlalu", "makin", "semakin"
 ];
 
 export function buildConversationWindow(turns: Array<{ text: string }>) {
@@ -68,31 +147,31 @@ export function deriveLatestConversationFocus(windowText: string, latestSegment:
   }
 
   const source = latestSegment.trim() || windowText.trim();
-  if (!source || isLikelyTranscriptNoise(source)) {
+  if (!source || classifyTranscriptQuality(source).status !== "accept") {
     return "";
   }
 
   const segments = source
     .split(/[\n\r]+|(?<=[?.!])\s+/)
     .map((segment) => segment.trim())
-    .filter(Boolean);
-  const meaningful = [...segments].reverse().find((segment) => segment.length >= 12 && !isLikelyTranscriptNoise(segment));
-  return compactFocusText(meaningful || source);
+    .filter((segment) => segment && classifyTranscriptQuality(segment).status === "accept");
+  const meaningful = [...segments].reverse().find((segment) => segment.length >= 12);
+  return meaningful ? compactFocusText(meaningful) : "";
 }
 
-export function chooseMostCompleteTranscript(finalText: string, ...candidates: Array<string | undefined>): string {
+export function chooseMostCompleteTranscript(finalText: string, ...transcriptOptions: Array<string | undefined>): string {
   const normalizedFinal = normalizeTranscriptText(finalText);
-  return candidates.reduce<string>((best, candidate) => {
-    const normalizedCandidate = normalizeTranscriptText(candidate || "");
-    if (!normalizedCandidate || isLikelyTranscriptNoise(normalizedCandidate)) {
+  return transcriptOptions.reduce<string>((best, option) => {
+    const normalizedOption = normalizeTranscriptText(option || "");
+    if (!normalizedOption || isLikelyTranscriptNoise(normalizedOption)) {
       return best;
     }
 
-    return isMoreCompleteTranscript(normalizedCandidate, best) ? normalizedCandidate : best;
+    return isMoreCompleteTranscript(normalizedOption, best) ? normalizedOption : best;
   }, normalizedFinal);
 }
 
-export function looksLikeInterviewerQuestion(text: string) {
+export function looksLikeMeetingQuestion(text: string) {
   const normalized = text.trim().toLowerCase();
   if (!normalized) {
     return false;
@@ -108,6 +187,27 @@ export function looksLikeInterviewerQuestion(text: string) {
   }
 
   return /\b(apa|apakah|bagaimana|kenapa|mengapa|metode|cara|pilih|pakai|gunakan|jelaskan|ceritakan|why|how|what|explain|approach)\b/.test(normalized);
+}
+
+export function classifyMeetingConversationMode(text: string): ConversationMode {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized || classifyTranscriptQuality(text).status !== "accept") {
+    return "unknown";
+  }
+
+  if (looksLikeMeetingQuestion(text) || includesAnySignal(normalized, responseNeededSignals)) {
+    return "qna";
+  }
+
+  if (includesAnySignal(normalized, conversationalStatementSignals)) {
+    return "convo";
+  }
+
+  if (normalized.length >= 32 && hasStrongMeetingSignal(normalized)) {
+    return "convo";
+  }
+
+  return "unknown";
 }
 
 export function isDomainRelatedText(text: string, context: TranscriptFocusContext) {
@@ -138,12 +238,32 @@ export function isDomainRelatedText(text: string, context: TranscriptFocusContex
 }
 
 export function isLikelyTranscriptNoise(text: string) {
+  return classifyTranscriptQuality(text).status !== "accept";
+}
+
+export function classifyTranscriptQuality(text: string): TranscriptQualityResult {
   const normalized = text.trim().toLowerCase();
   if (!normalized) {
-    return true;
+    return { status: "reject", reason: "empty" };
   }
 
-  return includesAnySignal(normalized, genericAdNoiseSignals);
+  if (includesAnySignal(normalized, genericAdNoiseSignals) || /\b(ad|ads|advertisement|iklan|promo)\b/.test(normalized)) {
+    return { status: "reject", reason: "ad_or_promo" };
+  }
+
+  if (includesAnySignal(normalized, uiOrDebugSignals) || includesAnySignal(normalized, transcriptionPromptArtifactSignals)) {
+    return { status: "reject", reason: "ui_or_debug_text" };
+  }
+
+  if (isAssistantAddressedText(normalized)) {
+    return { status: "quarantine", reason: "assistant_addressing" };
+  }
+
+  if (includesAnySignal(normalized, promptInstructionSignals)) {
+    return { status: "quarantine", reason: "prompt_instruction" };
+  }
+
+  return { status: "accept" };
 }
 
 export function areSameTranscript(left: string, right: string) {
@@ -163,18 +283,18 @@ function compactFocusText(value: string) {
   return normalized.slice(normalized.length - 220).trim();
 }
 
-function isMoreCompleteTranscript(candidate: string, current: string) {
+function isMoreCompleteTranscript(option: string, current: string) {
   if (!current) {
     return true;
   }
 
-  if (areSameTranscript(candidate, current)) {
-    return wordCount(candidate) > wordCount(current) || candidate.length > current.length + 20;
+  if (areSameTranscript(option, current)) {
+    return wordCount(option) > wordCount(current) || option.length > current.length + 20;
   }
 
-  const candidateWords = wordCount(candidate);
+  const optionWords = wordCount(option);
   const currentWords = wordCount(current);
-  return candidateWords >= currentWords + 4 && candidate.length >= current.length + 24;
+  return optionWords >= currentWords + 4 && option.length >= current.length + 24;
 }
 
 function normalizeTranscriptText(value: string) {
@@ -190,7 +310,7 @@ function isDetectedQuestion(question: string) {
   return Boolean(normalized) && !normalized.startsWith(waitingQuestionPrefix);
 }
 
-function isConfirmedInterviewQuestion(text: string, context: TranscriptFocusContext) {
+function isConfirmedMeetingQuestion(text: string, context: TranscriptFocusContext) {
   const normalized = text.trim();
   const normalizedLower = normalized.toLowerCase();
   if (!isDetectedQuestion(normalized) || isLikelyTranscriptNoise(normalized)) {
@@ -210,19 +330,19 @@ function isConfirmedInterviewQuestion(text: string, context: TranscriptFocusCont
     "hasil kerjaan dia",
     "seperti apa. kenapa"
   ];
-  if (narrativeOnlySignals.some((signal) => normalizedLower.includes(signal)) && !hasStrongInterviewSignal(normalizedLower)) {
+  if (narrativeOnlySignals.some((signal) => normalizedLower.includes(signal)) && !hasStrongMeetingSignal(normalizedLower)) {
     return false;
   }
 
-  if (looksLikeInterviewerQuestion(normalized)) {
-    return isRelevantTranscriptText(normalized, context) || hasStrongInterviewSignal(normalizedLower);
+  if (looksLikeMeetingQuestion(normalized)) {
+    return isRelevantTranscriptText(normalized, context) || hasStrongMeetingSignal(normalizedLower);
   }
 
-  return normalized.length >= 48 && hasStrongInterviewSignal(normalizedLower) && isRelevantTranscriptText(normalized, context);
+  return normalized.length >= 48 && hasStrongMeetingSignal(normalizedLower) && isRelevantTranscriptText(normalized, context);
 }
 
-function hasStrongInterviewSignal(normalizedLower: string) {
-  return includesAnySignal(normalizedLower, broadInterviewSignals);
+function hasStrongMeetingSignal(normalizedLower: string) {
+  return includesAnySignal(normalizedLower, broadMeetingSignals);
 }
 
 function deriveQuestionFromTranscriptText(transcriptText: string, context: TranscriptFocusContext) {
@@ -233,13 +353,13 @@ function deriveQuestionFromTranscriptText(transcriptText: string, context: Trans
 
   for (let index = segments.length - 1; index >= 0; index -= 1) {
     const segment = segments[index];
-    if (segment && isConfirmedInterviewQuestion(segment, context)) {
+    if (segment && isConfirmedMeetingQuestion(segment, context)) {
       return segment;
     }
   }
 
   const trailingSegment = segments.at(-1) || transcriptText;
-  if (isConfirmedInterviewQuestion(trailingSegment, context)) {
+  if (isConfirmedMeetingQuestion(trailingSegment, context)) {
     return trailingSegment;
   }
 
@@ -248,13 +368,13 @@ function deriveQuestionFromTranscriptText(transcriptText: string, context: Trans
 
 function deriveContextFromTranscriptWindow(recentTranscript: string, latestSegment: string, context: TranscriptFocusContext) {
   const directQuestion = deriveQuestionFromTranscriptText(latestSegment, context);
-  if (directQuestion && directQuestion.length >= 48 && isConfirmedInterviewQuestion(directQuestion, context)) {
+  if (directQuestion && directQuestion.length >= 48 && isConfirmedMeetingQuestion(directQuestion, context)) {
     return directQuestion;
   }
 
   const windowText = recentTranscript.trim();
   if (!windowText) {
-    return directQuestion && isConfirmedInterviewQuestion(directQuestion, context) ? directQuestion : "";
+    return directQuestion && isConfirmedMeetingQuestion(directQuestion, context) ? directQuestion : "";
   }
 
   const segments = windowText
@@ -267,11 +387,11 @@ function deriveContextFromTranscriptWindow(recentTranscript: string, latestSegme
     ? `${focusedWindow} ${directQuestion}`.trim()
     : focusedWindow || directQuestion || "";
 
-  if (combinedQuestion && isConfirmedInterviewQuestion(combinedQuestion, context)) {
+  if (combinedQuestion && isConfirmedMeetingQuestion(combinedQuestion, context)) {
     return combinedQuestion;
   }
 
-  return directQuestion && isConfirmedInterviewQuestion(directQuestion, context) ? directQuestion : "";
+  return directQuestion && isConfirmedMeetingQuestion(directQuestion, context) ? directQuestion : "";
 }
 
 function isRelevantTranscriptText(text: string, context: TranscriptFocusContext) {
@@ -280,7 +400,7 @@ function isRelevantTranscriptText(text: string, context: TranscriptFocusContext)
     return false;
   }
 
-  if (includesAnySignal(normalized, genericAdNoiseSignals) || /\b(ad|ads|advertisement|iklan|promo)\b/.test(normalized)) {
+  if (classifyTranscriptQuality(text).status !== "accept") {
     return false;
   }
 
@@ -289,10 +409,22 @@ function isRelevantTranscriptText(text: string, context: TranscriptFocusContext)
   }
 
   return includesAnySignal(normalized, [
-    ...broadInterviewSignals,
+    ...broadMeetingSignals,
     "apa yang", "bagaimana", "ceritakan", "explain", "jelaskan", "kenapa", "mengapa", "tell me",
     "how would", "why would"
   ]);
+}
+
+function isAssistantAddressedText(normalized: string) {
+  const startsWithAssistantAddress = new RegExp(`^\\s*(?:${assistantAddressingSignals.map(escapeRegExp).join("|")})\\b[\\s,:-]*`).test(normalized);
+  if (startsWithAssistantAddress) {
+    return true;
+  }
+
+  return assistantAddressingSignals.some((signal) => {
+    const escaped = escapeRegExp(signal);
+    return new RegExp(`\\b${escaped}\\b[^.!?]{0,80}\\b(?:apa|apakah|bagaimana|jawab|answer|respond)\\b`).test(normalized);
+  });
 }
 
 function includesAnySignal(text: string, signals: string[]) {
@@ -323,8 +455,8 @@ function hasMeaningfulDomainOverlap(domainTerm: string, textTokens: Set<string>)
 
 function isOverlyGenericDomainToken(token: string) {
   return new Set([
-    "role", "posisi", "domain", "application", "interview", "kerja", "pekerjaan", "staff", "team",
-    "tim", "company", "perusahaan", "candidate", "kandidat"
+    "posisi", "domain", "context", "konteks", "meeting", "kerja", "pekerjaan", "staff", "team",
+    "tim", "organisasi", "perusahaan"
   ]).has(token);
 }
 
@@ -340,8 +472,8 @@ function tokenizeText(text: string) {
     "jika", "saat", "itu", "ini", "nya", "paling", "cocok", "pilih", "memilih", "gunakan", "pakai",
     "terkait", "tentang", "about", "tell", "me", "please", "use", "using", "choose", "related",
     "nanti", "gue", "aku", "akan", "kasih", "tunjuk", "ya", "dia", "seperti", "kerjaan", "hasil",
-    "lihat", "coba", "dong", "deh", "nih", "aja", "sih", "role", "domain", "application",
-    "interview", "company", "candidate", "kandidat", "perusahaan", "pekerjaan", "kerja"
+    "lihat", "coba", "dong", "deh", "nih", "aja", "sih", "domain", "context", "konteks",
+    "meeting", "organisasi", "perusahaan", "pekerjaan", "kerja"
   ]);
 
   return new Set(text

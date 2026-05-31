@@ -3,6 +3,12 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  getForcedConversationMode,
+  isRealtimeActionName,
+  type RealtimeActionName,
+  type RealtimeConversationMode
+} from "./realtime-action-contract.js";
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const rendererDevUrl = process.env.VITE_DEV_SERVER_URL;
@@ -21,10 +27,17 @@ type RealtimeStatus = "idle" | "connecting" | "connected" | "audio_waiting" | "l
 
 type RealtimeActionPayload = {
   requestId?: number;
-  action?: "answer" | "followup" | "explain" | "keyword" | "ask";
+  action?: RealtimeActionName;
   latestQuestion?: string;
   recentTranscript?: string;
   triggerText?: string;
+  conversationMode?: RealtimeConversationMode;
+};
+
+type OverlayEndPayload = {
+  liveMeetingSessionId?: string;
+  meetingContextId?: string;
+  transcriptText?: string;
 };
 
 let mainWindow: BrowserWindow | null = null;
@@ -39,41 +52,13 @@ let systemAudioProbeBuffer = "";
 let realtimeAudioProcess: ChildProcessWithoutNullStreams | null = null;
 let realtimeAudioBuffer = "";
 let realtimeAudioHadHelperError = false;
+let realtimeAudioRestartAttempts = 0;
+let realtimeAudioRestartTimer: NodeJS.Timeout | null = null;
+const realtimeAudioExpectedStops = new WeakSet<ChildProcessWithoutNullStreams>();
+const realtimeAudioRestartDelaysMs = [500, 1500];
 let realtimeStatus: RealtimeStatus = "idle";
 let realtimeConnectPayload: { model: string; clientSecret: string; expiresAt: number } | null = null;
-
-function sanitizeTranscriptEvent(event: unknown) {
-  if (!event || typeof event !== "object") {
-    return null;
-  }
-
-  const payload = event as Record<string, unknown>;
-  const transcriptText = typeof payload.transcriptText === "string" ? payload.transcriptText.trim() : "";
-  const detectedQuestion = typeof payload.detectedQuestion === "string" ? payload.detectedQuestion.trim() : "";
-  const speaker = payload.speaker === "interviewer" || payload.speaker === "candidate" || payload.speaker === "system"
-    ? payload.speaker
-    : "interviewer";
-  const isFinal = typeof payload.isFinal === "boolean" ? payload.isFinal : true;
-  const itemId = typeof payload.itemId === "string" && payload.itemId.trim() ? payload.itemId.trim() : undefined;
-  const previousItemId = typeof payload.previousItemId === "string" && payload.previousItemId.trim() ? payload.previousItemId.trim() : undefined;
-  const capturedAt = typeof payload.capturedAt === "string" && payload.capturedAt.trim()
-    ? payload.capturedAt.trim()
-    : new Date().toISOString();
-
-  if (!transcriptText && !detectedQuestion) {
-    return null;
-  }
-
-  return {
-    transcriptText,
-    detectedQuestion,
-    itemId,
-    previousItemId,
-    speaker,
-    isFinal,
-    capturedAt
-  };
-}
+let isQuittingAfterOverlayCleanup = false;
 
 function mergeOverlayContext(update: unknown) {
   const base = overlayContext && typeof overlayContext === "object" ? overlayContext as Record<string, unknown> : {};
@@ -158,6 +143,7 @@ async function startRealtimeSession(context: unknown) {
 
 function stopRealtimeSession(emitClosed = true) {
   stopRealtimeAudioStream();
+  realtimeAudioRestartAttempts = 0;
   realtimeConnectPayload = null;
   emitRealtimeOverlayEvent({ type: "disconnect" });
   if (emitClosed) {
@@ -181,7 +167,7 @@ function emitRealtimeConnectPayload() {
 }
 
 async function fetchRealtimeClientSecret(realtimeContext: Record<string, unknown>) {
-  const response = await fetch(`${apiBaseUrl}/interviews/realtime/client-secret`, {
+  const response = await fetch(`${apiBaseUrl}/live-meetings/realtime/client-secret`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
@@ -212,6 +198,34 @@ async function fetchRealtimeClientSecret(realtimeContext: Record<string, unknown
   };
 }
 
+async function endOverlayRoundDirect(payload: unknown, reason: string) {
+  const endPayload = readOverlayEndPayload(payload);
+  if (!endPayload.liveMeetingSessionId) {
+    return;
+  }
+
+  const transcriptText = endPayload.transcriptText?.trim()
+    || `Sesi meeting otomatis ditutup karena ${reason}.`;
+
+  try {
+    const response = await fetch(`${apiBaseUrl}/live-meetings/${encodeURIComponent(endPayload.liveMeetingSessionId)}/end`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ transcriptText })
+    });
+
+    if (!response.ok && response.status !== 404) {
+      const body = await response.text().catch(() => "");
+      console.warn(`[overlay] Failed to end meeting round ${endPayload.liveMeetingSessionId}: ${response.status} ${body}`);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    console.warn(`[overlay] Failed to end meeting round ${endPayload.liveMeetingSessionId}: ${message}`);
+  }
+}
+
 function startRealtimeAudioStream() {
   if (process.platform !== "win32") {
     setRealtimeStatus("error", "System audio loopback saat ini hanya tersedia di Windows.");
@@ -219,7 +233,7 @@ function startRealtimeAudioStream() {
   }
 
   if (!fs.existsSync(loopbackProbePath)) {
-    setRealtimeStatus("error", "WASAPI helper belum tersedia. Jalankan build:native:windows.");
+    setRealtimeStatus("error", "Komponen audio meeting belum siap. Jalankan build:native:windows.");
     return;
   }
 
@@ -227,15 +241,17 @@ function startRealtimeAudioStream() {
     return;
   }
 
+  clearRealtimeAudioRestartTimer();
   stopSystemAudioProbe();
   realtimeAudioBuffer = "";
   realtimeAudioHadHelperError = false;
-  setAudioCaptureStatus("waiting", "Mencari audio interview dari active system output...");
-  realtimeAudioProcess = spawn(loopbackProbePath, ["stream", "--chunk-ms", "40"], {
+  setAudioCaptureStatus("waiting", "Mencari audio meeting dari active system output...");
+  const audioProcess = spawn(loopbackProbePath, ["stream", "--chunk-ms", "40"], {
     windowsHide: true
   });
+  realtimeAudioProcess = audioProcess;
 
-  realtimeAudioProcess.stdout.on("data", (chunk: Buffer) => {
+  audioProcess.stdout.on("data", (chunk: Buffer) => {
     realtimeAudioBuffer += chunk.toString("utf8");
     const lines = realtimeAudioBuffer.split(/\r?\n/);
     realtimeAudioBuffer = lines.pop() || "";
@@ -244,28 +260,40 @@ function startRealtimeAudioStream() {
     }
   });
 
-  realtimeAudioProcess.stderr.on("data", (chunk: Buffer) => {
+  audioProcess.stderr.on("data", (chunk: Buffer) => {
     emitRealtimeOverlayEvent({
       type: "error",
       message: chunk.toString("utf8").trim() || "WASAPI stream stderr output."
     });
   });
 
-  realtimeAudioProcess.on("error", (error) => {
-    realtimeAudioProcess = null;
+  audioProcess.on("error", (error) => {
+    if (realtimeAudioProcess === audioProcess) {
+      realtimeAudioProcess = null;
+    }
     realtimeAudioBuffer = "";
     setRealtimeStatus("error", getLoopbackHelperErrorMessage(error));
   });
 
-  realtimeAudioProcess.on("exit", (code) => {
+  audioProcess.on("exit", (code, signal) => {
     if (realtimeAudioBuffer.trim()) {
       handleRealtimeAudioLine(realtimeAudioBuffer);
     }
-    realtimeAudioProcess = null;
-    realtimeAudioBuffer = "";
-    if (code !== 0 && !realtimeAudioHadHelperError && realtimeStatus !== "closed" && realtimeStatus !== "idle") {
-      setRealtimeStatus("error", `WASAPI audio stream exited with code ${code ?? "unknown"}.`);
+    if (realtimeAudioProcess === audioProcess) {
+      realtimeAudioProcess = null;
     }
+    realtimeAudioBuffer = "";
+    const expectedStop = realtimeAudioExpectedStops.has(audioProcess);
+    if (expectedStop || realtimeAudioHadHelperError || code === 0 || realtimeStatus === "closed" || realtimeStatus === "idle") {
+      return;
+    }
+
+    const exitDetails = formatRealtimeAudioExitDetails(code, signal);
+    if (scheduleRealtimeAudioRestart(exitDetails)) {
+      return;
+    }
+
+    setRealtimeStatus("error", `WASAPI audio stream exited unexpectedly (${exitDetails}).`);
   });
 }
 
@@ -273,22 +301,66 @@ function getLoopbackHelperErrorMessage(error: NodeJS.ErrnoException) {
   const rawMessage = error.message || "";
   const blockedByPolicy = error.code === "EPERM"
     || rawMessage.toLowerCase().includes("blocked")
-    || rawMessage.toLowerCase().includes("application control");
+    || rawMessage.toLowerCase().includes("meetingContext control");
 
   if (blockedByPolicy) {
-    return "System audio helper diblokir Windows Security. Untuk beta, trust certificate app dulu lalu jalankan packaged app yang sudah signed.";
+    return "System audio helper diblokir Windows Security. Untuk distribusi user, gunakan package Microsoft Store. Untuk QA lokal, jalankan dari dev mode atau packaged build internal yang sesuai policy Windows mesin ini.";
   }
 
   return rawMessage || "System audio helper gagal dijalankan.";
 }
 
 function stopRealtimeAudioStream() {
+  clearRealtimeAudioRestartTimer();
   if (realtimeAudioProcess) {
-    realtimeAudioProcess.kill();
+    const audioProcess = realtimeAudioProcess;
+    realtimeAudioExpectedStops.add(audioProcess);
+    audioProcess.kill();
     realtimeAudioProcess = null;
   }
   realtimeAudioBuffer = "";
   realtimeAudioHadHelperError = false;
+}
+
+function clearRealtimeAudioRestartTimer() {
+  if (realtimeAudioRestartTimer) {
+    clearTimeout(realtimeAudioRestartTimer);
+    realtimeAudioRestartTimer = null;
+  }
+}
+
+function resetRealtimeAudioRestartAttempts() {
+  realtimeAudioRestartAttempts = 0;
+}
+
+function canRestartRealtimeAudioStream() {
+  return Boolean(realtimeConnectPayload)
+    && realtimeStatus !== "idle"
+    && realtimeStatus !== "closed"
+    && realtimeStatus !== "error";
+}
+
+function scheduleRealtimeAudioRestart(exitDetails: string) {
+  if (!canRestartRealtimeAudioStream() || realtimeAudioRestartAttempts >= realtimeAudioRestartDelaysMs.length) {
+    return false;
+  }
+
+  const delayMs = realtimeAudioRestartDelaysMs[realtimeAudioRestartAttempts] ?? realtimeAudioRestartDelaysMs[realtimeAudioRestartDelaysMs.length - 1];
+  realtimeAudioRestartAttempts += 1;
+  setAudioCaptureStatus("waiting", `Audio meeting terputus sebentar (${exitDetails}). Mencoba menyambungkan ulang...`);
+  realtimeAudioRestartTimer = setTimeout(() => {
+    realtimeAudioRestartTimer = null;
+    if (canRestartRealtimeAudioStream()) {
+      startRealtimeAudioStream();
+    }
+  }, delayMs);
+  return true;
+}
+
+function formatRealtimeAudioExitDetails(code: number | null, signal: NodeJS.Signals | null) {
+  const codeText = code === null ? "null" : String(code);
+  const signalText = signal || "none";
+  return `code ${codeText}, signal ${signalText}`;
 }
 
 function handleRealtimeAudioLine(line: string) {
@@ -321,6 +393,7 @@ function handleRealtimeAudioLine(line: string) {
     }
 
     if (event.type === "selected_device") {
+      resetRealtimeAudioRestartAttempts();
       const deviceLabel = typeof event.deviceLabel === "string" && event.deviceLabel.trim()
         ? event.deviceLabel.trim()
         : "active system output";
@@ -330,7 +403,7 @@ function handleRealtimeAudioLine(line: string) {
     }
 
     if (event.type === "status" && event.status === "waiting_for_audio") {
-      const message = event.message || "Mencari audio interview dari active system output...";
+      const message = event.message || "Mencari audio meeting dari active system output...";
       setAudioCaptureStatus("waiting", message);
       if (realtimeStatus !== "closed" && realtimeStatus !== "idle" && realtimeStatus !== "error") {
         setRealtimeStatus("connected", message);
@@ -343,6 +416,7 @@ function handleRealtimeAudioLine(line: string) {
         ? event.deviceLabel.trim()
         : "active system output";
       if (event.status === "ok") {
+        resetRealtimeAudioRestartAttempts();
         setAudioCaptureStatus("ready", `Listening via ${deviceLabel}`, deviceLabel);
         setRealtimeStatus("listening", `Listening via ${deviceLabel}`);
       } else if (event.status === "silent") {
@@ -412,17 +486,20 @@ function sanitizeRealtimeActionPayload(payload: unknown): Required<Pick<Realtime
   }
 
   const candidate = payload as RealtimeActionPayload;
-  const actions = new Set(["answer", "followup", "explain", "keyword", "ask"]);
-  if (!candidate.action || !actions.has(candidate.action)) {
+  if (!isRealtimeActionName(candidate.action)) {
     return null;
   }
+  const forcedConversationMode = getForcedConversationMode(candidate.action);
 
   return {
     requestId: typeof candidate.requestId === "number" ? candidate.requestId : Date.now(),
     action: candidate.action,
     latestQuestion: typeof candidate.latestQuestion === "string" ? candidate.latestQuestion.trim() : "",
     recentTranscript: typeof candidate.recentTranscript === "string" ? candidate.recentTranscript.trim() : "",
-    triggerText: typeof candidate.triggerText === "string" ? candidate.triggerText.trim() : ""
+    triggerText: typeof candidate.triggerText === "string" ? candidate.triggerText.trim() : "",
+    conversationMode: forcedConversationMode || (candidate.conversationMode === "qna" || candidate.conversationMode === "convo"
+      ? candidate.conversationMode
+      : "unknown")
   };
 }
 
@@ -456,7 +533,7 @@ async function createMainWindow() {
     height: 820,
     minWidth: 980,
     minHeight: 680,
-    title: "Interview Assistant",
+    title: "Orviko Meeting Assistant",
     backgroundColor: "#f4f6fa",
     show: false,
     webPreferences: {
@@ -489,10 +566,14 @@ async function createOverlayWindow(context: unknown) {
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     const previousContext = readOverlayEndContext();
     const nextContext = readOverlayEndContext(context);
-    if (previousContext.interviewRoundId && previousContext.interviewRoundId !== nextContext.interviewRoundId) {
+    if (previousContext.liveMeetingSessionId && previousContext.liveMeetingSessionId !== nextContext.liveMeetingSessionId) {
+      await endOverlayRoundDirect({
+        ...previousContext,
+        transcriptText: "Sesi meeting otomatis ditutup karena sesi baru dimulai."
+      }, "sesi baru dimulai");
       mainWindow?.webContents.send("overlay:interview-ended", {
         ...previousContext,
-        transcriptText: "Interview otomatis ditutup karena round baru dimulai."
+        transcriptText: "Sesi meeting otomatis ditutup karena sesi baru dimulai."
       });
     }
 
@@ -523,7 +604,7 @@ async function createOverlayWindow(context: unknown) {
     alwaysOnTop: true,
     skipTaskbar: true,
     show: false,
-    title: "Interview Assistant Overlay",
+    title: "Orviko Meeting Overlay",
     backgroundColor: "#00000000",
     webPreferences: {
       preload: preloadPath,
@@ -544,10 +625,13 @@ async function createOverlayWindow(context: unknown) {
     stopOverlayDrag();
     stopRealtimeSession();
     if (!overlayCloseHandled) {
-      mainWindow?.webContents.send("overlay:interview-ended", {
+      const payload = {
         ...readOverlayEndContext(),
-        transcriptText: "Overlay tertutup sebelum tombol End Interview ditekan."
-      });
+        transcriptText: "Overlay tertutup sebelum tombol End Meeting ditekan."
+      };
+      void endOverlayRoundDirect(payload, "overlay tertutup");
+      mainWindow?.webContents.send("overlay:interview-ended", payload);
+      overlayContext = null;
     }
     overlayWindow = null;
     overlayCloseHandled = false;
@@ -577,19 +661,6 @@ function registerOverlayIpc() {
     return { ok: true };
   });
 
-  ipcMain.handle("overlay:push-transcript", (_event, event: unknown) => {
-    const sanitizedEvent = sanitizeTranscriptEvent(event);
-    if (!sanitizedEvent) {
-      return { ok: false };
-    }
-
-    mergeOverlayContext({
-      latestTranscriptEvent: sanitizedEvent
-    });
-    overlayWindow?.webContents.send("overlay:context-updated", overlayContext);
-    return { ok: true };
-  });
-
   ipcMain.handle("overlay:send-realtime-action", (_event, payload: unknown) => sendRealtimeAction(payload));
 
   ipcMain.handle("overlay:realtime-client-event", (_event, payload: unknown) => {
@@ -603,7 +674,7 @@ function registerOverlayIpc() {
     }
 
     if (type === "open") {
-      setRealtimeStatus("connected", "Realtime tersambung. Mencari audio interview dari active system output...");
+      setRealtimeStatus("connected", "Realtime tersambung. Mencari audio meeting dari active system output...");
       startRealtimeAudioStream();
       return { ok: true };
     }
@@ -690,10 +761,12 @@ function registerOverlayIpc() {
     return { ok: true };
   });
 
-  ipcMain.handle("overlay:end-interview", (_event, payload: unknown) => {
+  ipcMain.handle("overlay:end-interview", async (_event, payload: unknown) => {
     overlayCloseHandled = true;
     stopRealtimeSession();
+    await endOverlayRoundDirect(payload, "tombol End Meeting ditekan");
     mainWindow?.webContents.send("overlay:interview-ended", payload);
+    overlayContext = null;
     overlayWindow?.close();
     overlayWindow = null;
     return { ok: true };
@@ -709,10 +782,10 @@ function registerSystemAudioIpc() {
       helperExists,
       helperPath: loopbackProbePath,
       message: !supported
-        ? "System audio loopback saat ini hanya didukung untuk Windows."
+        ? "Pengecekan audio meeting hanya tersedia di Windows."
         : helperExists
-          ? "Windows WASAPI loopback helper tersedia."
-          : "Windows WASAPI loopback helper belum ter-build."
+          ? "Audio meeting siap dicek."
+          : "Komponen audio meeting belum siap."
     };
   });
 
@@ -722,7 +795,7 @@ function registerSystemAudioIpc() {
     }
 
     if (!fs.existsSync(loopbackProbePath)) {
-      return { ok: false, message: "WASAPI helper belum tersedia. Jalankan build:native:windows." };
+      return { ok: false, message: "Komponen audio meeting belum siap. Jalankan build:native:windows." };
     }
 
     if (systemAudioProbeProcess) {
@@ -749,7 +822,7 @@ function registerSystemAudioIpc() {
         status: "error",
         level: 0,
         peak: 0,
-        message: chunk.toString("utf8").trim() || "WASAPI helper stderr output."
+        message: chunk.toString("utf8").trim() || "Komponen audio meeting mengirim status error."
       });
     });
 
@@ -778,7 +851,7 @@ function registerSystemAudioIpc() {
           status: "error",
           level: 0,
           peak: 0,
-          message: `WASAPI helper exited with code ${code ?? "unknown"}.`
+          message: `Komponen audio meeting berhenti dengan kode ${code ?? "unknown"}.`
         });
       }
     });
@@ -841,10 +914,23 @@ function readOverlayEndContext(source: unknown = overlayContext) {
     return {};
   }
 
-  const context = source as { interviewRoundId?: unknown; applicationId?: unknown };
+  const context = source as { liveMeetingSessionId?: unknown; meetingContextId?: unknown };
   return {
-    interviewRoundId: typeof context.interviewRoundId === "string" ? context.interviewRoundId : undefined,
-    applicationId: typeof context.applicationId === "string" ? context.applicationId : undefined
+    liveMeetingSessionId: typeof context.liveMeetingSessionId === "string" ? context.liveMeetingSessionId : undefined,
+    meetingContextId: typeof context.meetingContextId === "string" ? context.meetingContextId : undefined
+  };
+}
+
+function readOverlayEndPayload(source: unknown = overlayContext): OverlayEndPayload {
+  if (!source || typeof source !== "object") {
+    return {};
+  }
+
+  const context = source as { liveMeetingSessionId?: unknown; meetingContextId?: unknown; transcriptText?: unknown };
+  return {
+    liveMeetingSessionId: typeof context.liveMeetingSessionId === "string" ? context.liveMeetingSessionId : undefined,
+    meetingContextId: typeof context.meetingContextId === "string" ? context.meetingContextId : undefined,
+    transcriptText: typeof context.transcriptText === "string" ? context.transcriptText : undefined
   };
 }
 
@@ -869,6 +955,28 @@ app.whenReady().then(async () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       void createMainWindow();
     }
+  });
+});
+
+app.on("before-quit", (event) => {
+  if (isQuittingAfterOverlayCleanup) {
+    return;
+  }
+
+  const payload = readOverlayEndContext();
+  if (!payload.liveMeetingSessionId) {
+    return;
+  }
+
+  event.preventDefault();
+  isQuittingAfterOverlayCleanup = true;
+  stopRealtimeSession();
+  stopSystemAudioProbe();
+  void endOverlayRoundDirect({
+    ...payload,
+    transcriptText: "Sesi meeting otomatis ditutup karena aplikasi ditutup."
+  }, "aplikasi ditutup").finally(() => {
+    app.quit();
   });
 });
 
