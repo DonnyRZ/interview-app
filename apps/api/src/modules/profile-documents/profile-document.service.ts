@@ -23,9 +23,7 @@ import {
 } from "./profile-document.repository.js";
 
 const allowedMimeTypes = new Set([
-  "application/pdf",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  "application/pdf"
 ]);
 
 export async function getProfileDocumentListForDevUser() {
@@ -42,7 +40,7 @@ export async function uploadProfileDocumentForDevUser(file: MultipartFile) {
   await ensureDevUser();
 
   if (file.mimetype && !allowedMimeTypes.has(file.mimetype)) {
-    throw new Error("Unsupported profile document file type");
+    throw new Error("Unsupported profile document file type. Upload profil saat ini hanya mendukung PDF.");
   }
 
   await ensureProfileDocumentStorageDir();

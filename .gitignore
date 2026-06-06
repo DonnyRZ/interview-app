@@ -63,6 +63,7 @@ storage/cvs/*
 !storage/cvs/.gitkeep
 storage/*.log
 outputs/
+Price-Calc/outputs/
 temp/
 Temp-Reference/
 audio-sample/
