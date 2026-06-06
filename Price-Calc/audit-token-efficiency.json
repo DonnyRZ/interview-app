@@ -1,0 +1,433 @@
+{
+  "generatedAt": "2026-06-02T00:00:00+07:00",
+  "scope": {
+    "purpose": "Deep audit of Orviko token usage flow before optimization planning",
+    "notInScope": [
+      "Excel revision",
+      "production code optimization",
+      "keyword request frequency reduction"
+    ],
+    "keywordFrequencyPolicy": "Do not reduce keyword request frequency"
+  },
+  "behaviorGrounding": {
+    "source": "detailed-example.md",
+    "mustPreserve": [
+      "No automatic answer without explicit user trigger",
+      "Jawab Pertanyaan always uses QnA-style behavior",
+      "Tanggapi always uses Convo-style behavior",
+      "Follow-up creates relevant questions back",
+      "Jelaskan Maksudnya explains meaning and response angle",
+      "Keyword chips come from latest accepted transcript context",
+      "Ask follows short custom user instruction",
+      "No fabricated facts, metrics, organizations, or external claims",
+      "General meeting framing; no default interview/B2B/internal/domain bias"
+    ],
+    "antiPatterns": [
+      "Tanggapi becomes QnA",
+      "Tanggapi defaults to asking back",
+      "Jawab Pertanyaan uses meta intro",
+      "Responses become article-like or too long",
+      "Profile or meeting context is forced when irrelevant",
+      "Keyword chips are created from static context rather than transcript evidence"
+    ]
+  },
+  "runtimeFlow": [
+    {
+      "step": "Upload profile",
+      "model": "gpt-5-mini",
+      "tokenSurface": "Profile document file + preprocessing profile prompt",
+      "primaryFiles": [
+        "apps/api/src/modules/profile-documents/profile-document.service.ts",
+        "apps/api/src/modules/ai/actions/preprocessing/preprocess-user-profile.ts"
+      ]
+    },
+    {
+      "step": "Create meeting context",
+      "model": "gpt-5-mini",
+      "tokenSurface": "contextName + meetingTopic + meetingBrief + active profile readyContext",
+      "primaryFiles": [
+        "apps/api/src/modules/meeting-contexts/meeting-context.service.ts",
+        "apps/api/src/modules/ai/actions/preprocessing/preprocess-meeting-context.ts"
+      ]
+    },
+    {
+      "step": "Start live meeting",
+      "model": "gpt-realtime-mini",
+      "tokenSurface": "Realtime session instructions + formatted realtimeContext",
+      "primaryFiles": [
+        "apps/api/src/modules/live-meetings/live-meeting.service.ts",
+        "apps/api/src/modules/ai/actions/realtime/realtime-meeting-session.ts",
+        "apps/api/src/modules/ai/actions/shared/meeting-context-format.ts"
+      ]
+    },
+    {
+      "step": "Live transcription",
+      "model": "gpt-4o-mini-transcribe",
+      "tokenSurface": "PCM 24 kHz audio + transcription prompt",
+      "primaryFiles": [
+        "apps/api/src/modules/ai/openai.client.ts",
+        "apps/api/src/modules/ai/actions/realtime/realtime-meeting-transcription.ts",
+        "apps/desktop/electron/main.ts"
+      ]
+    },
+    {
+      "step": "Keyword surfacing",
+      "model": "gpt-realtime-mini",
+      "tokenSurface": "SURFACE_KEYWORDS realtime action prompt + current session context",
+      "primaryFiles": [
+        "apps/desktop/src/features/overlay/InterviewOverlay.tsx",
+        "apps/desktop/src/features/overlay/runtime-rules/realtime-action-prompt.ts"
+      ],
+      "policy": "Frequency is not an optimization lever for this audit"
+    },
+    {
+      "step": "Help button response",
+      "model": "gpt-realtime-mini",
+      "tokenSurface": "Action trigger prompt + conversation window + latest focus + session context",
+      "primaryFiles": [
+        "apps/desktop/src/features/overlay/InterviewOverlay.tsx",
+        "apps/desktop/src/features/overlay/runtime-rules/realtime-action-prompt.ts"
+      ]
+    }
+  ],
+  "promptInventory": {
+    "measurementMethod": "Character count from production prompt builders; approxTokens = ceil(characters / 4)",
+    "activeDataSource": {
+      "profileId": "ac99db9a-d8f4-4cb0-9d03-bf2e148b5fbd",
+      "meetingContextId": "e58bd24c-96f5-472a-bded-5a894ffef5b4",
+      "contextName": "PT Global Tiket Network",
+      "meetingTopic": "Data Scientist Interview"
+    },
+    "realtime": {
+      "sessionInstructions": {
+        "characters": 30560,
+        "approxTokens": 7640
+      },
+      "staticContextInsideSessionInstructions": {
+        "characters": 9982,
+        "approxTokens": 2496
+      },
+      "transcriptionPrompt": {
+        "characters": 193,
+        "approxTokens": 49
+      },
+      "actionPrompts": [
+        {
+          "label": "answer_qna",
+          "characters": 460,
+          "approxTokens": 115
+        },
+        {
+          "label": "answer_convo",
+          "characters": 454,
+          "approxTokens": 114
+        },
+        {
+          "label": "followup",
+          "characters": 430,
+          "approxTokens": 108
+        },
+        {
+          "label": "explain",
+          "characters": 434,
+          "approxTokens": 109
+        },
+        {
+          "label": "keyword",
+          "characters": 460,
+          "approxTokens": 115
+        },
+        {
+          "label": "surface_keywords",
+          "characters": 432,
+          "approxTokens": 108
+        },
+        {
+          "label": "ask",
+          "characters": 465,
+          "approxTokens": 117
+        }
+      ]
+    },
+    "contextSegments": {
+      "userProfileSummary": {
+        "characters": 352,
+        "approxTokens": 88
+      },
+      "userProfileReadyContext": {
+        "characters": 455,
+        "approxTokens": 114
+      },
+      "userProfileSkills": {
+        "characters": 133,
+        "approxTokens": 34
+      },
+      "userProfileRelevantExperience": {
+        "characters": 747,
+        "approxTokens": 187
+      },
+      "userProfileStructuredExperiences": {
+        "characters": 4036,
+        "approxTokens": 1009
+      },
+      "userProfileUsefulStrengths": {
+        "characters": 418,
+        "approxTokens": 105
+      },
+      "userProfileRisks": {
+        "characters": 389,
+        "approxTokens": 98
+      },
+      "meetingSummary": {
+        "characters": 220,
+        "approxTokens": 55
+      },
+      "meetingCriteria": {
+        "characters": 476,
+        "approxTokens": 119
+      },
+      "meetingResponsibilities": {
+        "characters": 119,
+        "approxTokens": 30
+      },
+      "meetingContextText": {
+        "characters": 442,
+        "approxTokens": 111
+      },
+      "domainProfile": {
+        "characters": 1284,
+        "approxTokens": 321
+      },
+      "sessionContext": {
+        "characters": 94,
+        "approxTokens": 24
+      }
+    },
+    "backendNonLivePrompts": [
+      {
+        "label": "preprocess_profile",
+        "model": "gpt-5-mini",
+        "totalCharacters": 3376,
+        "approxTotalTokens": 845,
+        "runtimeContextCharacters": 129,
+        "truncated": false
+      },
+      {
+        "label": "preprocess_meeting_context",
+        "model": "gpt-5-mini",
+        "totalCharacters": 6889,
+        "approxTotalTokens": 1723,
+        "runtimeContextCharacters": 3279,
+        "truncated": false
+      },
+      {
+        "label": "backend_answer",
+        "model": "gpt-5-mini",
+        "totalCharacters": 24549,
+        "approxTotalTokens": 6138,
+        "runtimeContextCharacters": 10358,
+        "truncated": false
+      },
+      {
+        "label": "backend_followup",
+        "model": "gpt-5-mini",
+        "totalCharacters": 14924,
+        "approxTotalTokens": 3732,
+        "runtimeContextCharacters": 10358,
+        "truncated": false
+      },
+      {
+        "label": "backend_explanation",
+        "model": "gpt-5-mini",
+        "totalCharacters": 15020,
+        "approxTotalTokens": 3756,
+        "runtimeContextCharacters": 10358,
+        "truncated": false
+      },
+      {
+        "label": "backend_keyword_help",
+        "model": "gpt-5-mini",
+        "totalCharacters": 13756,
+        "approxTotalTokens": 3440,
+        "runtimeContextCharacters": 10379,
+        "truncated": false
+      },
+      {
+        "label": "backend_surface_keywords",
+        "model": "gpt-5-mini",
+        "totalCharacters": 13141,
+        "approxTotalTokens": 3286,
+        "runtimeContextCharacters": 10261,
+        "truncated": false
+      }
+    ]
+  },
+  "tokenUsageEvidence": {
+    "sources": {
+      "liveRuns": [
+        "Price-Calc/outputs/live-meeting-simulation-20260601-163137",
+        "Price-Calc/outputs/live-meeting-simulation-20260601-164219",
+        "Price-Calc/outputs/live-meeting-simulation-20260601-165300"
+      ],
+      "preprocessingRuns": "Price-Calc/outputs/preprocessing-simulation-20260602-200715",
+      "workbookReference": "Price-Calc/orviko-pricing-rev.xlsx"
+    },
+    "pricingUsed": {
+      "fxUsdToIdr": 20000,
+      "transcribeInputPerMillionUsd": 3,
+      "transcribeOutputPerMillionUsd": 5,
+      "realtimeRegularInputPerMillionUsd": 0.6,
+      "realtimeCachedInputPerMillionUsd": 0.06,
+      "realtimeOutputPerMillionUsd": 2.4,
+      "gpt5MiniInputPerMillionUsd": 0.25,
+      "gpt5MiniOutputPerMillionUsd": 2
+    },
+    "liveMeetingAverage": {
+      "sampleMinutes": 8.4,
+      "targetMinutes": 45,
+      "scaleFactor": 5.357142857142857,
+      "helpClicksPerSample": 7,
+      "keywordRequestsAvgPerSample": 18.6666666667,
+      "transcriptTurns": 24,
+      "usageRecordsAvg": 48,
+      "transcribeInputTokens": 4075,
+      "transcribeOutputTokens": 848,
+      "realtimeTotalInputTokens": 250980.33333333334,
+      "realtimeCachedInputTokens": 231317.33333333334,
+      "realtimeRegularPricedInputTokens": 19663,
+      "realtimeOutputTokens": 1432.3333333333333,
+      "projected45MinuteCostIdr": 4883.511428571427,
+      "projected45MinuteCostRoundedIdr": 4884,
+      "projected45MinuteRangeIdr": {
+        "low": 4492.259999999999,
+        "high": 5329.95857142857
+      }
+    },
+    "liveCostComponentsProjected45Idr": {
+      "transcription": {
+        "costIdr": 1764.107142857143,
+        "sharePercent": 36.123743512425776
+      },
+      "realtimeRegularInput": {
+        "costIdr": 1264.05,
+        "sharePercent": 25.884038943874693
+      },
+      "realtimeCachedInput": {
+        "costIdr": 1487.04,
+        "sharePercent": 30.450220538032056
+      },
+      "realtimeOutput": {
+        "costIdr": 368.31428571428563,
+        "sharePercent": 7.541997005667465
+      }
+    },
+    "preprocessingAverage": {
+      "profile": {
+        "inputTokens": 2227,
+        "outputTokens": 5045.8,
+        "totalTokens": 7272.8,
+        "costIdr": 213
+      },
+      "meetingContext": {
+        "inputTokens": 1527.6,
+        "outputTokens": 2981.4,
+        "totalTokens": 4509,
+        "costIdr": 127
+      },
+      "combined": {
+        "inputTokens": 3754.6,
+        "outputTokens": 8027.2,
+        "totalTokens": 11781.8,
+        "costIdr": 340
+      }
+    },
+    "cachedTokenAccountingRule": "cached input tokens are a discounted subset of total input tokens; billable formula uses regularPricedInput = totalInput - cachedInput, plus cachedInput at cached rate, plus output"
+  },
+  "hotspotRanking": [
+    {
+      "rank": 1,
+      "area": "Realtime session/static context repeated in response.done input",
+      "evidence": "Realtime session instructions are about 30,560 characters; static context is about 9,982 characters; response.done avg input is 250,980 tokens per 8.4-minute sample with 231,317 cached tokens.",
+      "optimizationRisk": "medium"
+    },
+    {
+      "rank": 2,
+      "area": "Live transcription",
+      "evidence": "Projected 45-minute transcription component is about IDR 1,764 or 36.1% of live cost.",
+      "optimizationRisk": "high"
+    },
+    {
+      "rank": 3,
+      "area": "Full structured profile context",
+      "evidence": "Structured experiences alone are about 4,036 characters / 1,009 approx tokens inside static context.",
+      "optimizationRisk": "medium"
+    },
+    {
+      "rank": 4,
+      "area": "Backend non-live dev/fallback action prompts",
+      "evidence": "Backend answer prompt estimate is about 24,549 characters / 6,138 approx tokens, but live overlay should not use this path for main runtime.",
+      "optimizationRisk": "low for live cost, medium for dev/fallback correctness"
+    },
+    {
+      "rank": 5,
+      "area": "Realtime output length",
+      "evidence": "Realtime output is about 7.5% of projected live cost, so output trimming alone cannot reach 15-20%.",
+      "optimizationRisk": "medium"
+    }
+  ],
+  "cacheabilityAudit": {
+    "strengths": [
+      "Realtime session instructions are created once per session and repeated context receives high cached-token coverage.",
+      "Action prompts are small compared with session context.",
+      "Transcription prompt is small and stable."
+    ],
+    "risks": [
+      "Static context is appended at the end of realtime session instructions; cache behavior is good in current runs, but context size still inflates total input accounting.",
+      "Full structured profile, relevant experience, and domain profile are always present in static context even when many actions only need latest transcript.",
+      "Backend non-live action prompts include full realtimeContext and are expensive if accidentally used as production fallback."
+    ],
+    "doNotUseAsLever": [
+      "Reducing keyword request frequency"
+    ]
+  },
+  "uxSafetyMatrix": [
+    {
+      "candidateArea": "Compact static context",
+      "potentialTokenImpact": "high",
+      "behaviorRisk": "medium",
+      "mustProtect": "No fake profile claims; QnA/Convo behavior; meeting-specific relevance"
+    },
+    {
+      "candidateArea": "Action-specific context routing",
+      "potentialTokenImpact": "medium-high",
+      "behaviorRisk": "medium",
+      "mustProtect": "Keyword transcript-first rule; explicit user trigger semantics"
+    },
+    {
+      "candidateArea": "Prompt rule deduplication",
+      "potentialTokenImpact": "medium",
+      "behaviorRisk": "high",
+      "mustProtect": "Convo hard guards and non-bias safeguards from detailed examples"
+    },
+    {
+      "candidateArea": "Output budget tuning",
+      "potentialTokenImpact": "low",
+      "behaviorRisk": "medium",
+      "mustProtect": "Ready-to-say usefulness and follow-up completeness"
+    },
+    {
+      "candidateArea": "Transcription/audio changes",
+      "potentialTokenImpact": "high",
+      "behaviorRisk": "high",
+      "mustProtect": "Transcript quality, focus derivation, keyword quality"
+    }
+  ],
+  "auditConclusions": {
+    "mostExpensiveComponent": "Live meeting runtime, not preprocessing",
+    "largestPromptSurface": "Realtime session instructions and formatted static context",
+    "largestStaticContextSegment": "userProfileStructuredExperiences",
+    "preprocessingCostStatus": "Measured and small relative to live runtime",
+    "target15To20FeasibilityWithoutKeywordFrequencyReduction": "Possible, but likely requires compact realtime context plus cache/prompt hygiene; output trimming alone is insufficient",
+    "nextStepRecommended": "Run controlled A/B simulations only after defining behavior-safe compact context candidates"
+  }
+}

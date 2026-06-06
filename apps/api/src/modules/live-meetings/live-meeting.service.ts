@@ -10,7 +10,7 @@ import {
   listLiveMeetingSessions,
   startLiveMeetingSession
 } from "./live-meeting.repository.js";
-import { buildRealtimeContext } from "./realtime-context.js";
+import { buildRealtimeContext, compactRealtimeContextForLiveSession } from "./realtime-context.js";
 
 export async function getLiveMeetingSessionsForDevUser(meetingContextId: string) {
   await ensureDevUser();
@@ -39,13 +39,15 @@ export async function startLiveMeetingForDevUser(input: StartLiveMeetingRequest)
   }
 
   const session = await startLiveMeetingSession(DEV_USER_ID, input.meetingContextId, input.sessionType);
+  const realtimeContext = buildRealtimeContext({
+    profileDocument,
+    meetingContext,
+    sessionType: input.sessionType
+  });
+
   return {
     session,
-    realtimeContext: buildRealtimeContext({
-      profileDocument,
-      meetingContext,
-      sessionType: input.sessionType
-    })
+    realtimeContext: compactRealtimeContextForLiveSession(realtimeContext)
   };
 }
 
