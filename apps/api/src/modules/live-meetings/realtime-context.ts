@@ -81,6 +81,45 @@ export function buildRealtimeContext(input: {
   };
 }
 
+export function compactRealtimeContextForLiveSession(context: RealtimeContext): RealtimeContext {
+  return {
+    userProfileContext: {
+      summary: truncateText(context.userProfileContext.summary, 260),
+      readyContext: truncateText(context.userProfileContext.readyContext, 520),
+      skills: compactStringList(context.userProfileContext.skills, 8, 80),
+      relevantExperience: compactStringList(context.userProfileContext.relevantExperience, 3, 140),
+      experiences: context.userProfileContext.experiences.slice(0, 2).map(compactExperience),
+      education: context.userProfileContext.education.slice(0, 1).map(compactEducation),
+      organizations: [],
+      internships: [],
+      usefulStrengths: compactStringList(context.userProfileContext.usefulStrengths, 3, 120),
+      risks: compactStringList(context.userProfileContext.risks, 4, 140)
+    },
+    meetingContext: {
+      contextName: truncateText(context.meetingContext.contextName, 90),
+      meetingTopic: truncateText(context.meetingContext.meetingTopic, 90),
+      meetingSummary: truncateText(context.meetingContext.meetingSummary, 260),
+      keyCriteria: compactStringList(context.meetingContext.keyCriteria, 5, 120),
+      responsibilities: compactStringList(context.meetingContext.responsibilities, 4, 120),
+      niceToHave: compactStringList(context.meetingContext.niceToHave, 3, 100),
+      preparationThemes: compactStringList(context.meetingContext.preparationThemes, 4, 100),
+      contextText: truncateText(context.meetingContext.contextText, 520)
+    },
+    domainProfile: {
+      primaryDomain: truncateText(context.domainProfile.primaryDomain, 80),
+      nicheDescription: truncateText(context.domainProfile.nicheDescription, 180),
+      inScopeConcepts: compactStringList(context.domainProfile.inScopeConcepts, 5, 60),
+      outOfScopeConcepts: compactStringList(context.domainProfile.outOfScopeConcepts, 3, 60),
+      seedConcepts: compactStringList(context.domainProfile.seedConcepts, 4, 50),
+      relevanceGuidance: truncateText(context.domainProfile.relevanceGuidance, 220)
+    },
+    sessionContext: {
+      sessionType: context.sessionContext.sessionType,
+      focus: context.sessionContext.focus.slice(0, 5)
+    }
+  };
+}
+
 function normalizeDomainProfile(
   profile: Partial<RealtimeDomainProfile> | undefined,
   meetingContext: MeetingContextRow
@@ -186,6 +225,33 @@ function internshipList(value: unknown, maxItems: number): RealtimeUserInternshi
     responsibilities: stringList(item.responsibilities, 5, 140),
     projects: stringList(item.projects, 5, 140)
   }));
+}
+
+function compactExperience(item: RealtimeUserExperience): RealtimeUserExperience {
+  return {
+    organizationName: truncateText(item.organizationName, 70),
+    roleTitle: truncateText(item.roleTitle, 70),
+    dateRange: truncateText(item.dateRange, 55),
+    duration: truncateText(item.duration, 45),
+    projects: compactStringList(item.projects, 2, 100),
+    responsibilities: compactStringList(item.responsibilities, 2, 100),
+    impact: compactStringList(item.impact, 1, 100),
+    technologies: compactStringList(item.technologies, 6, 45)
+  };
+}
+
+function compactEducation(item: RealtimeUserEducation): RealtimeUserEducation {
+  return {
+    institution: truncateText(item.institution, 80),
+    degree: truncateText(item.degree, 60),
+    major: truncateText(item.major, 70),
+    dateRange: truncateText(item.dateRange, 55),
+    notes: compactStringList(item.notes, 1, 100)
+  };
+}
+
+function compactStringList(items: string[], maxItems: number, maxCharacters: number) {
+  return items.map((item) => truncateText(item, maxCharacters)).filter(Boolean).slice(0, maxItems);
 }
 
 function truncateText(value: string, maxCharacters: number) {

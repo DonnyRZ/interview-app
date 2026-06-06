@@ -51,7 +51,7 @@ export async function generateOpenAiJson(prompt: PromptBuildResult, inlineFile?:
 
   const content: unknown[] = [];
   if (inlineFile) {
-    if (inlineFile.mimeType !== "meetingContext/pdf") {
+    if (inlineFile.mimeType !== "application/pdf") {
       throw new Error(`OpenAI profile document preprocessing currently supports PDF inline files only. Received ${inlineFile.mimeType}`);
     }
 
@@ -76,7 +76,7 @@ export async function generateOpenAiJson(prompt: PromptBuildResult, inlineFile?:
     method: "POST",
     headers: {
       "Authorization": `Bearer ${env.OPENAI_API_KEY}`,
-      "Content-Type": "meetingContext/json"
+      "Content-Type": "application/json"
     },
     body: JSON.stringify({
       model: env.OPENAI_TEXT_MODEL,
@@ -116,7 +116,7 @@ export async function createOpenAiRealtimeClientSecret(config: RealtimeClientSec
     method: "POST",
     headers: {
       "Authorization": `Bearer ${env.OPENAI_API_KEY}`,
-      "Content-Type": "meetingContext/json"
+      "Content-Type": "application/json"
     },
     body: JSON.stringify({
       expires_after: {

@@ -1,0 +1,5 @@
+{
+  "name": "orviko-audio-decoder",
+  "private": true,
+  "main": "main.cjs"
+}
