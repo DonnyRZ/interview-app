@@ -15,6 +15,13 @@
       "when": 1780158666782,
       "tag": "0001_redundant_warpath",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780828800000,
+      "tag": "0002_lynk_subscription",
+      "breakpoints": true
     }
   ]
 }

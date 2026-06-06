@@ -44,3 +44,38 @@ export async function findUserById(userId: string) {
     where: eq(users.id, userId)
   });
 }
+
+export async function findUserByEmail(email: string) {
+  return db.query.users.findFirst({
+    where: eq(users.email, email.trim().toLowerCase())
+  });
+}
+
+export async function activateUserSubscription(input: {
+  userId: string;
+  plan: "mini" | "starter" | "pro";
+  durationDays?: number;
+}) {
+  const now = new Date();
+  const currentUser = await findUserById(input.userId);
+  const baseDate = currentUser?.subscriptionExpiresAt && currentUser.subscriptionExpiresAt > now
+    ? currentUser.subscriptionExpiresAt
+    : now;
+  const expiresAt = new Date(baseDate);
+  expiresAt.setDate(expiresAt.getDate() + (input.durationDays || 30));
+
+  const [updatedUser] = await db.update(users)
+    .set({
+      subscriptionPlan: input.plan,
+      subscriptionExpiresAt: expiresAt,
+      updatedAt: now
+    })
+    .where(eq(users.id, input.userId))
+    .returning();
+
+  if (!updatedUser) {
+    throw new Error("Gagal mengaktifkan subscription user.");
+  }
+
+  return updatedUser;
+}

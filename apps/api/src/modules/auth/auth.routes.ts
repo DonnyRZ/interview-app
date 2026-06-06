@@ -72,7 +72,9 @@ export async function registerAuthRoutes(app: FastifyInstance) {
         id: user.id,
         email: user.email,
         name: user.name,
-        picture: user.picture
+        picture: user.picture,
+        subscriptionPlan: user.subscriptionPlan,
+        subscriptionExpiresAt: user.subscriptionExpiresAt?.toISOString() || null
       }
     };
   });

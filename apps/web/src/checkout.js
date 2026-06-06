@@ -1,5 +1,4 @@
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
-const MIDTRANS_CLIENT_KEY = import.meta.env.VITE_MIDTRANS_CLIENT_KEY || "";
 
 const planCatalog = {
   mini: {
@@ -69,35 +68,6 @@ async function fetchJson(path, options = {}) {
   return payload;
 }
 
-function loadSnapScript() {
-  if (!MIDTRANS_CLIENT_KEY) {
-    return Promise.reject(new Error("Midtrans client key belum tersedia."));
-  }
-
-  if (window.snap) {
-    return Promise.resolve();
-  }
-
-  const existing = document.getElementById("midtrans-snap-script");
-  if (existing) {
-    return new Promise((resolve, reject) => {
-      existing.addEventListener("load", resolve, { once: true });
-      existing.addEventListener("error", () => reject(new Error("Gagal memuat Midtrans Snap.")), { once: true });
-    });
-  }
-
-  return new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    script.id = "midtrans-snap-script";
-    script.src = "https://app.sandbox.midtrans.com/snap/snap.js";
-    script.setAttribute("data-client-key", MIDTRANS_CLIENT_KEY);
-    script.async = true;
-    script.addEventListener("load", resolve, { once: true });
-    script.addEventListener("error", () => reject(new Error("Gagal memuat Midtrans Snap.")), { once: true });
-    document.body.appendChild(script);
-  });
-}
-
 function renderPlan(planSlug) {
   const plan = planCatalog[planSlug];
   setText("planName", plan.name);
@@ -129,7 +99,7 @@ async function initCheckout() {
     setText("accountName", payload.user.name || "User Orviko");
     setText("accountEmail", payload.user.email || "");
     if (payButton) payButton.disabled = false;
-    if (statusText) statusText.textContent = "Checkout siap. Pembayaran akan dibuka melalui Midtrans sandbox.";
+    if (statusText) statusText.textContent = "Checkout siap. Pembayaran akan dibuka melalui Lynk.id.";
   } catch (error) {
     setText("accountName", "Login Google diperlukan");
     setText("accountEmail", "Silakan login ulang untuk melanjutkan checkout.");
@@ -146,32 +116,21 @@ async function initCheckout() {
     try {
       payButton.disabled = true;
       if (statusText) {
-        statusText.textContent = "Membuat transaksi Midtrans...";
+        statusText.textContent = "Menyiapkan checkout Lynk.id...";
         statusText.classList.remove("error");
       }
 
-      const payment = await fetchJson("/payments/midtrans/create", {
+      const payment = await fetchJson("/payments/lynk/create", {
         method: "POST",
         body: JSON.stringify({ plan: planSlug })
       });
 
-      if (statusText) statusText.textContent = "Membuka Midtrans Snap...";
-      await loadSnapScript();
-      window.snap.pay(payment.snapToken, {
-        onSuccess: () => {
-          window.location.href = `/payment-success.html?payment_id=${encodeURIComponent(payment.paymentId)}`;
-        },
-        onPending: () => {
-          window.location.href = `/payment-pending.html?payment_id=${encodeURIComponent(payment.paymentId)}`;
-        },
-        onError: () => {
-          window.location.href = `/payment-failed.html?payment_id=${encodeURIComponent(payment.paymentId)}`;
-        },
-        onClose: () => {
-          if (statusText) statusText.textContent = "Pembayaran belum diselesaikan. Kamu bisa klik bayar lagi untuk melanjutkan.";
-          payButton.disabled = false;
-        }
-      });
+      if (!payment.redirectUrl) {
+        throw new Error("Link pembayaran Lynk.id belum tersedia.");
+      }
+
+      if (statusText) statusText.textContent = "Membuka halaman pembayaran Lynk.id...";
+      window.location.href = payment.redirectUrl;
     } catch (error) {
       if (statusText) {
         statusText.textContent = error instanceof Error ? error.message : "Gagal memulai pembayaran.";

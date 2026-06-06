@@ -39,6 +39,11 @@ const envSchema = z.object({
   MIDTRANS_IS_PRODUCTION: booleanEnvSchema,
   MIDTRANS_SERVER_KEY: z.string().optional(),
   VITE_MIDTRANS_CLIENT_KEY: z.string().optional(),
+  LYNK_PROFILE_URL: z.string().url().default("https://lynk.id/rizki-09"),
+  LYNK_MINI_URL: z.string().url().optional(),
+  LYNK_STARTER_URL: z.string().url().optional(),
+  LYNK_PRO_URL: z.string().url().optional(),
+  LYNK_WEBHOOK_SECRET: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_TEXT_MODEL: z.string().default("gpt-5-mini"),
   OPENAI_REALTIME_MODEL: z.string().default("gpt-realtime-mini")
@@ -53,8 +58,6 @@ const requiredProductionKeys = [
   "GOOGLE_CLIENT_ID",
   "GOOGLE_CLIENT_SECRET",
   "GOOGLE_REDIRECT_URI",
-  "MIDTRANS_SERVER_KEY",
-  "VITE_MIDTRANS_CLIENT_KEY",
   "OPENAI_API_KEY"
 ] as const;
 

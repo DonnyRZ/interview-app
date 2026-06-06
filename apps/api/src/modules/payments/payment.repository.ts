@@ -8,12 +8,24 @@ export async function createPayment(input: {
   orderId: string;
   plan: PlanSlug;
   grossAmount: number;
+  provider?: "midtrans" | "lynk";
+  externalTransactionId?: string;
+  customerEmail?: string;
+  customerName?: string;
+  status?: string;
+  rawNotification?: unknown;
 }) {
   const [payment] = await db.insert(payments).values({
     userId: input.userId,
     orderId: input.orderId,
     plan: input.plan,
-    grossAmount: input.grossAmount
+    grossAmount: input.grossAmount,
+    provider: input.provider || "midtrans",
+    externalTransactionId: input.externalTransactionId || "",
+    customerEmail: input.customerEmail || "",
+    customerName: input.customerName || "",
+    status: input.status || "created",
+    rawNotification: input.rawNotification || {}
   }).returning();
 
   if (!payment) {
@@ -32,6 +44,12 @@ export async function findPaymentForUser(userId: string, paymentId: string) {
 export async function findPaymentByOrderId(orderId: string) {
   return db.query.payments.findFirst({
     where: eq(payments.orderId, orderId)
+  });
+}
+
+export async function findPaymentByExternalTransactionId(provider: "midtrans" | "lynk", externalTransactionId: string) {
+  return db.query.payments.findFirst({
+    where: and(eq(payments.provider, provider), eq(payments.externalTransactionId, externalTransactionId))
   });
 }
 
@@ -58,6 +76,9 @@ export async function updatePaymentStatus(input: {
   status: string;
   midtransTransactionId?: string;
   midtransOrderId?: string;
+  externalTransactionId?: string;
+  customerEmail?: string;
+  customerName?: string;
   rawNotification?: unknown;
 }) {
   const [payment] = await db.update(payments)
@@ -65,6 +86,9 @@ export async function updatePaymentStatus(input: {
       status: input.status,
       midtransTransactionId: input.midtransTransactionId || "",
       midtransOrderId: input.midtransOrderId || "",
+      externalTransactionId: input.externalTransactionId || "",
+      customerEmail: input.customerEmail || "",
+      customerName: input.customerName || "",
       rawNotification: input.rawNotification || {},
       updatedAt: new Date()
     })

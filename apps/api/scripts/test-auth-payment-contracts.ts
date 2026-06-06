@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { buildApp } from "../src/app.js";
 import { env, parseBooleanEnv } from "../src/env.js";
 import { createOAuthState, parseOAuthState } from "../src/modules/auth/session.js";
+import { parseLynkWebhook } from "../src/modules/payments/lynk.client.js";
 import { midtransBaseUrl, verifyMidtransSignature } from "../src/modules/payments/midtrans.client.js";
 import { planCatalog } from "../src/modules/payments/plan-catalog.js";
 
@@ -23,6 +24,22 @@ async function run() {
   const state = createOAuthState("starter");
   assert.equal(parseOAuthState(state)?.plan, "starter");
   assert.equal(parseOAuthState(`${state.slice(0, -1)}x`), null);
+
+  const lynkPayload = parseLynkWebhook({
+    event_name: "Product Sold",
+    trx_id: "LYNK-TEST-1",
+    customer: {
+      email: "Buyer@Example.com",
+      name: "Buyer Test"
+    },
+    product: {
+      name: "Orviko Starter"
+    },
+    total_amount: 98_000
+  });
+  assert.equal(lynkPayload.isSuccess, true);
+  assert.equal(lynkPayload.customerEmail, "buyer@example.com");
+  assert.equal(lynkPayload.plan, "starter");
 
   assert.equal(verifyMidtransSignature({
     order_id: "ORVIKO-TEST",
@@ -63,6 +80,14 @@ async function run() {
       payload: { plan: "starter" }
     });
     assert.equal(paymentResponse.statusCode, 401);
+
+    const lynkWebhookTestResponse = await app.inject({
+      method: "POST",
+      url: "/payments/lynk/webhook",
+      payload: { event_name: "Test URL" }
+    });
+    assert.equal(lynkWebhookTestResponse.statusCode, 200);
+    assert.equal(lynkWebhookTestResponse.json().ok, true);
   } finally {
     await app.close();
   }
