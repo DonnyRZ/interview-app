@@ -4,35 +4,17 @@ const planCatalog = {
   mini: {
     name: "Mini",
     priceLabel: "Rp29rb",
-    description: "3 kali sesi live dalam satu bulan.",
-    features: [
-      "3 kali sesi live",
-      "Upload profil referensi",
-      "Masukkan konteks meeting",
-      "Bantuan respons saat meeting"
-    ]
+    description: "3 kali sesi live dalam satu bulan."
   },
   starter: {
     name: "Starter",
     priceLabel: "Rp98rb",
-    description: "12 kali sesi live dalam satu bulan.",
-    features: [
-      "Semua di Mini",
-      "12 kali sesi live",
-      "Overlay privat",
-      "Mode screen share"
-    ]
+    description: "12 kali sesi live dalam satu bulan."
   },
   pro: {
     name: "Pro",
     priceLabel: "Rp359rb",
-    description: "Sesi live tak terbatas untuk penggunaan intensif.",
-    features: [
-      "Semua fitur di Starter",
-      "Sesi live tak terbatas",
-      "Lebih lega untuk jadwal padat",
-      "Cocok untuk penggunaan intensif"
-    ]
+    description: "Sesi live tak terbatas untuk penggunaan intensif."
   }
 };
 
@@ -49,6 +31,23 @@ function selectedPlanSlug() {
 function setText(id, value) {
   const node = document.getElementById(id);
   if (node) node.textContent = value;
+}
+
+async function copyText(value) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+
+  const input = document.createElement("textarea");
+  input.value = value;
+  input.setAttribute("readonly", "readonly");
+  input.style.position = "fixed";
+  input.style.opacity = "0";
+  document.body.appendChild(input);
+  input.select();
+  document.execCommand("copy");
+  input.remove();
 }
 
 async function fetchJson(path, options = {}) {
@@ -71,14 +70,7 @@ async function fetchJson(path, options = {}) {
 function renderPlan(planSlug) {
   const plan = planCatalog[planSlug];
   setText("planName", plan.name);
-  setText("planDescription", plan.description);
-  setText("planPrice", plan.priceLabel);
   setText("totalPrice", plan.priceLabel);
-
-  const features = document.getElementById("planFeatures");
-  if (features) {
-    features.innerHTML = plan.features.map((feature) => `<div class="feature-item">${feature}</div>`).join("");
-  }
 
   const loginButton = document.getElementById("loginButton");
   if (loginButton) {
@@ -92,18 +84,25 @@ async function initCheckout() {
 
   const payButton = document.getElementById("payButton");
   const loginButton = document.getElementById("loginButton");
+  const copyEmailButton = document.getElementById("copyEmailButton");
   const statusText = document.getElementById("statusText");
+  let checkoutEmail = "";
 
   try {
     const payload = await fetchJson("/auth/me");
+    checkoutEmail = payload.user.email || "";
     setText("accountName", payload.user.name || "User Orviko");
-    setText("accountEmail", payload.user.email || "");
+    setText("accountEmail", checkoutEmail);
+    setText("checkoutEmail", checkoutEmail);
     if (payButton) payButton.disabled = false;
-    if (statusText) statusText.textContent = "Checkout siap. Pembayaran akan dibuka melalui Lynk.id.";
+    if (copyEmailButton) copyEmailButton.disabled = !checkoutEmail;
+    if (statusText) statusText.textContent = "Copy email di kiri, lalu lanjutkan pembayaran di Lynk.id.";
   } catch (error) {
     setText("accountName", "Login Google diperlukan");
     setText("accountEmail", "Silakan login ulang untuk melanjutkan checkout.");
+    setText("checkoutEmail", "Login dulu untuk melihat email.");
     if (payButton) payButton.hidden = true;
+    if (copyEmailButton) copyEmailButton.disabled = true;
     if (loginButton) loginButton.hidden = false;
     if (statusText) {
       statusText.textContent = error instanceof Error ? error.message : "Login diperlukan.";
@@ -111,6 +110,29 @@ async function initCheckout() {
     }
     return;
   }
+
+  copyEmailButton?.addEventListener("click", async () => {
+    if (!checkoutEmail) return;
+
+    try {
+      await copyText(checkoutEmail);
+      copyEmailButton.textContent = "Email tersalin";
+      copyEmailButton.classList.add("copied");
+      if (statusText) {
+        statusText.textContent = "Email sudah dicopy. Paste email yang sama di checkout Lynk.id.";
+        statusText.classList.remove("error");
+      }
+      window.setTimeout(() => {
+        copyEmailButton.textContent = "Copy email";
+        copyEmailButton.classList.remove("copied");
+      }, 2400);
+    } catch {
+      if (statusText) {
+        statusText.textContent = "Gagal copy otomatis. Blok email di kiri lalu copy manual.";
+        statusText.classList.add("error");
+      }
+    }
+  });
 
   payButton?.addEventListener("click", async () => {
     try {

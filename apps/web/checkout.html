@@ -23,32 +23,41 @@
     <main>
       <section class="checkout-hero">
         <div class="container">
-          <p class="eyebrow">Checkout Sandbox</p>
-          <h1>Selesaikan paket Orviko kamu.</h1>
-          <p class="hero-sub">Flow ini dipakai sementara untuk review Midtrans sandbox. Setelah login Google, pembayaran dibuka melalui Midtrans Snap.</p>
+          <p class="eyebrow">Checkout Orviko</p>
+          <h1>Siapkan email sebelum lanjut ke Lynk.id.</h1>
+          <p class="hero-sub">Pembayaran dilakukan di checkout Lynk.id. Gunakan email akun Orviko yang baru kamu pakai login agar akses aktif otomatis setelah pembayaran berhasil.</p>
         </div>
       </section>
 
       <section class="checkout-section">
         <div class="container checkout-grid">
           <article class="summary-panel">
-            <p class="panel-kicker">Paket dipilih</p>
-            <div class="plan-row">
+            <p class="panel-kicker">Email untuk checkout Lynk.id</p>
+            <div class="copy-email-card">
               <div>
-                <h2 id="planName">Starter</h2>
-                <p id="planDescription">12 kali sesi live dalam satu bulan.</p>
+                <span class="copy-label">Copy email ini, lalu paste di kolom Email Lynk.id</span>
+                <strong id="checkoutEmail">Memeriksa login...</strong>
               </div>
-              <strong id="planPrice">Rp98rb</strong>
+              <button class="copy-email-button" id="copyEmailButton" type="button" disabled>Copy email</button>
             </div>
 
-            <div class="feature-list" id="planFeatures"></div>
+            <ol class="handoff-steps" aria-label="Langkah pembayaran Lynk.id">
+              <li>Copy email akun Orviko di atas.</li>
+              <li>Klik lanjut bayar untuk membuka checkout Lynk.id.</li>
+              <li>Paste email yang sama saat diminta di Lynk.id.</li>
+            </ol>
           </article>
 
           <aside class="payment-panel">
             <div class="account-box" id="accountBox">
-              <p class="panel-kicker">Akun</p>
+              <p class="panel-kicker">Akun Orviko</p>
               <strong id="accountName">Memeriksa login...</strong>
               <span id="accountEmail">Sebentar ya.</span>
+            </div>
+
+            <div class="selected-plan">
+              <span>Paket dipilih</span>
+              <strong id="planName">Starter</strong>
             </div>
 
             <div class="total-row">
@@ -56,7 +65,7 @@
               <strong id="totalPrice">Rp98rb</strong>
             </div>
 
-            <button class="pay-button" id="payButton" type="button" disabled>Bayar sekarang</button>
+            <button class="pay-button" id="payButton" type="button" disabled>Lanjut bayar di Lynk.id</button>
             <a class="login-button" id="loginButton" href="/auth/google/login?plan=starter" hidden>Login Google dulu</a>
             <p class="status-text" id="statusText">Menyiapkan checkout...</p>
           </aside>
