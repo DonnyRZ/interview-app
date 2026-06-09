@@ -74,6 +74,19 @@
     </main>
   </div>
 
+  <div class="checkout-modal" id="copyEmailModal" hidden>
+    <div class="checkout-modal-backdrop" data-close-copy-modal></div>
+    <section class="checkout-modal-card" role="dialog" aria-modal="true" aria-labelledby="copyEmailModalTitle">
+      <p class="modal-kicker">Sebelum ke Lynk.id</p>
+      <h2 id="copyEmailModalTitle">Copy email dulu</h2>
+      <p>Lynk.id akan meminta email saat checkout. Copy email akun Orviko kamu dulu agar akses bisa aktif otomatis setelah pembayaran.</p>
+      <div class="modal-actions">
+        <button class="modal-primary" id="modalCopyEmailButton" type="button">Copy email sekarang</button>
+        <button class="modal-secondary" type="button" data-close-copy-modal>Nanti dulu</button>
+      </div>
+    </section>
+  </div>
+
   <script type="module" src="/src/checkout.js"></script>
 </body>
 </html>

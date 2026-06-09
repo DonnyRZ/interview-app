@@ -350,6 +350,88 @@ h1 {
   color: #b42318;
 }
 
+.checkout-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.checkout-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(11, 31, 63, 0.48);
+  backdrop-filter: blur(8px);
+}
+
+.checkout-modal-card {
+  position: relative;
+  width: min(460px, 100%);
+  padding: 30px;
+  border: 1px solid rgba(159, 192, 246, 0.44);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(46, 199, 161, 0.18), transparent 42%),
+    #ffffff;
+  box-shadow: 0 30px 90px rgba(9, 31, 67, 0.30);
+}
+
+.modal-kicker {
+  margin-bottom: 10px;
+  color: var(--blue);
+  font-size: 0.78rem;
+  font-weight: 840;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.checkout-modal-card h2 {
+  margin-bottom: 12px;
+  color: #12305e;
+  font-size: clamp(2rem, 4vw, 2.7rem);
+  line-height: 1;
+  letter-spacing: -0.055em;
+}
+
+.checkout-modal-card p {
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.6;
+  font-weight: 580;
+}
+
+.modal-actions {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.modal-primary,
+.modal-secondary {
+  min-height: 48px;
+  padding: 0 18px;
+  border-radius: 999px;
+  font-size: 0.96rem;
+  font-weight: 820;
+  cursor: pointer;
+}
+
+.modal-primary {
+  border: 0;
+  color: #ffffff;
+  background: linear-gradient(135deg, #1fbd96 0%, #2e7dff 100%);
+  box-shadow: 0 16px 30px rgba(31, 189, 150, 0.22);
+}
+
+.modal-secondary {
+  color: #24456f;
+  background: #ffffff;
+  border: 1px solid rgba(89, 132, 214, 0.22);
+}
+
 .status-page {
   min-height: 100vh;
   display: grid;
@@ -439,5 +521,9 @@ h1 {
 
   .copy-email-button {
     width: auto;
+  }
+
+  .modal-actions {
+    grid-template-columns: 1fr;
   }
 }

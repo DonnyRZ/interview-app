@@ -101,8 +101,41 @@ async function initCheckout() {
   const payButton = document.getElementById("payButton");
   const loginButton = document.getElementById("loginButton");
   const copyEmailButton = document.getElementById("copyEmailButton");
+  const modalCopyEmailButton = document.getElementById("modalCopyEmailButton");
+  const copyEmailModal = document.getElementById("copyEmailModal");
   const statusText = document.getElementById("statusText");
   let checkoutEmail = "";
+  let hasCopiedEmail = false;
+
+  function openCopyEmailModal() {
+    if (!copyEmailModal) return;
+    copyEmailModal.hidden = false;
+    modalCopyEmailButton?.focus();
+  }
+
+  function closeCopyEmailModal() {
+    if (!copyEmailModal) return;
+    copyEmailModal.hidden = true;
+  }
+
+  async function copyCheckoutEmail() {
+    if (!checkoutEmail) return;
+
+    await copyText(checkoutEmail);
+    hasCopiedEmail = true;
+    if (copyEmailButton) {
+      copyEmailButton.textContent = "Email tersalin";
+      copyEmailButton.classList.add("copied");
+      window.setTimeout(() => {
+        copyEmailButton.textContent = "Copy email";
+        copyEmailButton.classList.remove("copied");
+      }, 2400);
+    }
+    if (statusText) {
+      statusText.textContent = "Email sudah dicopy. Paste email yang sama di checkout Lynk.id.";
+      statusText.classList.remove("error");
+    }
+  }
 
   try {
     const payload = await fetchJson("/auth/me");
@@ -131,20 +164,8 @@ async function initCheckout() {
   window.addEventListener("resize", fitCheckoutEmail);
 
   copyEmailButton?.addEventListener("click", async () => {
-    if (!checkoutEmail) return;
-
     try {
-      await copyText(checkoutEmail);
-      copyEmailButton.textContent = "Email tersalin";
-      copyEmailButton.classList.add("copied");
-      if (statusText) {
-        statusText.textContent = "Email sudah dicopy. Paste email yang sama di checkout Lynk.id.";
-        statusText.classList.remove("error");
-      }
-      window.setTimeout(() => {
-        copyEmailButton.textContent = "Copy email";
-        copyEmailButton.classList.remove("copied");
-      }, 2400);
+      await copyCheckoutEmail();
     } catch {
       if (statusText) {
         statusText.textContent = "Gagal copy otomatis. Blok email di kiri lalu copy manual.";
@@ -153,7 +174,32 @@ async function initCheckout() {
     }
   });
 
+  modalCopyEmailButton?.addEventListener("click", async () => {
+    try {
+      await copyCheckoutEmail();
+      closeCopyEmailModal();
+    } catch {
+      if (statusText) {
+        statusText.textContent = "Gagal copy otomatis. Blok email di kiri lalu copy manual.";
+        statusText.classList.add("error");
+      }
+    }
+  });
+
+  document.querySelectorAll("[data-close-copy-modal]").forEach((node) => {
+    node.addEventListener("click", closeCopyEmailModal);
+  });
+
   payButton?.addEventListener("click", async () => {
+    if (!hasCopiedEmail) {
+      openCopyEmailModal();
+      if (statusText) {
+        statusText.textContent = "Copy email dulu sebelum lanjut ke checkout Lynk.id.";
+        statusText.classList.add("error");
+      }
+      return;
+    }
+
     try {
       payButton.disabled = true;
       if (statusText) {
