@@ -148,10 +148,7 @@ h1 {
 }
 
 .copy-email-card {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 22px;
+  display: block;
   padding: clamp(22px, 4vw, 34px);
   border: 1px solid rgba(45, 116, 255, 0.18);
   border-radius: 26px;
@@ -159,6 +156,11 @@ h1 {
     radial-gradient(circle at 0% 0%, rgba(46, 199, 161, 0.18), transparent 38%),
     linear-gradient(135deg, #f7fbff 0%, #ffffff 68%);
   box-shadow: 0 22px 60px rgba(42, 98, 192, 0.12);
+}
+
+.copy-email-content {
+  display: grid;
+  justify-items: start;
 }
 
 .copy-label {
@@ -180,8 +182,10 @@ h1 {
 }
 
 .copy-email-button {
-  min-height: 56px;
-  padding: 0 24px;
+  width: auto;
+  min-height: 46px;
+  margin-top: 18px;
+  padding: 0 18px;
   border: 0;
   border-radius: 999px;
   color: #ffffff;
@@ -427,11 +431,7 @@ h1 {
     padding: 24px;
   }
 
-  .copy-email-card {
-    display: grid;
-  }
-
   .copy-email-button {
-    width: 100%;
+    width: auto;
   }
 }
