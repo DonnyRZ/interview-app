@@ -33,6 +33,22 @@ function setText(id, value) {
   if (node) node.textContent = value;
 }
 
+function fitCheckoutEmail() {
+  const emailNode = document.getElementById("checkoutEmail");
+  if (!emailNode) return;
+
+  const availableWidth = emailNode.parentElement?.clientWidth || emailNode.clientWidth;
+  const maxSize = Math.min(Math.max(window.innerWidth * 0.037, 28), 50);
+  const minSize = 12;
+  let size = maxSize;
+
+  emailNode.style.setProperty("--checkout-email-font-size", `${size}px`);
+  while (emailNode.scrollWidth > availableWidth && size > minSize) {
+    size -= 1;
+    emailNode.style.setProperty("--checkout-email-font-size", `${size}px`);
+  }
+}
+
 async function copyText(value) {
   if (navigator.clipboard?.writeText) {
     await navigator.clipboard.writeText(value);
@@ -94,6 +110,7 @@ async function initCheckout() {
     setText("accountName", payload.user.name || "User Orviko");
     setText("accountEmail", checkoutEmail);
     setText("checkoutEmail", checkoutEmail);
+    fitCheckoutEmail();
     if (payButton) payButton.disabled = false;
     if (copyEmailButton) copyEmailButton.disabled = !checkoutEmail;
     if (statusText) statusText.textContent = "Copy email di kiri, lalu lanjutkan pembayaran di Lynk.id.";
@@ -110,6 +127,8 @@ async function initCheckout() {
     }
     return;
   }
+
+  window.addEventListener("resize", fitCheckoutEmail);
 
   copyEmailButton?.addEventListener("click", async () => {
     if (!checkoutEmail) return;

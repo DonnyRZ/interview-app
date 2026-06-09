@@ -161,6 +161,8 @@ h1 {
 .copy-email-content {
   display: grid;
   justify-items: start;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .copy-label {
@@ -174,11 +176,15 @@ h1 {
 
 .copy-email-card strong {
   display: block;
+  width: 100%;
+  max-width: 100%;
   color: #0f315f;
-  font-size: clamp(1.7rem, 4vw, 3.15rem);
+  font-size: var(--checkout-email-font-size, clamp(1.08rem, 3.7vw, 3.15rem));
   line-height: 1.06;
   letter-spacing: -0.045em;
-  word-break: break-word;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
 }
 
 .copy-email-button {
