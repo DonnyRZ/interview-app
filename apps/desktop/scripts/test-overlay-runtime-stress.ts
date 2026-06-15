@@ -1,4 +1,11 @@
 import assert from "node:assert/strict";
+import {
+  buildRealtimeCancelEvent,
+  canClaimRealtimeResponseId,
+  hasRealtimeResponseIdConflict,
+  isRecoverableRealtimeCancelError,
+  isRealtimeResponseOwnedBy
+} from "../src/features/overlay/overlay-realtime-state.js";
 import { buildRealtimeActionPrompt } from "../src/features/overlay/runtime-rules/realtime-action-prompt.js";
 import { formatRealtimeResponsePoints } from "../src/features/overlay/runtime-rules/overlay-response-copy.js";
 import {
@@ -22,6 +29,64 @@ const qnaAnswerLines = [
   "Kalau datanya belum lengkap, sebutkan data yang perlu dicek.",
   "Kunci keputusan bisa dimulai dari dampak, biaya, dan timing."
 ];
+
+assert.equal(buildRealtimeCancelEvent(null), null);
+assert.equal(buildRealtimeCancelEvent({}), null);
+assert.deepEqual(buildRealtimeCancelEvent({ responseId: "resp_123" }), {
+  type: "response.cancel",
+  response_id: "resp_123"
+});
+assert.equal(isRecoverableRealtimeCancelError("Cancellation failed: no active response found"), true);
+assert.equal(isRecoverableRealtimeCancelError("Realtime API error."), false);
+assert.equal(isRealtimeResponseOwnedBy(
+  { requestId: 7, responseId: "resp_current" },
+  { type: "response.done", response: { id: "resp_current" } },
+  (requestId) => requestId === 7
+), true);
+assert.equal(isRealtimeResponseOwnedBy(
+  { requestId: 7, responseId: "resp_current" },
+  { type: "response.done", response: { id: "resp_old" } },
+  (requestId) => requestId === 7
+), false);
+assert.equal(isRealtimeResponseOwnedBy(
+  { requestId: 6, responseId: "resp_current" },
+  { type: "response.done", response: { id: "resp_current" } },
+  (requestId) => requestId === 7
+), false);
+assert.equal(hasRealtimeResponseIdConflict(
+  { requestId: 7, responseId: "resp_help" },
+  { responseId: "resp_keyword" },
+  { type: "response.done", response: { id: "resp_keyword" } }
+), true);
+assert.equal(hasRealtimeResponseIdConflict(
+  { requestId: 7, responseId: "resp_help" },
+  { responseId: "resp_keyword" },
+  { type: "response.done", response: { id: "resp_help" } }
+), false);
+assert.equal(canClaimRealtimeResponseId(
+  { requestId: 7 },
+  { responseId: "resp_keyword" },
+  { type: "response.created", response: { id: "resp_keyword" } },
+  true
+), false);
+assert.equal(canClaimRealtimeResponseId(
+  { requestId: 7 },
+  null,
+  { type: "response.created", response: { id: "resp_help" } },
+  true
+), true);
+assert.equal(canClaimRealtimeResponseId(
+  {},
+  { requestId: 7 },
+  { type: "response.created", response: { id: "resp_help" } },
+  true
+), false);
+assert.equal(canClaimRealtimeResponseId(
+  {},
+  null,
+  { type: "response.created", response: { id: "resp_keyword" } },
+  false
+), false);
 
 for (let iteration = 0; iteration < 50; iteration++) {
   const opener = qnaMetaOpeners[iteration % qnaMetaOpeners.length];
