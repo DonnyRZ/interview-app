@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, screen, shell } from "electron";
+import { app, BrowserWindow, ipcMain, screen, session as electronSession, shell } from "electron";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -40,8 +40,23 @@ type OverlayEndPayload = {
   transcriptText?: string;
 };
 
+type DesktopAuthUser = {
+  id: string;
+  email: string;
+  name: string | null;
+  picture: string | null;
+  subscriptionPlan: string;
+  subscriptionExpiresAt: string | null;
+};
+
+type DesktopAuthState = {
+  authenticated: boolean;
+  user?: DesktopAuthUser;
+};
+
 let mainWindow: BrowserWindow | null = null;
 let overlayWindow: BrowserWindow | null = null;
+let pendingDeepLinkUrl: string | null = null;
 let overlayContext: unknown = null;
 let overlayDragTimer: NodeJS.Timeout | null = null;
 let overlayDragOffset: { x: number; y: number } | null = null;
@@ -106,6 +121,96 @@ function setAudioCaptureStatus(status: string, message: string, deviceLabel?: st
     message,
     deviceLabel
   });
+}
+
+function apiUrl(pathname: string) {
+  const base = apiBaseUrl.replace(/\/$/, "");
+  return `${base}${pathname.startsWith("/") ? pathname : `/${pathname}`}`;
+}
+
+function apiOrigin() {
+  return new URL(apiBaseUrl).origin;
+}
+
+function authCookieFromSetCookie(header: string | null) {
+  if (!header) return null;
+  const match = header.match(/(?:^|,\s*)orviko_session=([^;,\s]+)/);
+  return match?.[1] || null;
+}
+
+async function persistAuthCookieFromResponse(response: Response) {
+  const cookieValue = authCookieFromSetCookie(response.headers.get("set-cookie"));
+  if (!cookieValue) {
+    return;
+  }
+
+  await electronSession.defaultSession.cookies.set({
+    url: apiOrigin(),
+    name: "orviko_session",
+    value: cookieValue,
+    httpOnly: true,
+    sameSite: "lax",
+    expirationDate: Math.floor(Date.now() / 1000) + (60 * 60 * 24 * 14)
+  });
+}
+
+async function desktopAuthCookieHeader() {
+  const cookies = await electronSession.defaultSession.cookies.get({
+    url: apiOrigin(),
+    name: "orviko_session"
+  });
+
+  return cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; ");
+}
+
+function emitDesktopAuthChanged(state: DesktopAuthState) {
+  mainWindow?.webContents.send("desktop-auth:changed", state);
+}
+
+async function getDesktopAuthState(): Promise<DesktopAuthState> {
+  const cookie = await desktopAuthCookieHeader();
+  if (!cookie) {
+    return { authenticated: false };
+  }
+
+  const response = await fetch(apiUrl("/auth/me"), {
+    headers: {
+      Cookie: cookie
+    }
+  });
+
+  if (!response.ok) {
+    return { authenticated: false };
+  }
+
+  const payload = await response.json() as { user?: DesktopAuthUser };
+  return payload.user
+    ? { authenticated: true, user: payload.user }
+    : { authenticated: false };
+}
+
+async function exchangeDesktopAuthToken(token: string) {
+  const response = await fetch(apiUrl("/auth/desktop/exchange"), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ token })
+  });
+
+  const payload = await response.json().catch(() => ({})) as { user?: DesktopAuthUser; message?: string };
+  if (!response.ok || !payload.user) {
+    throw new Error(payload.message || `Desktop auth exchange failed with ${response.status}`);
+  }
+
+  await persistAuthCookieFromResponse(response);
+  const state = { authenticated: true, user: payload.user };
+  emitDesktopAuthChanged(state);
+  return state;
+}
+
+function desktopLoginUrl() {
+  return apiUrl("/auth/google/login?plan=starter&flow=desktop");
 }
 
 function isRealtimeActionTransportReady() {
@@ -517,6 +622,57 @@ function readRealtimeContext(source: unknown) {
 function looksLikeQuestion(text: string) {
   const normalized = text.trim().toLowerCase();
   return normalized.includes("?") || /^(apa|apakah|bagaimana|kenapa|mengapa|kapan|di mana|seberapa|jelaskan|ceritakan|how|what|why|when|where|can|could|do|did|have|tell me)\b/.test(normalized);
+}
+
+function findDeepLinkUrl(argv: string[]) {
+  return argv.find((arg) => arg.startsWith("orviko://")) || null;
+}
+
+function registerDefaultProtocolClient() {
+  const defaultAppEntry = process.argv[1];
+  if (process.defaultApp && defaultAppEntry) {
+    app.setAsDefaultProtocolClient("orviko", process.execPath, [path.resolve(defaultAppEntry)]);
+    return;
+  }
+
+  app.setAsDefaultProtocolClient("orviko");
+}
+
+function queueOrHandleDeepLinkUrl(url: string) {
+  if (!app.isReady()) {
+    pendingDeepLinkUrl = url;
+    return;
+  }
+
+  void handleDeepLinkUrl(url);
+}
+
+async function handleDeepLinkUrl(rawUrl: string) {
+  try {
+    const url = new URL(rawUrl);
+    const token = url.protocol === "orviko:" && url.hostname === "auth" && url.pathname === "/callback"
+      ? url.searchParams.get("token")
+      : null;
+
+    if (!token) {
+      return;
+    }
+
+    const authState = await exchangeDesktopAuthToken(token);
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      await createMainWindow();
+    }
+
+    if (mainWindow?.isMinimized()) {
+      mainWindow.restore();
+    }
+    mainWindow?.show();
+    mainWindow?.focus();
+    emitDesktopAuthChanged(authState);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Desktop auth deep link gagal diproses.";
+    console.warn(`[desktop-auth] ${message}`);
+  }
 }
 
 function rendererUrlFor(searchParams = "") {
@@ -946,17 +1102,63 @@ function lockOverlaySize(size: { width: number; height: number }) {
   }, false);
 }
 
-app.whenReady().then(async () => {
-  registerOverlayIpc();
-  registerSystemAudioIpc();
-  await createMainWindow();
-
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      void createMainWindow();
-    }
+function registerDesktopAuthIpc() {
+  ipcMain.handle("desktop-auth:start-login", async () => {
+    await shell.openExternal(desktopLoginUrl());
+    return { ok: true };
   });
-});
+
+  ipcMain.handle("desktop-auth:get-state", async () => getDesktopAuthState());
+}
+
+registerDefaultProtocolClient();
+
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+
+if (!hasSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on("second-instance", (_event, argv) => {
+    const deepLinkUrl = findDeepLinkUrl(argv);
+    if (deepLinkUrl) {
+      queueOrHandleDeepLinkUrl(deepLinkUrl);
+    }
+
+    if (mainWindow?.isMinimized()) {
+      mainWindow.restore();
+    }
+    mainWindow?.show();
+    mainWindow?.focus();
+  });
+
+  app.on("open-url", (event, url) => {
+    event.preventDefault();
+    queueOrHandleDeepLinkUrl(url);
+  });
+
+  const initialDeepLinkUrl = findDeepLinkUrl(process.argv);
+  if (initialDeepLinkUrl) {
+    pendingDeepLinkUrl = initialDeepLinkUrl;
+  }
+
+  app.whenReady().then(async () => {
+    registerDesktopAuthIpc();
+    registerOverlayIpc();
+    registerSystemAudioIpc();
+    await createMainWindow();
+    if (pendingDeepLinkUrl) {
+      const deepLinkUrl = pendingDeepLinkUrl;
+      pendingDeepLinkUrl = null;
+      void handleDeepLinkUrl(deepLinkUrl);
+    }
+
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        void createMainWindow();
+      }
+    });
+  });
+}
 
 app.on("before-quit", (event) => {
   if (isQuittingAfterOverlayCleanup) {

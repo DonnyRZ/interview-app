@@ -7,6 +7,7 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, "index.html"),
         pricing: resolve(__dirname, "pricing.html"),
+        desktopSignIn: resolve(__dirname, "desktop-sign-in.html"),
         checkout: resolve(__dirname, "checkout.html"),
         paymentSuccess: resolve(__dirname, "payment-success.html"),
         paymentPending: resolve(__dirname, "payment-pending.html"),

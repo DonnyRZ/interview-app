@@ -37,6 +37,13 @@ contextBridge.exposeInMainWorld("interviewDesktop", {
     ipcRenderer.on("system-audio:probe-event", listener);
     return () => ipcRenderer.removeListener("system-audio:probe-event", listener);
   },
+  startDesktopLogin: () => ipcRenderer.invoke("desktop-auth:start-login"),
+  getDesktopAuthState: () => ipcRenderer.invoke("desktop-auth:get-state"),
+  onDesktopAuthChanged: (callback: (payload: unknown) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: unknown) => callback(payload);
+    ipcRenderer.on("desktop-auth:changed", listener);
+    return () => ipcRenderer.removeListener("desktop-auth:changed", listener);
+  },
   openOverlay: (context: unknown) => ipcRenderer.invoke("overlay:open", context),
   updateOverlayContext: (context: unknown) => ipcRenderer.invoke("overlay:update-context", context),
   sendRealtimeAction: (payload: unknown) => ipcRenderer.invoke("overlay:send-realtime-action", payload),

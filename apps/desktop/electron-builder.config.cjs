@@ -4,6 +4,12 @@ module.exports = {
   appId: "com.orviko.desktop",
   productName: "Orviko",
   electronVersion: "34.5.8",
+  protocols: [
+    {
+      name: "Orviko Auth",
+      schemes: ["orviko"]
+    }
+  ],
   directories: {
     output: "release"
   },

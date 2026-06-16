@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Opening Orviko</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --text: #111827;
+      --muted: #667085;
+      --line: #e5e7eb;
+      --button: #2563eb;
+      --button-hover: #1d4ed8;
+      font-family: Inter, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      color: var(--text);
+      background: #ffffff;
+    }
+
+    main {
+      width: min(520px, calc(100vw - 32px));
+      display: grid;
+      justify-items: center;
+      gap: 14px;
+      text-align: center;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 36px;
+      line-height: 1.08;
+      font-weight: 800;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.6;
+    }
+
+    a {
+      color: var(--text);
+      font-weight: 750;
+      text-decoration: underline;
+    }
+
+    .download-area {
+      margin-top: 180px;
+      padding-top: 26px;
+      border-top: 1px solid var(--line);
+    }
+
+    .download-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      margin-top: 16px;
+      padding: 0 22px;
+      border-radius: 10px;
+      color: #ffffff;
+      background: var(--button);
+      text-decoration: none;
+    }
+
+    .download-button:hover {
+      background: var(--button-hover);
+    }
+
+    .error {
+      color: #b42318;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Opening Orviko</h1>
+    <p id="statusText">If the app has not opened, <a id="openLink" href="#">click here</a>.</p>
+
+    <div class="download-area">
+      <p>Don't have Orviko yet?</p>
+      <a class="download-button" href="/">Download Orviko</a>
+    </div>
+  </main>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token");
+    const openLink = document.getElementById("openLink");
+    const statusText = document.getElementById("statusText");
+
+    if (!token) {
+      statusText.textContent = "Desktop sign-in token tidak ditemukan. Silakan ulangi login dari aplikasi Orviko.";
+      statusText.classList.add("error");
+    } else {
+      const deepLink = `orviko://auth/callback?token=${encodeURIComponent(token)}`;
+      openLink.setAttribute("href", deepLink);
+      window.location.href = deepLink;
+    }
+  </script>
+</body>
+</html>

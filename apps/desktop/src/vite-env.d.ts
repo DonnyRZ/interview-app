@@ -24,6 +24,20 @@ type SystemAudioProbeEvent = {
   message: string;
 };
 
+type DesktopAuthUser = {
+  id: string;
+  email: string;
+  name: string | null;
+  picture: string | null;
+  subscriptionPlan: string;
+  subscriptionExpiresAt: string | null;
+};
+
+type DesktopAuthState = {
+  authenticated: boolean;
+  user?: DesktopAuthUser;
+};
+
 type OverlayTranscriptEvent = {
   transcriptText: string;
   detectedQuestion?: string;
@@ -61,6 +75,9 @@ interface Window {
     startSystemAudioProbe?: () => Promise<{ ok: boolean; message?: string }>;
     stopSystemAudioProbe?: () => Promise<{ ok: boolean; message?: string }>;
     onSystemAudioProbeEvent?: (callback: (payload: SystemAudioProbeEvent) => void) => () => void;
+    startDesktopLogin?: () => Promise<{ ok: boolean; message?: string }>;
+    getDesktopAuthState?: () => Promise<DesktopAuthState>;
+    onDesktopAuthChanged?: (callback: (payload: DesktopAuthState) => void) => () => void;
     openOverlay?: (context: unknown) => Promise<unknown>;
     updateOverlayContext?: (context: unknown) => Promise<unknown>;
     sendRealtimeAction?: (payload: RealtimeOverlayAction) => Promise<{ ok: boolean; message?: string }>;
