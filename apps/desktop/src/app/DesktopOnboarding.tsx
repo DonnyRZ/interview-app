@@ -4,12 +4,14 @@ import logoUrl from "../../../web/public/assets/Logo-2.png";
 import wallpaperUrl from "../../../web/public/assets/walpaper-2.png";
 
 type GateStatus = "checking" | "login" | "pricing" | "home";
+type PlanSlug = "mini" | "starter" | "pro";
 
 type DesktopOnboardingProps = {
   children: ReactNode;
 };
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:4000";
+const WEB_BASE_URL = import.meta.env.VITE_WEB_BASE_URL || import.meta.env.VITE_FRONTEND_BASE_URL || "https://dev.orviko.net";
 
 function hasActiveSubscription(user: DesktopAuthUser | undefined) {
   if (!user || !user.subscriptionPlan || user.subscriptionPlan === "free" || !user.subscriptionExpiresAt) {
@@ -25,6 +27,12 @@ function gateStatusFor(state: DesktopAuthState): GateStatus {
   }
 
   return hasActiveSubscription(state.user) ? "home" : "pricing";
+}
+
+function checkoutUrl(plan: PlanSlug) {
+  const url = new URL("/checkout.html", WEB_BASE_URL);
+  url.searchParams.set("plan", plan);
+  return url.toString();
 }
 
 async function getAuthStateFromApi(): Promise<DesktopAuthState> {
@@ -240,6 +248,31 @@ function DesktopLoginScreen({
 }
 
 function DesktopPricingScreen() {
+  const [message, setMessage] = useState("");
+  const [openingPlan, setOpeningPlan] = useState<PlanSlug | null>(null);
+
+  async function openCheckout(plan: PlanSlug) {
+    setOpeningPlan(plan);
+    setMessage("Membuka checkout di browser...");
+
+    try {
+      if (window.interviewDesktop?.openDesktopCheckout) {
+        const result = await window.interviewDesktop.openDesktopCheckout(plan);
+        if (!result.ok) {
+          throw new Error(result.message || "Gagal membuka checkout.");
+        }
+      } else {
+        window.open(checkoutUrl(plan), "_blank", "noopener,noreferrer");
+      }
+
+      setMessage("Checkout web sudah dibuka di browser.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Gagal membuka checkout.");
+    } finally {
+      setOpeningPlan(null);
+    }
+  }
+
   return (
     <main
       className="desktop-pricing-shell"
@@ -260,12 +293,16 @@ function DesktopPricingScreen() {
 
         <section className="desktop-pricing-grid" aria-label="Daftar paket desktop Orviko">
           <PricingPlan
+            plan="mini"
             badge="Paling ringan"
             name="Mini"
             price="Rp29rb"
             features={["3 kali sesi live", "Upload profil referensi", "Masukkan konteks meeting", "Bantuan respons saat meeting"]}
+            isOpening={openingPlan === "mini"}
+            onSelect={openCheckout}
           />
           <PricingPlan
+            plan="starter"
             badge="Hemat"
             tag="Rekomendasi"
             name="Starter"
@@ -273,28 +310,38 @@ function DesktopPricingScreen() {
             featured
             features={["Semua di Mini", "12 kali sesi live", "Overlay privat", "Mode screen share"]}
             goldFeatures={["Overlay privat", "Mode screen share"]}
+            isOpening={openingPlan === "starter"}
+            onSelect={openCheckout}
           />
           <PricingPlan
+            plan="pro"
             badge="Paling bebas"
             name="Pro"
             price="Rp359rb"
             features={["Semua fitur di Starter", "Sesi live tak terbatas", "Lebih lega untuk jadwal padat", "Cocok untuk penggunaan intensif"]}
+            isOpening={openingPlan === "pro"}
+            onSelect={openCheckout}
           />
         </section>
+        {message ? <p className="desktop-pricing-status">{message}</p> : null}
       </div>
     </main>
   );
 }
 
 function PricingPlan({
+  plan,
   badge,
   tag,
   name,
   price,
   features,
   goldFeatures = [],
-  featured = false
+  featured = false,
+  isOpening,
+  onSelect
 }: {
+  plan: PlanSlug;
   badge: string;
   tag?: string;
   name: string;
@@ -302,6 +349,8 @@ function PricingPlan({
   features: string[];
   goldFeatures?: string[];
   featured?: boolean;
+  isOpening: boolean;
+  onSelect: (plan: PlanSlug) => void | Promise<void>;
 }) {
   return (
     <article className={`desktop-pricing-plan ${featured ? "featured" : ""}`}>
@@ -316,7 +365,9 @@ function PricingPlan({
           <li className={goldFeatures.includes(feature) ? "gold" : ""} key={feature}>{feature}</li>
         ))}
       </ul>
-      <button type="button" disabled>Pilih paket ini</button>
+      <button type="button" onClick={() => void onSelect(plan)} disabled={isOpening}>
+        {isOpening ? "Membuka..." : "Pilih paket ini"}
+      </button>
     </article>
   );
 }

@@ -13,6 +13,7 @@ import {
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const rendererDevUrl = process.env.VITE_DEV_SERVER_URL;
 const apiBaseUrl = process.env.VITE_API_BASE_URL || "http://127.0.0.1:4000";
+const checkoutBaseUrl = process.env.VITE_WEB_BASE_URL || process.env.VITE_FRONTEND_BASE_URL || "https://dev.orviko.net";
 const preloadPath = path.join(currentDir, "preload.cjs");
 const devLoopbackProbePath = path.join(currentDir, "../native/windows-loopback/bin/WasapiLoopbackProbe.exe");
 const packagedLoopbackProbePath = path.join(process.resourcesPath, "native", "windows-loopback", "WasapiLoopbackProbe.exe");
@@ -53,6 +54,8 @@ type DesktopAuthState = {
   authenticated: boolean;
   user?: DesktopAuthUser;
 };
+
+type PlanSlug = "mini" | "starter" | "pro";
 
 let mainWindow: BrowserWindow | null = null;
 let overlayWindow: BrowserWindow | null = null;
@@ -211,6 +214,16 @@ async function exchangeDesktopAuthToken(token: string) {
 
 function desktopLoginUrl() {
   return apiUrl("/auth/google/login?plan=starter&flow=desktop");
+}
+
+function desktopCheckoutUrl(plan: PlanSlug) {
+  const url = new URL("/checkout.html", checkoutBaseUrl);
+  url.searchParams.set("plan", plan);
+  return url.toString();
+}
+
+function isPlanSlug(value: unknown): value is PlanSlug {
+  return value === "mini" || value === "starter" || value === "pro";
 }
 
 function isRealtimeActionTransportReady() {
@@ -1109,6 +1122,15 @@ function registerDesktopAuthIpc() {
   });
 
   ipcMain.handle("desktop-auth:get-state", async () => getDesktopAuthState());
+
+  ipcMain.handle("desktop-auth:open-checkout", async (_event, plan: unknown) => {
+    if (!isPlanSlug(plan)) {
+      return { ok: false, message: "Paket checkout tidak valid." };
+    }
+
+    await shell.openExternal(desktopCheckoutUrl(plan));
+    return { ok: true };
+  });
 }
 
 registerDefaultProtocolClient();

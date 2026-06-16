@@ -38,6 +38,8 @@ type DesktopAuthState = {
   user?: DesktopAuthUser;
 };
 
+type DesktopPlanSlug = "mini" | "starter" | "pro";
+
 type OverlayTranscriptEvent = {
   transcriptText: string;
   detectedQuestion?: string;
@@ -77,6 +79,7 @@ interface Window {
     onSystemAudioProbeEvent?: (callback: (payload: SystemAudioProbeEvent) => void) => () => void;
     startDesktopLogin?: () => Promise<{ ok: boolean; message?: string }>;
     getDesktopAuthState?: () => Promise<DesktopAuthState>;
+    openDesktopCheckout?: (plan: DesktopPlanSlug) => Promise<{ ok: boolean; message?: string }>;
     onDesktopAuthChanged?: (callback: (payload: DesktopAuthState) => void) => () => void;
     openOverlay?: (context: unknown) => Promise<unknown>;
     updateOverlayContext?: (context: unknown) => Promise<unknown>;

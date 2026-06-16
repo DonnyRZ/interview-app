@@ -1876,8 +1876,9 @@ summary {
   position: relative;
   overflow: hidden;
   min-height: 380px;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  row-gap: clamp(14px, 1.8vh, 22px);
   padding: 22px;
   border: 1px solid rgba(73, 116, 186, 0.16);
   border-radius: 24px;
@@ -1917,7 +1918,6 @@ summary {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 14px;
 }
 
 .desktop-plan-badges span,
@@ -1953,7 +1953,6 @@ summary {
   display: flex;
   align-items: flex-end;
   gap: 7px;
-  margin: 18px 0 0;
   color: #173c74;
 }
 
@@ -1976,7 +1975,9 @@ summary {
   list-style: none;
   display: grid;
   gap: 10px;
-  margin: 18px 0 0;
+  align-content: start;
+  min-height: 0;
+  margin: 0;
   padding: 16px 0 0;
   border-top: 1px solid rgba(73, 116, 186, 0.14);
 }
@@ -2019,7 +2020,7 @@ summary {
 .desktop-pricing-plan button {
   min-height: 46px;
   width: 100%;
-  margin-top: auto;
+  margin-top: 0;
   border-radius: 999px;
   border: 1px solid rgba(89, 132, 214, 0.20);
   color: #0d2954;
@@ -2027,14 +2028,27 @@ summary {
   font-size: 14px;
   font-weight: 800;
   box-shadow: 0 14px 32px rgba(52, 91, 156, 0.10);
-  opacity: 1;
-  cursor: not-allowed;
+  cursor: pointer;
 }
 
 .desktop-pricing-plan.featured button {
   color: #ffffff;
   border-color: transparent;
   background: linear-gradient(135deg, #2e7dff 0%, #246df0 45%, #4aa3ff 100%);
+}
+
+.desktop-pricing-plan button:disabled {
+  opacity: 0.74;
+  cursor: wait;
+}
+
+.desktop-pricing-status {
+  margin: -6px 0 0;
+  color: #5f769a;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.45;
+  font-weight: 750;
 }
 
 @media (max-width: 1180px) {
