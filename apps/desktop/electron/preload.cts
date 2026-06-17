@@ -40,6 +40,7 @@ contextBridge.exposeInMainWorld("interviewDesktop", {
   startDesktopLogin: () => ipcRenderer.invoke("desktop-auth:start-login"),
   getDesktopAuthState: () => ipcRenderer.invoke("desktop-auth:get-state"),
   openDesktopCheckout: (plan: "mini" | "starter" | "pro") => ipcRenderer.invoke("desktop-auth:open-checkout", plan),
+  apiRequest: (payload: unknown) => ipcRenderer.invoke("desktop-api:request", payload),
   onDesktopAuthChanged: (callback: (payload: unknown) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: unknown) => callback(payload);
     ipcRenderer.on("desktop-auth:changed", listener);

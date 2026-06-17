@@ -41,6 +41,28 @@ type DesktopAuthState = {
 
 type DesktopPlanSlug = "mini" | "starter" | "pro";
 
+type DesktopApiRequestPayload = {
+  path: string;
+  method?: string;
+  headers?: Record<string, string>;
+  body?:
+    | string
+    | {
+        kind: "form-data";
+        entries: Array<
+          | { name: string; value: string }
+          | { name: string; fileName: string; contentType: string; buffer: ArrayBuffer }
+        >;
+      };
+};
+
+type DesktopApiResponsePayload = {
+  ok: boolean;
+  status: number;
+  json: unknown;
+  text: string;
+};
+
 type OverlayTranscriptEvent = {
   transcriptText: string;
   detectedQuestion?: string;
@@ -81,6 +103,7 @@ interface Window {
     startDesktopLogin?: () => Promise<{ ok: boolean; message?: string }>;
     getDesktopAuthState?: () => Promise<DesktopAuthState>;
     openDesktopCheckout?: (plan: DesktopPlanSlug) => Promise<{ ok: boolean; message?: string }>;
+    apiRequest?: (payload: DesktopApiRequestPayload) => Promise<DesktopApiResponsePayload>;
     onDesktopAuthChanged?: (callback: (payload: DesktopAuthState) => void) => () => void;
     openOverlay?: (context: unknown) => Promise<unknown>;
     updateOverlayContext?: (context: unknown) => Promise<unknown>;

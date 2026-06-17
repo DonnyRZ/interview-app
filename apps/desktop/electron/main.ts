@@ -64,6 +64,26 @@ type DesktopAuthState = {
 
 type PlanSlug = "mini" | "starter" | "pro";
 
+type DesktopApiRequestPayload =
+  | {
+      path: string;
+      method?: string;
+      headers?: Record<string, string>;
+      body?: string;
+    }
+  | {
+      path: string;
+      method?: string;
+      headers?: Record<string, string>;
+      body?: {
+        kind: "form-data";
+        entries: Array<
+          | { name: string; value: string }
+          | { name: string; fileName: string; contentType: string; buffer: ArrayBuffer }
+        >;
+      };
+    };
+
 let mainWindow: BrowserWindow | null = null;
 let overlayWindow: BrowserWindow | null = null;
 let pendingDeepLinkUrl: string | null = null;
@@ -185,6 +205,55 @@ async function desktopSessionHeaders(input: { contentType?: string; requireAuth?
   return {
     ...(input.contentType ? { "Content-Type": input.contentType } : {}),
     ...(cookie ? { Cookie: cookie } : {})
+  };
+}
+
+async function performDesktopApiRequest(input: DesktopApiRequestPayload) {
+  const headers = new Headers(await desktopSessionHeaders({ requireAuth: true }));
+  for (const [key, value] of Object.entries(input.headers || {})) {
+    headers.set(key, value);
+  }
+
+  let body: FormData | string | undefined;
+  if (typeof input.body === "string") {
+    body = input.body;
+  } else if (input.body?.kind === "form-data") {
+    const formData = new FormData();
+    for (const entry of input.body.entries) {
+      if ("value" in entry) {
+        formData.append(entry.name, entry.value);
+        continue;
+      }
+
+      const blob = new Blob([entry.buffer], {
+        type: entry.contentType || "application/octet-stream"
+      });
+      formData.append(entry.name, blob, entry.fileName);
+    }
+
+    body = formData;
+    headers.delete("Content-Type");
+  }
+
+  const response = await fetch(apiUrl(input.path), {
+    method: input.method || "GET",
+    headers,
+    body
+  });
+
+  const text = await response.text();
+  let json: unknown = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = null;
+  }
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    json,
+    text
   };
 }
 
@@ -1164,6 +1233,10 @@ function registerDesktopAuthIpc() {
 
     await shell.openExternal(desktopCheckoutUrl(plan));
     return { ok: true };
+  });
+
+  ipcMain.handle("desktop-api:request", async (_event, input: DesktopApiRequestPayload) => {
+    return performDesktopApiRequest(input);
   });
 }
 
