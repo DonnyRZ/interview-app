@@ -45,6 +45,27 @@ function mapPayment(payment: {
   };
 }
 
+function mapLynkWebhookLog(result: Awaited<ReturnType<typeof handleLynkWebhook>>) {
+  const payment = "payment" in result ? result.payment : undefined;
+  const subscription = "subscription" in result ? result.subscription : undefined;
+
+  return {
+    processed: result.processed,
+    reason: result.reason,
+    parsed: result.parsed,
+    payment: payment
+      ? {
+        id: payment.id,
+        plan: payment.plan,
+        grossAmount: payment.grossAmount,
+        status: payment.status,
+        externalTransactionIdPresent: Boolean(payment.externalTransactionId)
+      }
+      : null,
+    subscription
+  };
+}
+
 export async function registerPaymentRoutes(app: FastifyInstance) {
   app.post("/lynk/create", async (request, reply) => {
     const session = getSession(request);
@@ -77,6 +98,7 @@ export async function registerPaymentRoutes(app: FastifyInstance) {
 
     try {
       const result = await handleLynkWebhook(request.body as Record<string, unknown>);
+      request.log.info(mapLynkWebhookLog(result), "Lynk webhook result");
       return {
         ok: true,
         ...result
