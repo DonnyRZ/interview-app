@@ -108,15 +108,20 @@ function withWebhookContainers(paths: string[]) {
   return paths.flatMap((path) => [path, `data.${path}`, `payload.${path}`]);
 }
 
-function firstString(payload: LynkWebhookPayload, allowedPaths: string[]) {
+function normalizedFlatPayload(payload: LynkWebhookPayload) {
   const flat = flattenPayload(payload);
-  const allowed = new Set(allowedPaths.map(normalizePayloadPath));
+  const normalized = new Map<string, unknown>();
   for (const [path, value] of Object.entries(flat)) {
-    const normalizedPath = normalizePayloadPath(path);
-    if (!allowed.has(normalizedPath)) {
-      continue;
-    }
+    normalized.set(normalizePayloadPath(path), value);
+  }
 
+  return normalized;
+}
+
+function firstString(payload: LynkWebhookPayload, allowedPaths: string[]) {
+  const flat = normalizedFlatPayload(payload);
+  for (const path of allowedPaths) {
+    const value = flat.get(normalizePayloadPath(path));
     const text = normalizeText(value);
     if (text) {
       return text;
@@ -145,14 +150,9 @@ function parseAmountValue(value: unknown) {
 }
 
 function firstNumber(payload: LynkWebhookPayload, allowedPaths: string[]) {
-  const flat = flattenPayload(payload);
-  const allowed = new Set(allowedPaths.map(normalizePayloadPath));
-  for (const [path, value] of Object.entries(flat)) {
-    const normalizedPath = normalizePayloadPath(path);
-    if (!allowed.has(normalizedPath)) {
-      continue;
-    }
-
+  const flat = normalizedFlatPayload(payload);
+  for (const path of allowedPaths) {
+    const value = flat.get(normalizePayloadPath(path));
     const amount = parseAmountValue(value);
     if (amount !== null) {
       return { amount, hasAmount: true };
@@ -185,8 +185,23 @@ export function verifyLynkWebhookSecret(headerSecret: unknown, querySecret?: unk
 export function parseLynkWebhook(payload: LynkWebhookPayload) {
   const eventName = firstString(payload, withWebhookContainers(["event", "event_name", "event.name", "type", "trigger"]));
   const status = firstString(payload, withWebhookContainers(["status", "payment_status", "payment.status", "transaction_status", "transaction.status"]));
-  const customerEmail = firstString(payload, withWebhookContainers(["email", "customer_email", "customer.email", "buyer_email", "buyer.email"])).toLowerCase();
-  const customerName = firstString(payload, withWebhookContainers(["customer_name", "customer.name", "buyer_name", "buyer.name", "full_name", "full.name"]));
+  const customerEmail = firstString(payload, withWebhookContainers([
+    "email",
+    "customer_email",
+    "customer.email",
+    "buyer_email",
+    "buyer.email",
+    "message_data.customer.email"
+  ])).toLowerCase();
+  const customerName = firstString(payload, withWebhookContainers([
+    "customer_name",
+    "customer.name",
+    "buyer_name",
+    "buyer.name",
+    "full_name",
+    "full.name",
+    "message_data.customer.name"
+  ]));
   const productName = firstString(payload, withWebhookContainers(["product_name", "product.name", "product_title", "product.title", "item_name", "item.name", "title"]));
   const transactionId = firstString(payload, withWebhookContainers([
     "trx_id",
@@ -201,7 +216,8 @@ export function parseLynkWebhook(payload: LynkWebhookPayload) {
     "order.trx_id",
     "invoice_id",
     "invoice.id",
-    "invoice.trx_id"
+    "invoice.trx_id",
+    "message_data.refId"
   ]));
   const parsedAmount = firstNumber(payload, withWebhookContainers([
     "amount",
@@ -220,7 +236,10 @@ export function parseLynkWebhook(payload: LynkWebhookPayload) {
     "order.total_amount",
     "invoice.amount",
     "invoice.total",
-    "invoice.total_amount"
+    "invoice.total_amount",
+    "message_data.totals.grandTotal",
+    "message_data.totals.totalPrice",
+    "message_data.totals.customerPay"
   ]));
   const isSuccess = isSuccessfulWebhookStatus(eventName, status);
 
