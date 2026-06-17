@@ -6,9 +6,9 @@ import { parseLynkWebhook } from "../src/modules/payments/lynk.client.js";
 import { planCatalog } from "../src/modules/payments/plan-catalog.js";
 
 async function run() {
-  assert.equal(planCatalog.mini.grossAmount, 29_000);
-  assert.equal(planCatalog.starter.grossAmount, 98_000);
-  assert.equal(planCatalog.pro.grossAmount, 359_000);
+  assert.equal(planCatalog.mini.grossAmount, env.ORVIKO_MINI_PRICE ?? 29_000);
+  assert.equal(planCatalog.starter.grossAmount, env.ORVIKO_STARTER_PRICE ?? 98_000);
+  assert.equal(planCatalog.pro.grossAmount, env.ORVIKO_PRO_PRICE ?? 359_000);
   assert.equal(parseBooleanEnv("false"), false);
   assert.equal(parseBooleanEnv(""), false);
   assert.equal(parseBooleanEnv(undefined), false);
@@ -38,6 +38,7 @@ async function run() {
   assert.equal(lynkPayload.productName, "Orviko Starter");
   assert.equal(lynkPayload.transactionId, "LYNK-TEST-1");
   assert.equal(lynkPayload.amount, 98_000);
+  assert.equal(lynkPayload.hasAmount, true);
   assert.equal("plan" in lynkPayload, false);
 
   const lynkPayloadWithGenericIds = parseLynkWebhook({
@@ -105,6 +106,53 @@ async function run() {
     total_amount: 98_000
   });
   assert.equal(lynkPayloadWithNestedPaymentId.transactionId, "LYNK-PAYMENT-NESTED-1");
+
+  const lynkPayloadWithZeroAmount = parseLynkWebhook({
+    event_name: "Product Sold",
+    trx_id: "LYNK-ZERO-1",
+    customer: {
+      email: "Buyer@Example.com",
+      name: "Buyer Test"
+    },
+    product: {
+      name: "Orviko Mini"
+    },
+    total_amount: 0
+  });
+  assert.equal(lynkPayloadWithZeroAmount.isSuccess, true);
+  assert.equal(lynkPayloadWithZeroAmount.amount, 0);
+  assert.equal(lynkPayloadWithZeroAmount.hasAmount, true);
+
+  const lynkPayloadWithoutAmount = parseLynkWebhook({
+    event_name: "Product Sold",
+    trx_id: "LYNK-NO-AMOUNT-1",
+    customer: {
+      email: "Buyer@Example.com",
+      name: "Buyer Test"
+    },
+    product: {
+      name: "Orviko Mini"
+    }
+  });
+  assert.equal(lynkPayloadWithoutAmount.isSuccess, true);
+  assert.equal(lynkPayloadWithoutAmount.amount, 0);
+  assert.equal(lynkPayloadWithoutAmount.hasAmount, false);
+
+  const lynkPayloadWithBlankAmount = parseLynkWebhook({
+    event_name: "Product Sold",
+    trx_id: "LYNK-BLANK-AMOUNT-1",
+    customer: {
+      email: "Buyer@Example.com",
+      name: "Buyer Test"
+    },
+    product: {
+      name: "Orviko Mini"
+    },
+    total_amount: ""
+  });
+  assert.equal(lynkPayloadWithBlankAmount.isSuccess, true);
+  assert.equal(lynkPayloadWithBlankAmount.amount, 0);
+  assert.equal(lynkPayloadWithBlankAmount.hasAmount, false);
 
   for (const failedPayload of [
     { event_name: "payment_unsuccessful", status: "failed" },

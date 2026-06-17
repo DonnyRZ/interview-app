@@ -665,6 +665,66 @@ async function simulateLynkWebhookReusesPendingPayment() {
     where: eq(users.id, missingPendingUserId)
   });
   assert.equal(missingPendingUser?.subscriptionPlan, "free");
+
+  const zeroAmountUserId = await createTempUser("lynk-zero-amount");
+  const zeroAmountEmail = buildTempUserEmail("lynk-zero-amount", zeroAmountUserId);
+  const zeroAmountPayment = await createPayment({
+    userId: zeroAmountUserId,
+    orderId: `PENDING-${randomUUID()}`,
+    plan: "mini",
+    grossAmount: 0,
+    customerEmail: zeroAmountEmail,
+    customerName: "Sim lynk zero amount",
+    status: "pending"
+  });
+  const zeroAmountResult = await handleLynkWebhook({
+    event_name: "Product Sold",
+    trx_id: `LYNK-${randomUUID()}`,
+    customer: {
+      email: zeroAmountEmail,
+      name: "Sim lynk zero amount"
+    },
+    product: {
+      name: "Orviko Mini"
+    },
+    total_amount: 0
+  });
+  assert.equal(zeroAmountResult.processed, true);
+  assert.equal(zeroAmountResult.payment.id, zeroAmountPayment.id);
+
+  const zeroAmountUser = await db.query.users.findFirst({
+    where: eq(users.id, zeroAmountUserId)
+  });
+  assert.equal(zeroAmountUser?.subscriptionPlan, "mini");
+
+  const missingAmountUserId = await createTempUser("lynk-missing-amount");
+  const missingAmountEmail = buildTempUserEmail("lynk-missing-amount", missingAmountUserId);
+  await createPayment({
+    userId: missingAmountUserId,
+    orderId: `PENDING-${randomUUID()}`,
+    plan: "mini",
+    grossAmount: 0,
+    customerEmail: missingAmountEmail,
+    customerName: "Sim lynk missing amount",
+    status: "pending"
+  });
+  const missingAmountResult = await handleLynkWebhook({
+    event_name: "Product Sold",
+    trx_id: `LYNK-${randomUUID()}`,
+    customer: {
+      email: missingAmountEmail,
+      name: "Sim lynk missing amount"
+    },
+    product: {
+      name: "Orviko Mini"
+    }
+  });
+  assert.equal(missingAmountResult.processed, false);
+
+  const missingAmountUser = await db.query.users.findFirst({
+    where: eq(users.id, missingAmountUserId)
+  });
+  assert.equal(missingAmountUser?.subscriptionPlan, "free");
 }
 
 async function simulateDevServiceGuards() {

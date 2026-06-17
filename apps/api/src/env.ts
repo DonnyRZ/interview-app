@@ -22,6 +22,11 @@ export function parseBooleanEnv(value: unknown) {
   return false;
 }
 
+const optionalNonNegativeIntegerEnv = z.preprocess(
+  (value) => value === "" ? undefined : value,
+  z.coerce.number().int().nonnegative().optional()
+);
+
 const envSchema = z.object({
   API_HOST: z.string().default("127.0.0.1"),
   API_PORT: z.coerce.number().int().positive().default(4000),
@@ -38,6 +43,9 @@ const envSchema = z.object({
   LYNK_STARTER_URL: z.string().url().optional(),
   LYNK_PRO_URL: z.string().url().optional(),
   LYNK_WEBHOOK_SECRET: z.string().optional(),
+  ORVIKO_MINI_PRICE: optionalNonNegativeIntegerEnv,
+  ORVIKO_STARTER_PRICE: optionalNonNegativeIntegerEnv,
+  ORVIKO_PRO_PRICE: optionalNonNegativeIntegerEnv,
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_TEXT_MODEL: z.string().default("gpt-5-mini"),
   OPENAI_REALTIME_MODEL: z.string().default("gpt-realtime-mini")
@@ -58,10 +66,16 @@ const requiredProductionKeys = [
 
 if (parsedEnv.NODE_ENV === "production") {
   const missingKeys = requiredProductionKeys.filter((key) => !process.env[key]);
+  const zeroPriceOverrides = [
+    parsedEnv.ORVIKO_MINI_PRICE === 0 ? "ORVIKO_MINI_PRICE" : "",
+    parsedEnv.ORVIKO_STARTER_PRICE === 0 ? "ORVIKO_STARTER_PRICE" : "",
+    parsedEnv.ORVIKO_PRO_PRICE === 0 ? "ORVIKO_PRO_PRICE" : ""
+  ].filter(Boolean);
   const unsafeDefaults = [
     parsedEnv.DATABASE_URL.includes("/orviko_dev") ? "DATABASE_URL" : "",
     parsedEnv.FRONTEND_BASE_URL.includes("127.0.0.1") || parsedEnv.FRONTEND_BASE_URL.includes("localhost") ? "FRONTEND_BASE_URL" : "",
-    parsedEnv.SESSION_SECRET === "orviko-dev-session-secret-change-me" ? "SESSION_SECRET" : ""
+    parsedEnv.SESSION_SECRET === "orviko-dev-session-secret-change-me" ? "SESSION_SECRET" : "",
+    ...zeroPriceOverrides
   ].filter(Boolean);
 
   const invalidKeys = Array.from(new Set([...missingKeys, ...unsafeDefaults]));

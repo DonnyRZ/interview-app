@@ -118,6 +118,14 @@ LYNK_PRO_URL=https://lynk.id/rizki-09/...
 
 Jika URL paket belum diisi, checkout Orviko akan fallback ke `LYNK_PROFILE_URL`.
 
+Untuk testing harga `Rp0` di dev/staging, gunakan price override backend agar nominal pending payment Orviko tetap cocok dengan webhook Lynk.id:
+
+```env
+ORVIKO_MINI_PRICE=0
+```
+
+Jangan pasang override harga `0` di prod. API production akan menolak start jika ada override harga `0`.
+
 ## Services
 
 Systemd services:

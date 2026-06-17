@@ -81,6 +81,14 @@ export async function handleLynkWebhook(payload: Record<string, unknown>) {
     };
   }
 
+  if (!parsed.hasAmount) {
+    return {
+      processed: false,
+      reason: "Webhook Lynk sukses diterima, tetapi nominal pembayaran tidak ditemukan.",
+      parsed
+    };
+  }
+
   const user = await findUserByEmail(parsed.customerEmail);
   if (!user) {
     return {
@@ -97,7 +105,7 @@ export async function handleLynkWebhook(payload: Record<string, unknown>) {
       .limit(1)
       .for("update");
 
-    const [pendingPayment] = existingPayment || parsed.amount <= 0
+    const [pendingPayment] = existingPayment
       ? []
       : await tx.select()
         .from(payments)

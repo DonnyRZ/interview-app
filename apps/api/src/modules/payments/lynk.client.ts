@@ -102,6 +102,24 @@ function firstString(payload: LynkWebhookPayload, allowedPaths: string[]) {
   return "";
 }
 
+function parseAmountValue(value: unknown) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) && value >= 0 ? value : null;
+  }
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const digits = value.replace(/[^\d]/g, "");
+  if (!digits) {
+    return null;
+  }
+
+  const amount = Number(digits);
+  return Number.isFinite(amount) && amount >= 0 ? amount : null;
+}
+
 function firstNumber(payload: LynkWebhookPayload, allowedPaths: string[]) {
   const flat = flattenPayload(payload);
   const allowed = new Set(allowedPaths.map(normalizePayloadPath));
@@ -111,13 +129,13 @@ function firstNumber(payload: LynkWebhookPayload, allowedPaths: string[]) {
       continue;
     }
 
-    const amount = typeof value === "number" ? value : Number(String(value).replace(/[^\d]/g, ""));
-    if (Number.isFinite(amount) && amount > 0) {
-      return amount;
+    const amount = parseAmountValue(value);
+    if (amount !== null) {
+      return { amount, hasAmount: true };
     }
   }
 
-  return 0;
+  return { amount: 0, hasAmount: false };
 }
 
 export function getLynkCheckoutUrl(plan: PlanSlug) {
@@ -161,7 +179,7 @@ export function parseLynkWebhook(payload: LynkWebhookPayload) {
     "invoice.id",
     "invoice.trx_id"
   ]);
-  const amount = firstNumber(payload, [
+  const parsedAmount = firstNumber(payload, [
     "amount",
     "total",
     "total_amount",
@@ -189,7 +207,8 @@ export function parseLynkWebhook(payload: LynkWebhookPayload) {
     customerName,
     productName,
     transactionId,
-    amount,
+    amount: parsedAmount.amount,
+    hasAmount: parsedAmount.hasAmount,
     isSuccess
   };
 }
