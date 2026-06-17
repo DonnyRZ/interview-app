@@ -45,7 +45,29 @@ function mapPayment(payment: {
   };
 }
 
-function mapLynkWebhookLog(result: Awaited<ReturnType<typeof handleLynkWebhook>>) {
+function summarizePayloadShape(value: unknown, prefix = "", output: string[] = []) {
+  if (output.length >= 80 || !value || typeof value !== "object") {
+    return output;
+  }
+
+  for (const [key, nestedValue] of Object.entries(value as Record<string, unknown>)) {
+    if (output.length >= 80) {
+      break;
+    }
+
+    const path = prefix ? `${prefix}.${key}` : key;
+    const type = Array.isArray(nestedValue) ? "array" : typeof nestedValue;
+    output.push(`${path}:${type}`);
+
+    if (nestedValue && typeof nestedValue === "object" && !Array.isArray(nestedValue)) {
+      summarizePayloadShape(nestedValue, path, output);
+    }
+  }
+
+  return output;
+}
+
+function mapLynkWebhookLog(result: Awaited<ReturnType<typeof handleLynkWebhook>>, payload: unknown) {
   const payment = "payment" in result ? result.payment : undefined;
   const subscription = "subscription" in result ? result.subscription : undefined;
 
@@ -53,6 +75,7 @@ function mapLynkWebhookLog(result: Awaited<ReturnType<typeof handleLynkWebhook>>
     processed: result.processed,
     reason: result.reason,
     parsed: result.parsed,
+    payloadShape: summarizePayloadShape(payload),
     payment: payment
       ? {
         id: payment.id,
@@ -98,7 +121,7 @@ export async function registerPaymentRoutes(app: FastifyInstance) {
 
     try {
       const result = await handleLynkWebhook(request.body as Record<string, unknown>);
-      request.log.info(mapLynkWebhookLog(result), "Lynk webhook result");
+      request.log.info(mapLynkWebhookLog(result, request.body), "Lynk webhook result");
       return {
         ok: true,
         ...result

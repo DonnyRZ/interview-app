@@ -107,6 +107,40 @@ async function run() {
   });
   assert.equal(lynkPayloadWithNestedPaymentId.transactionId, "LYNK-PAYMENT-NESTED-1");
 
+  const lynkPaymentReceivedPayload = parseLynkWebhook({
+    event_name: "payment.received",
+    data: {
+      trx_id: "LYNK-DATA-1",
+      customer: {
+        email: "Buyer@Example.com",
+        name: "Buyer Test"
+      },
+      product: {
+        name: "Orviko Mini"
+      },
+      total_amount: 0
+    }
+  });
+  assert.equal(lynkPaymentReceivedPayload.isSuccess, true);
+  assert.equal(lynkPaymentReceivedPayload.customerEmail, "buyer@example.com");
+  assert.equal(lynkPaymentReceivedPayload.transactionId, "LYNK-DATA-1");
+  assert.equal(lynkPaymentReceivedPayload.amount, 0);
+  assert.equal(lynkPaymentReceivedPayload.hasAmount, true);
+
+  const lynkJsonDataPayload = parseLynkWebhook({
+    event_name: "payment.received",
+    data: JSON.stringify({
+      payment_id: "LYNK-JSON-DATA-1",
+      customer_email: "Buyer@Example.com",
+      total_amount: 0
+    })
+  });
+  assert.equal(lynkJsonDataPayload.isSuccess, true);
+  assert.equal(lynkJsonDataPayload.customerEmail, "buyer@example.com");
+  assert.equal(lynkJsonDataPayload.transactionId, "LYNK-JSON-DATA-1");
+  assert.equal(lynkJsonDataPayload.amount, 0);
+  assert.equal(lynkJsonDataPayload.hasAmount, true);
+
   const lynkPayloadWithZeroAmount = parseLynkWebhook({
     event_name: "Product Sold",
     trx_id: "LYNK-ZERO-1",
