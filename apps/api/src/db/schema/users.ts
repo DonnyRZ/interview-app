@@ -9,6 +9,7 @@ export const users = pgTable("users", {
   authProvider: text("auth_provider").notNull().default("google"),
   subscriptionPlan: text("subscription_plan").notNull().default("free"),
   subscriptionExpiresAt: timestamp("subscription_expires_at", { withTimezone: true }),
+  subscriptionPeriodStartedAt: timestamp("subscription_period_started_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
 });

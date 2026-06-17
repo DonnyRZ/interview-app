@@ -22,8 +22,6 @@ export function parseBooleanEnv(value: unknown) {
   return false;
 }
 
-const booleanEnvSchema = z.preprocess(parseBooleanEnv, z.boolean()).default(false);
-
 const envSchema = z.object({
   API_HOST: z.string().default("127.0.0.1"),
   API_PORT: z.coerce.number().int().positive().default(4000),
@@ -35,10 +33,6 @@ const envSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_REDIRECT_URI: z.string().url().optional(),
-  MIDTRANS_ENV: z.enum(["sandbox", "production"]).default("sandbox"),
-  MIDTRANS_IS_PRODUCTION: booleanEnvSchema,
-  MIDTRANS_SERVER_KEY: z.string().optional(),
-  VITE_MIDTRANS_CLIENT_KEY: z.string().optional(),
   LYNK_PROFILE_URL: z.string().url().default("https://lynk.id/rizki-09"),
   LYNK_MINI_URL: z.string().url().optional(),
   LYNK_STARTER_URL: z.string().url().optional(),
@@ -58,6 +52,7 @@ const requiredProductionKeys = [
   "GOOGLE_CLIENT_ID",
   "GOOGLE_CLIENT_SECRET",
   "GOOGLE_REDIRECT_URI",
+  "LYNK_WEBHOOK_SECRET",
   "OPENAI_API_KEY"
 ] as const;
 

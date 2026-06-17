@@ -22,6 +22,20 @@
       "when": 1780828800000,
       "tag": "0002_lynk_subscription",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1781625600000,
+      "tag": "0003_subscription_usage_safety",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1781712000000,
+      "tag": "0004_cleanup_legacy_payments",
+      "breakpoints": true
     }
   ]
 }

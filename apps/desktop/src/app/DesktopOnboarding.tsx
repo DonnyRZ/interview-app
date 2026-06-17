@@ -10,8 +10,18 @@ type DesktopOnboardingProps = {
   children: ReactNode;
 };
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:4000";
-const WEB_BASE_URL = import.meta.env.VITE_WEB_BASE_URL || import.meta.env.VITE_FRONTEND_BASE_URL || "https://dev.orviko.net";
+const DEFAULT_DESKTOP_BASE_URL = "https://dev.orviko.net";
+const DESKTOP_API_BASE_URL = normalizeBaseUrl(import.meta.env.VITE_DESKTOP_API_BASE_URL || DEFAULT_DESKTOP_BASE_URL);
+const DESKTOP_WEB_BASE_URL = normalizeBaseUrl(
+  import.meta.env.VITE_DESKTOP_WEB_BASE_URL
+    || import.meta.env.VITE_WEB_BASE_URL
+    || import.meta.env.VITE_FRONTEND_BASE_URL
+    || DESKTOP_API_BASE_URL
+);
+
+function normalizeBaseUrl(value: string) {
+  return value.replace(/\/$/, "");
+}
 
 function hasActiveSubscription(user: DesktopAuthUser | undefined) {
   if (!user || !user.subscriptionPlan || user.subscriptionPlan === "free" || !user.subscriptionExpiresAt) {
@@ -30,13 +40,21 @@ function gateStatusFor(state: DesktopAuthState): GateStatus {
 }
 
 function checkoutUrl(plan: PlanSlug) {
-  const url = new URL("/checkout.html", WEB_BASE_URL);
+  const url = new URL("/checkout.html", DESKTOP_WEB_BASE_URL);
   url.searchParams.set("plan", plan);
   return url.toString();
 }
 
+async function getLatestDesktopAuthState(): Promise<DesktopAuthState> {
+  if (window.interviewDesktop?.getDesktopAuthState) {
+    return window.interviewDesktop.getDesktopAuthState();
+  }
+
+  return getAuthStateFromApi();
+}
+
 async function getAuthStateFromApi(): Promise<DesktopAuthState> {
-  const response = await fetch(`${API_BASE_URL.replace(/\/$/, "")}/auth/me`, {
+  const response = await fetch(`${DESKTOP_API_BASE_URL}/auth/me`, {
     credentials: "include"
   });
 
@@ -67,9 +85,7 @@ export function DesktopOnboarding({ children }: DesktopOnboardingProps) {
 
     async function loadAuthState() {
       try {
-        const nextState = window.interviewDesktop?.getDesktopAuthState
-          ? await window.interviewDesktop.getDesktopAuthState()
-          : await getAuthStateFromApi();
+        const nextState = await getLatestDesktopAuthState();
 
         if (!cancelled) {
           applyAuthState(nextState);
@@ -106,7 +122,7 @@ export function DesktopOnboarding({ children }: DesktopOnboardingProps) {
           throw new Error(result.message || "Gagal membuka login Google.");
         }
       } else {
-        window.open(`${API_BASE_URL.replace(/\/$/, "")}/auth/google/login?plan=starter&flow=desktop`, "_blank", "noopener,noreferrer");
+        window.open(`${DESKTOP_API_BASE_URL}/auth/google/login?plan=starter&flow=desktop`, "_blank", "noopener,noreferrer");
       }
 
       setMessage("Selesaikan login di browser, lalu pilih Open Orviko saat diminta.");
@@ -136,7 +152,7 @@ export function DesktopOnboarding({ children }: DesktopOnboardingProps) {
   }
 
   if (gateStatus === "pricing") {
-    return <DesktopPricingScreen />;
+    return <DesktopPricingScreen onAuthStateResolved={applyAuthState} />;
   }
 
   return <>{children}</>;
@@ -247,9 +263,78 @@ function DesktopLoginScreen({
   );
 }
 
-function DesktopPricingScreen() {
+function DesktopPricingScreen({
+  onAuthStateResolved
+}: {
+  onAuthStateResolved: (nextState: DesktopAuthState) => void;
+}) {
   const [message, setMessage] = useState("");
   const [openingPlan, setOpeningPlan] = useState<PlanSlug | null>(null);
+  const [isAwaitingPayment, setIsAwaitingPayment] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let inFlight = false;
+
+    async function syncSubscriptionState() {
+      if (inFlight) {
+        return;
+      }
+
+      inFlight = true;
+
+      try {
+        const nextState = await getLatestDesktopAuthState();
+        if (cancelled) {
+          return;
+        }
+
+        if (hasActiveSubscription(nextState.user)) {
+          setMessage("Pembayaran terkonfirmasi. Membuka aplikasi...");
+          onAuthStateResolved(nextState);
+          return;
+        }
+
+        if (!nextState.authenticated) {
+          onAuthStateResolved(nextState);
+        }
+      } catch {
+        // Biarkan pricing tetap tampil; sync akan dicoba lagi saat window aktif.
+      } finally {
+        inFlight = false;
+      }
+    }
+
+    const handleFocus = () => {
+      void syncSubscriptionState();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void syncSubscriptionState();
+      }
+    };
+
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    let intervalId: number | undefined;
+    if (isAwaitingPayment) {
+      intervalId = window.setInterval(() => {
+        void syncSubscriptionState();
+      }, 5000);
+      void syncSubscriptionState();
+    }
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (intervalId) {
+        window.clearInterval(intervalId);
+      }
+    };
+  }, [isAwaitingPayment, onAuthStateResolved]);
 
   async function openCheckout(plan: PlanSlug) {
     setOpeningPlan(plan);
@@ -265,7 +350,8 @@ function DesktopPricingScreen() {
         window.open(checkoutUrl(plan), "_blank", "noopener,noreferrer");
       }
 
-      setMessage("Checkout web sudah dibuka di browser.");
+      setIsAwaitingPayment(true);
+      setMessage("Checkout web sudah dibuka. Setelah pembayaran berhasil, desktop akan lanjut otomatis.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Gagal membuka checkout.");
     } finally {

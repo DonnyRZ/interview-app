@@ -3,6 +3,20 @@ import { db } from "../../db/client.js";
 import { users } from "../../db/schema/index.js";
 import type { GoogleUserInfo } from "./google-oauth.js";
 
+export class SubscriptionRequiredError extends Error {
+  constructor(message = "Subscription Orviko belum aktif. Pilih paket terlebih dulu.") {
+    super(message);
+    this.name = "SubscriptionRequiredError";
+  }
+}
+
+export class SubscriptionQuotaExceededError extends SubscriptionRequiredError {
+  constructor(message: string) {
+    super(message);
+    this.name = "SubscriptionQuotaExceededError";
+  }
+}
+
 export async function upsertGoogleUser(userInfo: GoogleUserInfo) {
   const existing = await db.query.users.findFirst({
     where: or(eq(users.googleSub, userInfo.sub), eq(users.email, userInfo.email))
@@ -51,6 +65,29 @@ export async function findUserByEmail(email: string) {
   });
 }
 
+export function hasActiveSubscription(
+  user: { subscriptionPlan: string; subscriptionExpiresAt: Date | null } | null | undefined
+) {
+  if (!user || !user.subscriptionPlan || user.subscriptionPlan === "free" || !user.subscriptionExpiresAt) {
+    return false;
+  }
+
+  return user.subscriptionExpiresAt.getTime() > Date.now();
+}
+
+export async function ensureUserHasActiveSubscription(userId: string) {
+  const user = await findUserById(userId);
+  if (!user) {
+    throw new Error("User tidak ditemukan.");
+  }
+
+  if (!hasActiveSubscription(user)) {
+    throw new SubscriptionRequiredError();
+  }
+
+  return user;
+}
+
 export async function activateUserSubscription(input: {
   userId: string;
   plan: "mini" | "starter" | "pro";
@@ -58,16 +95,13 @@ export async function activateUserSubscription(input: {
 }) {
   const now = new Date();
   const currentUser = await findUserById(input.userId);
-  const baseDate = currentUser?.subscriptionExpiresAt && currentUser.subscriptionExpiresAt > now
-    ? currentUser.subscriptionExpiresAt
-    : now;
-  const expiresAt = new Date(baseDate);
-  expiresAt.setDate(expiresAt.getDate() + (input.durationDays || 30));
+  const expiresAt = calculateSubscriptionExpiresAt(currentUser, now, input.durationDays || 30);
 
   const [updatedUser] = await db.update(users)
     .set({
       subscriptionPlan: input.plan,
       subscriptionExpiresAt: expiresAt,
+      subscriptionPeriodStartedAt: now,
       updatedAt: now
     })
     .where(eq(users.id, input.userId))
@@ -78,4 +112,17 @@ export async function activateUserSubscription(input: {
   }
 
   return updatedUser;
+}
+
+export function calculateSubscriptionExpiresAt(
+  currentUser: { subscriptionExpiresAt: Date | null } | null | undefined,
+  now: Date,
+  durationDays: number
+) {
+  const baseDate = currentUser?.subscriptionExpiresAt && currentUser.subscriptionExpiresAt > now
+    ? currentUser.subscriptionExpiresAt
+    : now;
+  const expiresAt = new Date(baseDate);
+  expiresAt.setDate(expiresAt.getDate() + durationDays);
+  return expiresAt;
 }

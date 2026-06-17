@@ -215,7 +215,7 @@ export const surfaceRealtimeKeywordsResponseSchema = z.object({
 });
 
 export const createRealtimeClientSecretRequestSchema = z.object({
-  realtimeContext: realtimeContextSchema
+  liveMeetingSessionId: z.string().uuid()
 });
 
 export const createRealtimeClientSecretResponseSchema = z.object({

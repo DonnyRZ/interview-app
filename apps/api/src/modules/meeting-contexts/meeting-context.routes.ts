@@ -7,13 +7,14 @@ import {
 } from "@interview-app/shared";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { getSession } from "../auth/session.js";
 import { mapMeetingContext } from "./meeting-context.mapper.js";
 import {
-  createMeetingContextForDevUser,
-  deleteMeetingContextForDevUser,
-  getMeetingContextForDevUser,
-  getMeetingContextsForDevUser,
-  updateMeetingContextForDevUser
+  createMeetingContextForUser,
+  deleteMeetingContextForUser,
+  getMeetingContextForUser,
+  getMeetingContextsForUser,
+  updateMeetingContextForUser
 } from "./meeting-context.service.js";
 
 const meetingContextParamsSchema = z.object({
@@ -21,21 +22,31 @@ const meetingContextParamsSchema = z.object({
 });
 
 export async function registerMeetingContextRoutes(app: FastifyInstance) {
-  app.get("/", async () => {
-    const meetingContexts = await getMeetingContextsForDevUser();
+  app.get("/", async (request, reply) => {
+    const session = getSession(request);
+    if (!session) {
+      return reply.code(401).send({ message: "Login diperlukan." });
+    }
+
+    const meetingContexts = await getMeetingContextsForUser(session.userId);
     return meetingContextListResponseSchema.parse({
       meetingContexts: meetingContexts.map(mapMeetingContext)
     });
   });
 
   app.post("/", async (request, reply) => {
+    const session = getSession(request);
+    if (!session) {
+      return reply.code(401).send({ message: "Login diperlukan." });
+    }
+
     const body = createMeetingContextRequestSchema.safeParse(request.body);
     if (!body.success) {
       return reply.code(400).send({ message: "Invalid meetingContext payload" });
     }
 
     try {
-      const meetingContext = await createMeetingContextForDevUser(body.data);
+      const meetingContext = await createMeetingContextForUser(session.userId, body.data);
       return reply.code(201).send(meetingContextResponseSchema.parse({
         meetingContext: mapMeetingContext(meetingContext)
       }));
@@ -46,12 +57,17 @@ export async function registerMeetingContextRoutes(app: FastifyInstance) {
   });
 
   app.get("/:id", async (request, reply) => {
+    const session = getSession(request);
+    if (!session) {
+      return reply.code(401).send({ message: "Login diperlukan." });
+    }
+
     const params = meetingContextParamsSchema.safeParse(request.params);
     if (!params.success) {
       return reply.code(400).send({ message: "Invalid meetingContext id" });
     }
 
-    const meetingContext = await getMeetingContextForDevUser(params.data.id);
+    const meetingContext = await getMeetingContextForUser(session.userId, params.data.id);
     if (!meetingContext) {
       return reply.code(404).send({ message: "MeetingContext not found" });
     }
@@ -62,6 +78,11 @@ export async function registerMeetingContextRoutes(app: FastifyInstance) {
   });
 
   app.patch("/:id", async (request, reply) => {
+    const session = getSession(request);
+    if (!session) {
+      return reply.code(401).send({ message: "Login diperlukan." });
+    }
+
     const params = meetingContextParamsSchema.safeParse(request.params);
     if (!params.success) {
       return reply.code(400).send({ message: "Invalid meetingContext id" });
@@ -73,7 +94,7 @@ export async function registerMeetingContextRoutes(app: FastifyInstance) {
     }
 
     try {
-      const meetingContext = await updateMeetingContextForDevUser(params.data.id, body.data);
+      const meetingContext = await updateMeetingContextForUser(session.userId, params.data.id, body.data);
       if (!meetingContext) {
         return reply.code(404).send({ message: "MeetingContext not found" });
       }
@@ -88,12 +109,17 @@ export async function registerMeetingContextRoutes(app: FastifyInstance) {
   });
 
   app.delete("/:id", async (request, reply) => {
+    const session = getSession(request);
+    if (!session) {
+      return reply.code(401).send({ message: "Login diperlukan." });
+    }
+
     const params = meetingContextParamsSchema.safeParse(request.params);
     if (!params.success) {
       return reply.code(400).send({ message: "Invalid meetingContext id" });
     }
 
-    const deletedMeetingContext = await deleteMeetingContextForDevUser(params.data.id);
+    const deletedMeetingContext = await deleteMeetingContextForUser(session.userId, params.data.id);
     if (!deletedMeetingContext) {
       return reply.code(404).send({ message: "MeetingContext not found" });
     }

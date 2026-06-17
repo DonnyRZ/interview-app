@@ -4,10 +4,8 @@ import { getSession } from "../auth/session.js";
 import { verifyLynkWebhookSecret } from "./lynk.client.js";
 import {
   createLynkCheckoutForUser,
-  createMidtransPaymentForUser,
   getPaymentForUser,
-  handleLynkWebhook,
-  handleMidtransNotification
+  handleLynkWebhook
 } from "./payment.service.js";
 import { planSlugSchema } from "./plan-catalog.js";
 
@@ -31,8 +29,6 @@ function mapPayment(payment: {
   currency: string;
   status: string;
   userId: string;
-  snapToken?: string;
-  snapRedirectUrl?: string;
   lynkRedirectUrl?: string;
   updatedAt: Date;
 }) {
@@ -44,50 +40,12 @@ function mapPayment(payment: {
     currency: payment.currency,
     status: payment.status,
     userId: payment.userId,
-    snapToken: payment.snapToken,
-    redirectUrl: payment.lynkRedirectUrl || payment.snapRedirectUrl,
+    redirectUrl: payment.lynkRedirectUrl,
     updatedAt: payment.updatedAt.toISOString()
   };
 }
 
 export async function registerPaymentRoutes(app: FastifyInstance) {
-  app.post("/midtrans/create", async (request, reply) => {
-    const session = getSession(request);
-    if (!session) {
-      return reply.code(401).send({ message: "Login diperlukan." });
-    }
-
-    const body = createPaymentBodySchema.safeParse(request.body);
-    if (!body.success) {
-      return reply.code(400).send({ message: "Paket yang dipilih tidak valid." });
-    }
-
-    try {
-      const payment = await createMidtransPaymentForUser({
-        userId: session.userId,
-        plan: body.data.plan
-      });
-      return reply.code(201).send(mapPayment(payment));
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Gagal membuat transaksi Midtrans.";
-      return reply.code(400).send({ message });
-    }
-  });
-
-  app.post("/midtrans/notification", async (request, reply) => {
-    try {
-      const payment = await handleMidtransNotification(request.body as Record<string, string>);
-      return {
-        paymentId: payment.id,
-        orderId: payment.orderId,
-        status: payment.status
-      };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Gagal memproses notifikasi Midtrans.";
-      return reply.code(400).send({ message });
-    }
-  });
-
   app.post("/lynk/create", async (request, reply) => {
     const session = getSession(request);
     if (!session) {
@@ -113,7 +71,7 @@ export async function registerPaymentRoutes(app: FastifyInstance) {
 
   app.post("/lynk/webhook", async (request, reply) => {
     const query = lynkWebhookQuerySchema.safeParse(request.query);
-    if (!query.success || !verifyLynkWebhookSecret(query.data.secret)) {
+    if (!query.success || !verifyLynkWebhookSecret(request.headers["x-orviko-lynk-webhook-secret"], query.data.secret)) {
       return reply.code(401).send({ message: "Webhook Lynk tidak valid." });
     }
 

@@ -12,8 +12,14 @@ import {
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const rendererDevUrl = process.env.VITE_DEV_SERVER_URL;
-const apiBaseUrl = process.env.VITE_API_BASE_URL || "http://127.0.0.1:4000";
-const checkoutBaseUrl = process.env.VITE_WEB_BASE_URL || process.env.VITE_FRONTEND_BASE_URL || "https://dev.orviko.net";
+const defaultDesktopBaseUrl = "https://dev.orviko.net";
+const apiBaseUrl = normalizeBaseUrl(process.env.VITE_DESKTOP_API_BASE_URL || defaultDesktopBaseUrl);
+const checkoutBaseUrl = normalizeBaseUrl(
+  process.env.VITE_DESKTOP_WEB_BASE_URL
+    || process.env.VITE_WEB_BASE_URL
+    || process.env.VITE_FRONTEND_BASE_URL
+    || apiBaseUrl
+);
 const preloadPath = path.join(currentDir, "preload.cjs");
 const devLoopbackProbePath = path.join(currentDir, "../native/windows-loopback/bin/WasapiLoopbackProbe.exe");
 const packagedLoopbackProbePath = path.join(process.resourcesPath, "native", "windows-loopback", "WasapiLoopbackProbe.exe");
@@ -48,6 +54,7 @@ type DesktopAuthUser = {
   picture: string | null;
   subscriptionPlan: string;
   subscriptionExpiresAt: string | null;
+  subscriptionPeriodStartedAt: string | null;
 };
 
 type DesktopAuthState = {
@@ -77,6 +84,10 @@ const realtimeAudioRestartDelaysMs = [500, 1500];
 let realtimeStatus: RealtimeStatus = "idle";
 let realtimeConnectPayload: { model: string; clientSecret: string; expiresAt: number } | null = null;
 let isQuittingAfterOverlayCleanup = false;
+
+function normalizeBaseUrl(value: string) {
+  return value.replace(/\/$/, "");
+}
 
 function mergeOverlayContext(update: unknown) {
   const base = overlayContext && typeof overlayContext === "object" ? overlayContext as Record<string, unknown> : {};
@@ -127,8 +138,7 @@ function setAudioCaptureStatus(status: string, message: string, deviceLabel?: st
 }
 
 function apiUrl(pathname: string) {
-  const base = apiBaseUrl.replace(/\/$/, "");
-  return `${base}${pathname.startsWith("/") ? pathname : `/${pathname}`}`;
+  return `${apiBaseUrl}${pathname.startsWith("/") ? pathname : `/${pathname}`}`;
 }
 
 function apiOrigin() {
@@ -164,6 +174,18 @@ async function desktopAuthCookieHeader() {
   });
 
   return cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; ");
+}
+
+async function desktopSessionHeaders(input: { contentType?: string; requireAuth?: boolean } = {}) {
+  const cookie = await desktopAuthCookieHeader();
+  if (input.requireAuth && !cookie) {
+    throw new Error("Login desktop tidak ditemukan. Silakan login ulang ke Orviko.");
+  }
+
+  return {
+    ...(input.contentType ? { "Content-Type": input.contentType } : {}),
+    ...(cookie ? { Cookie: cookie } : {})
+  };
 }
 
 function emitDesktopAuthChanged(state: DesktopAuthState) {
@@ -234,18 +256,18 @@ function isRealtimeActionTransportReady() {
 }
 
 async function startRealtimeSession(context: unknown) {
-  const realtimeContext = readRealtimeContext(context);
+  const liveMeetingSessionId = readLiveMeetingSessionId(context);
   stopRealtimeSession(false);
 
-  if (!realtimeContext) {
-    setRealtimeStatus("error", "Realtime context belum tersedia.");
+  if (!liveMeetingSessionId) {
+    setRealtimeStatus("error", "Live meeting session belum tersedia.");
     return;
   }
 
   setRealtimeStatus("connecting", "Menghubungkan ke gpt-realtime-mini...");
 
   try {
-    const token = await fetchRealtimeClientSecret(realtimeContext);
+    const token = await fetchRealtimeClientSecret(liveMeetingSessionId);
     realtimeConnectPayload = token;
     emitRealtimeConnectPayload();
   } catch (error) {
@@ -284,14 +306,16 @@ function emitRealtimeConnectPayload() {
   });
 }
 
-async function fetchRealtimeClientSecret(realtimeContext: Record<string, unknown>) {
+async function fetchRealtimeClientSecret(liveMeetingSessionId: string) {
+  const headers = await desktopSessionHeaders({
+    contentType: "application/json",
+    requireAuth: true
+  });
   const response = await fetch(`${apiBaseUrl}/live-meetings/realtime/client-secret`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
+    headers,
     body: JSON.stringify({
-      realtimeContext
+      liveMeetingSessionId
     })
   });
   const payload = await response.json() as {
@@ -326,11 +350,12 @@ async function endOverlayRoundDirect(payload: unknown, reason: string) {
     || `Sesi meeting otomatis ditutup karena ${reason}.`;
 
   try {
+    const headers = await desktopSessionHeaders({
+      contentType: "application/json"
+    });
     const response = await fetch(`${apiBaseUrl}/live-meetings/${encodeURIComponent(endPayload.liveMeetingSessionId)}/end`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers,
       body: JSON.stringify({ transcriptText })
     });
 
@@ -630,6 +655,15 @@ function readRealtimeContext(source: unknown) {
   return context.realtimeContext && typeof context.realtimeContext === "object"
     ? context.realtimeContext as Record<string, unknown>
     : null;
+}
+
+function readLiveMeetingSessionId(source: unknown) {
+  if (!source || typeof source !== "object") {
+    return "";
+  }
+
+  const context = source as { liveMeetingSessionId?: unknown };
+  return typeof context.liveMeetingSessionId === "string" ? context.liveMeetingSessionId : "";
 }
 
 function looksLikeQuestion(text: string) {

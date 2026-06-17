@@ -2,8 +2,6 @@ import type { CreateMeetingContextRequest, UpdateMeetingContextRequest } from "@
 import { preprocessMeetingContextResultSchema, type PreprocessMeetingContextResult } from "../ai/action-schemas.js";
 import { preprocessMeetingContextSpec } from "../ai/action-specs.js";
 import { runOpenAiJsonAction } from "../ai/action-runner.js";
-import { DEV_USER_ID } from "../dev/dev-user.js";
-import { ensureDevUser } from "../dev/dev-user.repository.js";
 import { findActiveProfileDocument, findProfileDocumentById } from "../profile-documents/profile-document.repository.js";
 import {
   createMeetingContext,
@@ -13,20 +11,16 @@ import {
   updateMeetingContext
 } from "./meeting-context.repository.js";
 
-export async function getMeetingContextsForDevUser() {
-  await ensureDevUser();
-  return listMeetingContexts(DEV_USER_ID);
+export async function getMeetingContextsForUser(userId: string) {
+  return listMeetingContexts(userId);
 }
 
-export async function getMeetingContextForDevUser(meetingContextId: string) {
-  await ensureDevUser();
-  return findMeetingContextById(DEV_USER_ID, meetingContextId);
+export async function getMeetingContextForUser(userId: string, meetingContextId: string) {
+  return findMeetingContextById(userId, meetingContextId);
 }
 
-export async function createMeetingContextForDevUser(input: CreateMeetingContextRequest) {
-  await ensureDevUser();
-
-  const activeProfileDocument = await findActiveProfileDocument(DEV_USER_ID);
+export async function createMeetingContextForUser(userId: string, input: CreateMeetingContextRequest) {
+  const activeProfileDocument = await findActiveProfileDocument(userId);
   if (!activeProfileDocument) {
     throw new Error("Upload an active profile document before creating a meeting context.");
   }
@@ -39,16 +33,15 @@ export async function createMeetingContextForDevUser(input: CreateMeetingContext
     profileDocumentReadyContext: activeProfileDocument.readyContext
   });
 
-  return createMeetingContext(DEV_USER_ID, activeProfileDocument.id, {
+  return createMeetingContext(userId, activeProfileDocument.id, {
     ...input,
     meetingSummaryJson: processedMeetingContext,
     meetingContextText: processedMeetingContext.result.contextText
   });
 }
 
-export async function updateMeetingContextForDevUser(meetingContextId: string, input: UpdateMeetingContextRequest) {
-  await ensureDevUser();
-  const existingMeetingContext = await findMeetingContextById(DEV_USER_ID, meetingContextId);
+export async function updateMeetingContextForUser(userId: string, meetingContextId: string, input: UpdateMeetingContextRequest) {
+  const existingMeetingContext = await findMeetingContextById(userId, meetingContextId);
   if (!existingMeetingContext) {
     return null;
   }
@@ -59,11 +52,11 @@ export async function updateMeetingContextForDevUser(meetingContextId: string, i
   const profileDocumentChanged = Object.prototype.hasOwnProperty.call(input, "profileDocumentId");
 
   if (!contentChanged && !profileDocumentChanged) {
-    return updateMeetingContext(DEV_USER_ID, meetingContextId, input);
+    return updateMeetingContext(userId, meetingContextId, input);
   }
 
   const nextProfileDocumentId = input.profileDocumentId ?? existingMeetingContext.profileDocumentId;
-  const linkedProfileDocument = await findProfileDocumentById(DEV_USER_ID, nextProfileDocumentId);
+  const linkedProfileDocument = await findProfileDocumentById(userId, nextProfileDocumentId);
   if (!linkedProfileDocument) {
     throw new Error("Meeting context profile document not found.");
   }
@@ -72,7 +65,7 @@ export async function updateMeetingContextForDevUser(meetingContextId: string, i
   }
 
   if (!contentChanged) {
-    return updateMeetingContext(DEV_USER_ID, meetingContextId, {
+    return updateMeetingContext(userId, meetingContextId, {
       ...input,
       profileDocumentId: linkedProfileDocument.id
     });
@@ -88,7 +81,7 @@ export async function updateMeetingContextForDevUser(meetingContextId: string, i
     profileDocumentReadyContext: linkedProfileDocument.readyContext
   });
 
-  return updateMeetingContext(DEV_USER_ID, meetingContextId, {
+  return updateMeetingContext(userId, meetingContextId, {
     ...input,
     profileDocumentId: linkedProfileDocument.id,
     meetingSummaryJson: processedMeetingContext,
@@ -96,9 +89,8 @@ export async function updateMeetingContextForDevUser(meetingContextId: string, i
   });
 }
 
-export async function deleteMeetingContextForDevUser(meetingContextId: string) {
-  await ensureDevUser();
-  return deleteMeetingContext(DEV_USER_ID, meetingContextId);
+export async function deleteMeetingContextForUser(userId: string, meetingContextId: string) {
+  return deleteMeetingContext(userId, meetingContextId);
 }
 
 async function preprocessMeetingContext(

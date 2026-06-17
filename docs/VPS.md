@@ -79,7 +79,6 @@ Frontend web build env:
 Catatan penting:
 
 - Secret tidak boleh dicommit ke Git.
-- `VITE_MIDTRANS_CLIENT_KEY` adalah build-time env untuk web, jadi harus ada di `apps/web/.env.production` sebelum build web.
 - Backend membaca env dari `.env` root app.
 - Prod memakai `NODE_ENV=production`.
 - Dev memakai `NODE_ENV=development` agar aman memakai database `orviko_dev`.
@@ -342,33 +341,6 @@ cd /srv/orviko/dev/app
 npm run db:migrate
 ```
 
-### Midtrans Client Key Tidak Muncul Di Web
-
-Gejala:
-
-```txt
-Midtrans client key belum tersedia.
-```
-
-Penyebab umum:
-
-- `VITE_MIDTRANS_CLIENT_KEY` hanya ada di root `.env`.
-- Web belum dibuild ulang setelah `.env.production` dibuat.
-
-Fix:
-
-```bash
-cd /srv/orviko/prod/app
-npm --workspace @interview-app/web run build
-```
-
-Untuk dev:
-
-```bash
-cd /srv/orviko/dev/app
-npm --workspace @interview-app/web run build
-```
-
 ### DNS Belum Propagate
 
 Cek:
@@ -437,5 +409,4 @@ Yang membantu:
 - Prod dan dev dipisah lewat port API, folder, branch, dan database.
 - Jangan menjalankan API manual jangka panjang dari terminal; gunakan systemd.
 - Jangan menaruh secret di repo.
-- Flow Midtrans saat ini masih sandbox dan sementara untuk kebutuhan review Midtrans.
-- Production final flow nantinya bisa berubah setelah desktop-first login/payment flow siap.
+- Checkout aktif memakai Lynk.id dan webhook harus dikonfigurasi dengan secret environment yang sesuai.

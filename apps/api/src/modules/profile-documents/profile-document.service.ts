@@ -8,8 +8,6 @@ import { ensureProfileDocumentStorageDir, sanitizeFileName, profileDocumentStora
 import { preprocessProfileDocumentResultSchema, type PreprocessProfileDocumentResult } from "../ai/action-schemas.js";
 import { preprocessProfileDocumentSpec } from "../ai/action-specs.js";
 import { runOpenAiJsonAction } from "../ai/action-runner.js";
-import { DEV_USER_ID } from "../dev/dev-user.js";
-import { ensureDevUser } from "../dev/dev-user.repository.js";
 import {
   createProfileDocument,
   deleteProfileDocument,
@@ -26,19 +24,15 @@ const allowedMimeTypes = new Set([
   "application/pdf"
 ]);
 
-export async function getProfileDocumentListForDevUser() {
-  await ensureDevUser();
-  return listProfileDocuments(DEV_USER_ID);
+export async function getProfileDocumentListForUser(userId: string) {
+  return listProfileDocuments(userId);
 }
 
-export async function getActiveProfileDocumentForDevUser() {
-  await ensureDevUser();
-  return findActiveProfileDocument(DEV_USER_ID);
+export async function getActiveProfileDocumentForUser(userId: string) {
+  return findActiveProfileDocument(userId);
 }
 
-export async function uploadProfileDocumentForDevUser(file: MultipartFile) {
-  await ensureDevUser();
-
+export async function uploadProfileDocumentForUser(userId: string, file: MultipartFile) {
   if (file.mimetype && !allowedMimeTypes.has(file.mimetype)) {
     throw new Error("Unsupported profile document file type. Upload profil saat ini hanya mendukung PDF.");
   }
@@ -54,7 +48,7 @@ export async function uploadProfileDocumentForDevUser(file: MultipartFile) {
   let createdProfileDocument;
   try {
     createdProfileDocument = await createProfileDocument({
-      userId: DEV_USER_ID,
+      userId,
       fileName: file.filename || safeName,
       filePath,
       fileMimeType: file.mimetype,
@@ -70,6 +64,7 @@ export async function uploadProfileDocumentForDevUser(file: MultipartFile) {
   }
 
   queueProfileDocumentProcessing({
+    userId,
     profileDocumentId: createdProfileDocument.id,
     fileName: createdProfileDocument.fileName,
     filePath: createdProfileDocument.filePath,
@@ -79,26 +74,22 @@ export async function uploadProfileDocumentForDevUser(file: MultipartFile) {
   return createdProfileDocument;
 }
 
-export async function setActiveProfileDocumentForDevUser(profileDocumentId: string) {
-  await ensureDevUser();
-
-  const existingProfileDocument = await findProfileDocumentById(DEV_USER_ID, profileDocumentId);
+export async function setActiveProfileDocumentForUser(userId: string, profileDocumentId: string) {
+  const existingProfileDocument = await findProfileDocumentById(userId, profileDocumentId);
   if (!existingProfileDocument) {
     return null;
   }
 
-  return setActiveProfileDocument(DEV_USER_ID, profileDocumentId);
+  return setActiveProfileDocument(userId, profileDocumentId);
 }
 
-export async function retryProfileDocumentProcessingForDevUser(profileDocumentId: string) {
-  await ensureDevUser();
-
-  const existingProfileDocument = await findProfileDocumentById(DEV_USER_ID, profileDocumentId);
+export async function retryProfileDocumentProcessingForUser(userId: string, profileDocumentId: string) {
+  const existingProfileDocument = await findProfileDocumentById(userId, profileDocumentId);
   if (!existingProfileDocument) {
     return null;
   }
 
-  const processingProfileDocument = await updateProfileDocumentProcessingState(DEV_USER_ID, profileDocumentId, {
+  const processingProfileDocument = await updateProfileDocumentProcessingState(userId, profileDocumentId, {
     summaryJson: existingProfileDocument.summaryJson,
     readyContext: existingProfileDocument.readyContext,
     processingStatus: "processing",
@@ -106,6 +97,7 @@ export async function retryProfileDocumentProcessingForDevUser(profileDocumentId
   });
 
   queueProfileDocumentProcessing({
+    userId,
     profileDocumentId: existingProfileDocument.id,
     fileName: existingProfileDocument.fileName,
     filePath: existingProfileDocument.filePath,
@@ -115,28 +107,26 @@ export async function retryProfileDocumentProcessingForDevUser(profileDocumentId
   return processingProfileDocument;
 }
 
-export async function deleteProfileDocumentForDevUser(profileDocumentId: string) {
-  await ensureDevUser();
-
-  const existingProfileDocument = await findProfileDocumentById(DEV_USER_ID, profileDocumentId);
+export async function deleteProfileDocumentForUser(userId: string, profileDocumentId: string) {
+  const existingProfileDocument = await findProfileDocumentById(userId, profileDocumentId);
   if (!existingProfileDocument) {
     return null;
   }
 
-  const linkedMeetingContext = await findMeetingContextUsingProfileDocument(DEV_USER_ID, profileDocumentId);
+  const linkedMeetingContext = await findMeetingContextUsingProfileDocument(userId, profileDocumentId);
   if (linkedMeetingContext) {
     throw new Error("Profile document is still linked to a meeting context and cannot be deleted.");
   }
 
-  const replacementProfileDocument = existingProfileDocument.isActive ? await findLatestReadyProfileDocumentExcluding(DEV_USER_ID, profileDocumentId) : null;
+  const replacementProfileDocument = existingProfileDocument.isActive ? await findLatestReadyProfileDocumentExcluding(userId, profileDocumentId) : null;
 
-  const deletedProfileDocument = await deleteProfileDocument(DEV_USER_ID, profileDocumentId);
+  const deletedProfileDocument = await deleteProfileDocument(userId, profileDocumentId);
   if (!deletedProfileDocument) {
     return null;
   }
 
   if (replacementProfileDocument) {
-    await setActiveProfileDocument(DEV_USER_ID, replacementProfileDocument.id);
+    await setActiveProfileDocument(userId, replacementProfileDocument.id);
   }
 
   await unlink(deletedProfileDocument.filePath).catch((error) => {
@@ -147,16 +137,28 @@ export async function deleteProfileDocumentForDevUser(profileDocumentId: string)
   return deletedProfileDocument;
 }
 
-function queueProfileDocumentProcessing(input: { profileDocumentId: string; fileName: string; filePath: string; fileMimeType?: string | null }) {
+function queueProfileDocumentProcessing(input: {
+  userId: string;
+  profileDocumentId: string;
+  fileName: string;
+  filePath: string;
+  fileMimeType?: string | null;
+}) {
   void processProfileDocumentInBackground(input).catch((error) => {
     const message = error instanceof Error ? error.message : "Unknown background profile document processing error";
     console.warn(`[ai:fallback] background preprocess_user_profile failed: ${message}`);
   });
 }
 
-async function processProfileDocumentInBackground(input: { profileDocumentId: string; fileName: string; filePath: string; fileMimeType?: string | null }) {
+async function processProfileDocumentInBackground(input: {
+  userId: string;
+  profileDocumentId: string;
+  fileName: string;
+  filePath: string;
+  fileMimeType?: string | null;
+}) {
   const processedProfileDocument = await preprocessProfileDocument(input);
-  await updateProfileDocumentProcessingState(DEV_USER_ID, input.profileDocumentId, {
+  await updateProfileDocumentProcessingState(input.userId, input.profileDocumentId, {
     summaryJson: processedProfileDocument,
     readyContext: processedProfileDocument.result.readyContext,
     processingStatus: processedProfileDocument.status === "success" || processedProfileDocument.status === "partial" ? "ready" : "failed",

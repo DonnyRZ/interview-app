@@ -1,10 +1,8 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
 import { buildApp } from "../src/app.js";
 import { env, parseBooleanEnv } from "../src/env.js";
 import { createOAuthState, parseOAuthState } from "../src/modules/auth/session.js";
 import { parseLynkWebhook } from "../src/modules/payments/lynk.client.js";
-import { midtransBaseUrl, verifyMidtransSignature } from "../src/modules/payments/midtrans.client.js";
 import { planCatalog } from "../src/modules/payments/plan-catalog.js";
 
 async function run() {
@@ -16,10 +14,6 @@ async function run() {
   assert.equal(parseBooleanEnv(undefined), false);
   assert.equal(parseBooleanEnv("true"), true);
   assert.equal(parseBooleanEnv(true), true);
-
-  if (env.MIDTRANS_ENV === "sandbox" && !env.MIDTRANS_IS_PRODUCTION) {
-    assert.equal(midtransBaseUrl(), "https://app.sandbox.midtrans.com");
-  }
 
   const state = createOAuthState("starter");
   assert.equal(parseOAuthState(state)?.plan, "starter");
@@ -41,27 +35,101 @@ async function run() {
   });
   assert.equal(lynkPayload.isSuccess, true);
   assert.equal(lynkPayload.customerEmail, "buyer@example.com");
-  assert.equal(lynkPayload.plan, "starter");
+  assert.equal(lynkPayload.productName, "Orviko Starter");
+  assert.equal(lynkPayload.transactionId, "LYNK-TEST-1");
+  assert.equal(lynkPayload.amount, 98_000);
+  assert.equal("plan" in lynkPayload, false);
 
-  assert.equal(verifyMidtransSignature({
-    order_id: "ORVIKO-TEST",
-    status_code: "200",
-    gross_amount: "98000",
-    signature_key: "invalid"
-  }), false);
+  const lynkPayloadWithGenericIds = parseLynkWebhook({
+    event_name: "Product Sold",
+    id: "GENERIC-ROOT-ID",
+    customer: {
+      id: "CUSTOMER-ID",
+      email: "Buyer@Example.com",
+      name: "Buyer Test"
+    },
+    product: {
+      id: "PRODUCT-ID",
+      invoice_id: "PRODUCT-INVOICE-ID",
+      name: "Orviko Starter"
+    },
+    metadata: {
+      order_id: "METADATA-ORDER-ID"
+    },
+    total_amount: 98_000
+  });
+  assert.equal(lynkPayloadWithGenericIds.transactionId, "");
 
-  if (env.MIDTRANS_SERVER_KEY) {
-    const signature = createHash("sha512")
-      .update(`ORVIKO-TEST20098000${env.MIDTRANS_SERVER_KEY}`)
-      .digest("hex");
-    assert.equal(verifyMidtransSignature({
-      order_id: "ORVIKO-TEST",
-      status_code: "200",
-      gross_amount: "98000",
-      signature_key: signature
-    }), true);
+  const lynkPayloadWithPaymentId = parseLynkWebhook({
+    event_name: "Product Sold",
+    payment_id: "LYNK-PAYMENT-1",
+    customer: {
+      email: "Buyer@Example.com",
+      name: "Buyer Test"
+    },
+    product: {
+      name: "Orviko Starter"
+    },
+    total_amount: 98_000
+  });
+  assert.equal(lynkPayloadWithPaymentId.transactionId, "LYNK-PAYMENT-1");
+
+  const lynkPayloadWithNestedTransactionId = parseLynkWebhook({
+    event_name: "Product Sold",
+    transaction: {
+      id: "LYNK-TRANSACTION-1"
+    },
+    customer: {
+      email: "Buyer@Example.com",
+      name: "Buyer Test"
+    },
+    product: {
+      name: "Orviko Starter"
+    },
+    total_amount: 98_000
+  });
+  assert.equal(lynkPayloadWithNestedTransactionId.transactionId, "LYNK-TRANSACTION-1");
+
+  const lynkPayloadWithNestedPaymentId = parseLynkWebhook({
+    event_name: "Product Sold",
+    payment: {
+      id: "LYNK-PAYMENT-NESTED-1"
+    },
+    customer: {
+      email: "Buyer@Example.com",
+      name: "Buyer Test"
+    },
+    product: {
+      name: "Orviko Starter"
+    },
+    total_amount: 98_000
+  });
+  assert.equal(lynkPayloadWithNestedPaymentId.transactionId, "LYNK-PAYMENT-NESTED-1");
+
+  for (const failedPayload of [
+    { event_name: "payment_unsuccessful", status: "failed" },
+    { event_name: "Payment", status: "not_successful" },
+    { event_name: "Payment", status: "unpaid" },
+    { event_name: "Payment", status: "expired" },
+    { event_name: "Payment", status: "cancelled" }
+  ]) {
+    const parsedFailedPayload = parseLynkWebhook({
+      ...failedPayload,
+      trx_id: "LYNK-FAILED-1",
+      customer: {
+        email: "Buyer@Example.com",
+        name: "Buyer Test"
+      },
+      product: {
+        name: "Orviko Starter"
+      },
+      total_amount: 98_000
+    });
+    assert.equal(parsedFailedPayload.isSuccess, false);
   }
 
+  const originalLynkWebhookSecret = env.LYNK_WEBHOOK_SECRET;
+  env.LYNK_WEBHOOK_SECRET = "test-lynk-secret";
   const app = buildApp();
   try {
     const meResponse = await app.inject({
@@ -83,21 +151,43 @@ async function run() {
     });
     assert.equal(invalidDesktopExchangeResponse.statusCode, 401);
 
-    const paymentResponse = await app.inject({
-      method: "POST",
-      url: "/payments/midtrans/create",
-      payload: { plan: "starter" }
-    });
-    assert.equal(paymentResponse.statusCode, 401);
-
-    const lynkWebhookTestResponse = await app.inject({
+    const lynkWebhookNoSecretResponse = await app.inject({
       method: "POST",
       url: "/payments/lynk/webhook",
       payload: { event_name: "Test URL" }
     });
+    assert.equal(lynkWebhookNoSecretResponse.statusCode, 401);
+
+    const lynkWebhookWrongSecretResponse = await app.inject({
+      method: "POST",
+      url: "/payments/lynk/webhook",
+      headers: {
+        "x-orviko-lynk-webhook-secret": "wrong-secret"
+      },
+      payload: { event_name: "Test URL" }
+    });
+    assert.equal(lynkWebhookWrongSecretResponse.statusCode, 401);
+
+    const lynkWebhookTestResponse = await app.inject({
+      method: "POST",
+      url: "/payments/lynk/webhook",
+      headers: {
+        "x-orviko-lynk-webhook-secret": "test-lynk-secret"
+      },
+      payload: { event_name: "Test URL" }
+    });
     assert.equal(lynkWebhookTestResponse.statusCode, 200);
     assert.equal(lynkWebhookTestResponse.json().ok, true);
+
+    const lynkWebhookQueryFallbackResponse = await app.inject({
+      method: "POST",
+      url: "/payments/lynk/webhook?secret=test-lynk-secret",
+      payload: { event_name: "Test URL" }
+    });
+    assert.equal(lynkWebhookQueryFallbackResponse.statusCode, 200);
+    assert.equal(lynkWebhookQueryFallbackResponse.json().ok, true);
   } finally {
+    env.LYNK_WEBHOOK_SECRET = originalLynkWebhookSecret;
     await app.close();
   }
 }

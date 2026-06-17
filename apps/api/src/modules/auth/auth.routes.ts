@@ -39,7 +39,8 @@ function mapAuthUser(user: Awaited<ReturnType<typeof findUserById>>) {
     name: user.name,
     picture: user.picture,
     subscriptionPlan: user.subscriptionPlan,
-    subscriptionExpiresAt: user.subscriptionExpiresAt?.toISOString() || null
+    subscriptionExpiresAt: user.subscriptionExpiresAt?.toISOString() || null,
+    subscriptionPeriodStartedAt: user.subscriptionPeriodStartedAt?.toISOString() || null
   };
 }
 

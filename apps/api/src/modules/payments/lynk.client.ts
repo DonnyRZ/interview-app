@@ -1,10 +1,69 @@
 import { env } from "../../env.js";
-import { planCatalog, planSlugSchema, type PlanSlug } from "./plan-catalog.js";
+import type { PlanSlug } from "./plan-catalog.js";
 
 type LynkWebhookPayload = Record<string, unknown>;
 
+const successStatusTokens = new Set([
+  "capture",
+  "captured",
+  "complete",
+  "completed",
+  "paid",
+  "settlement",
+  "settled",
+  "sold",
+  "success",
+  "successful"
+]);
+
+const failureStatusTokens = new Set([
+  "cancel",
+  "canceled",
+  "cancelled",
+  "chargeback",
+  "deny",
+  "denied",
+  "expire",
+  "expired",
+  "fail",
+  "failed",
+  "failure",
+  "notpaid",
+  "refund",
+  "refunded",
+  "unsuccessful",
+  "void",
+  "voided"
+]);
+
 function normalizeText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function tokenizeStatusText(...values: string[]) {
+  return values
+    .flatMap((value) => value.toLowerCase().split(/[^a-z0-9]+/))
+    .filter(Boolean);
+}
+
+function hasNegatedSuccessStatus(tokens: string[]) {
+  return tokens.some((token, index) => {
+    if (!["no", "non", "not", "un"].includes(token)) {
+      return false;
+    }
+
+    const nextToken = tokens[index + 1];
+    return !!nextToken && successStatusTokens.has(nextToken);
+  });
+}
+
+function isSuccessfulWebhookStatus(eventName: string, status: string) {
+  const tokens = tokenizeStatusText(eventName, status);
+  if (tokens.some((token) => failureStatusTokens.has(token)) || hasNegatedSuccessStatus(tokens)) {
+    return false;
+  }
+
+  return tokens.some((token) => successStatusTokens.has(token));
 }
 
 function flattenPayload(value: unknown, prefix = "", output: Record<string, unknown> = {}) {
@@ -21,11 +80,16 @@ function flattenPayload(value: unknown, prefix = "", output: Record<string, unkn
   return output;
 }
 
-function firstString(payload: LynkWebhookPayload, keys: string[]) {
+function normalizePayloadPath(path: string) {
+  return path.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function firstString(payload: LynkWebhookPayload, allowedPaths: string[]) {
   const flat = flattenPayload(payload);
+  const allowed = new Set(allowedPaths.map(normalizePayloadPath));
   for (const [path, value] of Object.entries(flat)) {
-    const normalizedPath = path.toLowerCase().replace(/[^a-z0-9]/g, "");
-    if (!keys.some((key) => normalizedPath.endsWith(key))) {
+    const normalizedPath = normalizePayloadPath(path);
+    if (!allowed.has(normalizedPath)) {
       continue;
     }
 
@@ -38,11 +102,12 @@ function firstString(payload: LynkWebhookPayload, keys: string[]) {
   return "";
 }
 
-function firstNumber(payload: LynkWebhookPayload, keys: string[]) {
+function firstNumber(payload: LynkWebhookPayload, allowedPaths: string[]) {
   const flat = flattenPayload(payload);
+  const allowed = new Set(allowedPaths.map(normalizePayloadPath));
   for (const [path, value] of Object.entries(flat)) {
-    const normalizedPath = path.toLowerCase().replace(/[^a-z0-9]/g, "");
-    if (!keys.some((key) => normalizedPath.endsWith(key))) {
+    const normalizedPath = normalizePayloadPath(path);
+    if (!allowed.has(normalizedPath)) {
       continue;
     }
 
@@ -55,22 +120,6 @@ function firstNumber(payload: LynkWebhookPayload, keys: string[]) {
   return 0;
 }
 
-function planFromProductName(productName: string) {
-  const normalized = productName.toLowerCase();
-  for (const plan of planSlugSchema.options) {
-    if (normalized.includes(plan)) {
-      return plan;
-    }
-  }
-
-  return null;
-}
-
-function planFromAmount(amount: number) {
-  const match = planSlugSchema.options.find((plan) => planCatalog[plan].grossAmount === amount);
-  return match || null;
-}
-
 export function getLynkCheckoutUrl(plan: PlanSlug) {
   const planUrls: Record<PlanSlug, string | undefined> = {
     mini: env.LYNK_MINI_URL,
@@ -81,25 +130,57 @@ export function getLynkCheckoutUrl(plan: PlanSlug) {
   return planUrls[plan] || env.LYNK_PROFILE_URL;
 }
 
-export function verifyLynkWebhookSecret(secret: unknown) {
+export function verifyLynkWebhookSecret(headerSecret: unknown, querySecret?: unknown) {
   if (!env.LYNK_WEBHOOK_SECRET) {
-    return true;
+    return env.NODE_ENV !== "production";
   }
 
-  return normalizeText(secret) === env.LYNK_WEBHOOK_SECRET;
+  const secret = normalizeText(Array.isArray(headerSecret) ? headerSecret[0] : headerSecret)
+    || normalizeText(querySecret);
+  return secret === env.LYNK_WEBHOOK_SECRET;
 }
 
 export function parseLynkWebhook(payload: LynkWebhookPayload) {
-  const eventName = firstString(payload, ["event", "eventname", "type", "trigger"]);
-  const status = firstString(payload, ["status", "paymentstatus", "transactionstatus"]);
-  const customerEmail = firstString(payload, ["email", "customeremail", "buyeremail"]).toLowerCase();
-  const customerName = firstString(payload, ["customername", "buyername", "fullname"]);
-  const productName = firstString(payload, ["productname", "producttitle", "itemname", "title"]);
-  const transactionId = firstString(payload, ["trxid", "transactionid", "orderid", "invoiceid", "id"]);
-  const amount = firstNumber(payload, ["amount", "total", "totalamount", "price", "grossamount"]);
-  const plan = planFromProductName(productName) || planFromAmount(amount);
-  const successText = `${eventName} ${status}`.toLowerCase();
-  const isSuccess = ["sold", "success", "settlement", "paid", "completed"].some((keyword) => successText.includes(keyword));
+  const eventName = firstString(payload, ["event", "event_name", "event.name", "type", "trigger"]);
+  const status = firstString(payload, ["status", "payment_status", "payment.status", "transaction_status", "transaction.status"]);
+  const customerEmail = firstString(payload, ["email", "customer_email", "customer.email", "buyer_email", "buyer.email"]).toLowerCase();
+  const customerName = firstString(payload, ["customer_name", "customer.name", "buyer_name", "buyer.name", "full_name", "full.name"]);
+  const productName = firstString(payload, ["product_name", "product.name", "product_title", "product.title", "item_name", "item.name", "title"]);
+  const transactionId = firstString(payload, [
+    "trx_id",
+    "transaction_id",
+    "transaction.id",
+    "transaction.trx_id",
+    "payment_id",
+    "payment.id",
+    "payment.trx_id",
+    "order_id",
+    "order.id",
+    "order.trx_id",
+    "invoice_id",
+    "invoice.id",
+    "invoice.trx_id"
+  ]);
+  const amount = firstNumber(payload, [
+    "amount",
+    "total",
+    "total_amount",
+    "price",
+    "gross_amount",
+    "payment.amount",
+    "payment.total",
+    "payment.total_amount",
+    "transaction.amount",
+    "transaction.total",
+    "transaction.total_amount",
+    "order.amount",
+    "order.total",
+    "order.total_amount",
+    "invoice.amount",
+    "invoice.total",
+    "invoice.total_amount"
+  ]);
+  const isSuccess = isSuccessfulWebhookStatus(eventName, status);
 
   return {
     eventName,
@@ -109,7 +190,6 @@ export function parseLynkWebhook(payload: LynkWebhookPayload) {
     productName,
     transactionId,
     amount,
-    plan,
     isSuccess
   };
 }

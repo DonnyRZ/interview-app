@@ -31,6 +31,7 @@ type DesktopAuthUser = {
   picture: string | null;
   subscriptionPlan: string;
   subscriptionExpiresAt: string | null;
+  subscriptionPeriodStartedAt: string | null;
 };
 
 type DesktopAuthState = {
