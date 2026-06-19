@@ -8,44 +8,57 @@ const outputPath = path.join(repoRoot, "Price-Calc", "orviko-pricing-rev.xlsx");
 
 const simulation = {
   runFolders: [
-    "live-meeting-simulation-20260601-163137",
-    "live-meeting-simulation-20260601-164219",
-    "live-meeting-simulation-20260601-165300"
+    "live-meeting-simulation-20260618-092505",
+    "live-meeting-simulation-20260618-093747",
+    "live-meeting-simulation-20260618-094909",
+    "live-meeting-simulation-20260618-100054",
+    "live-meeting-simulation-20260618-101118",
+    "live-meeting-simulation-20260618-110430",
+    "live-meeting-simulation-20260618-111526",
+    "live-meeting-simulation-20260618-112542",
+    "live-meeting-simulation-20260618-113626",
+    "live-meeting-simulation-20260618-114641"
   ],
-  runDate: "2026-06-01",
-  sampleMinutes: 8.4,
+  runDate: "2026-06-18",
+  sourceFolder: "token-audit-live-10x-20260618",
+  aggregateFolder: "token-usage-audit-10x-20260618",
+  sampleMinutes: 8.41186388888889,
   targetMinutes: 45,
-  helpClicks: 7,
-  keywordRequestsAvg: 18.6666666667,
+  scheduledHelpClicks: 7,
+  helpClicksCompletedAvg: 6.7,
+  validRuns: 7,
+  observedRuns: 10,
+  keywordRequestsAvg: 18.3,
   transcriptTurns: 24,
-  usageRecords: 48,
+  usageRecords: 48.5,
   transcribeInputTokens: 4075,
-  transcribeOutputTokensAvg: 848,
-  realtimeInputTokensAvg: 250980.33333333334,
-  realtimeCachedInputTokensAvg: 231317.33333333334,
-  realtimeOutputTokensAvg: 1432.3333333333333,
-  projected45UsdMin: 0.224613,
-  projected45UsdAvg: 0.24417557142857138,
-  projected45UsdMax: 0.26649792857142851,
-  projected45IdrMin: 4492.259999999999,
-  projected45IdrAvg: 4883.511428571427,
-  projected45IdrMax: 5329.95857142857
+  transcribeOutputTokensAvg: 847.6,
+  realtimeInputTokensAvg: 271163.6,
+  realtimeCachedInputTokensAvg: 248019.2,
+  realtimeOutputTokensAvg: 1606.1,
+  projected45UsdMin: 0.22505906241548394,
+  projected45UsdAvg: 0.26258680230402087,
+  projected45UsdMax: 0.30970023224473635,
+  projected45IdrMin: 4501.181248309679,
+  projected45IdrAvg: 5251.7360460804175,
+  projected45IdrMax: 6194.004644894727
 };
 
 const preprocessingSimulation = {
-  runFolder: "preprocessing-simulation-20260602-200715",
-  runCount: 5,
-  runDate: "2026-06-02",
+  runFolder: "token-audit-preprocessing-10x-20260618",
+  aggregateFolder: "token-usage-audit-10x-20260618",
+  runCount: 10,
+  runDate: "2026-06-18",
   model: "gpt-5-mini",
   profileInputTokensAvg: 2227,
-  profileOutputTokensAvg: 5045.8,
-  profileTotalTokensAvg: 7272.8,
-  meetingInputTokensAvg: 1527.6,
-  meetingOutputTokensAvg: 2981.4,
-  meetingTotalTokensAvg: 4509,
-  combinedInputTokensAvg: 3754.6,
-  combinedOutputTokensAvg: 8027.2,
-  combinedTotalTokensAvg: 11781.8
+  profileOutputTokensAvg: 4872.9,
+  profileTotalTokensAvg: 7099.9,
+  meetingInputTokensAvg: 1534.1,
+  meetingOutputTokensAvg: 3314.8,
+  meetingTotalTokensAvg: 4848.9,
+  combinedInputTokensAvg: 3761.1,
+  combinedOutputTokensAvg: 8187.7,
+  combinedTotalTokensAvg: 11948.8
 };
 
 const blob = await FileBlob.load(inputPath);
@@ -62,10 +75,10 @@ inputs.getRange("A3:G14").values = [
   ["Commercial Inputs", "Value", "Notes", null, "Policy Inputs", "Value", "Notes"],
   ["VAT included in public price", 0.11, "PPN 11% sudah termasuk harga paket", null, "Operational safety reserve", 0.14, "Cadangan tambahan sebelum menentukan sesi jual"],
   ["Bank fee fixed deduction", 0.14, "Existing package formula subtracts this fixed amount before VAT removal", null, null, null, null],
-  ["Target gross margin", 0.3, "Margin target setelah VAT dikeluarkan", null, "Live meeting baseline mode", "Measured average billing cost", "Baseline memakai rata-rata 3 real API replay; cached token adalah discount billing input, bukan output kedua"],
-  ["AI cost share", null, "Formula = 1 / (1 + target gross margin); dipakai sebagai budget AI dari price ex VAT", null, "Profile / Meeting Context policy", "Measured preprocessing", "Profil dan konteks meeting memakai rata-rata 5 real API preprocessing runs"],
+  ["Target gross margin", 0.3, "Margin target setelah VAT dikeluarkan", null, "Live meeting baseline mode", "Measured observed average billing cost", "Baseline memakai rata-rata 10 full Realtime replay; cached token adalah discount billing input, bukan output kedua"],
+  ["AI cost share", null, "Formula = 1 / (1 + target gross margin); dipakai sebagai budget AI dari price ex VAT", null, "Profile / Meeting Context policy", "Measured preprocessing", "Profil dan konteks meeting memakai rata-rata 10 real API preprocessing runs"],
   ["USD to IDR", 20000, "Asumsi kurs tetap", null, "Reference sample duration (minutes)", simulation.sampleMinutes, "Durasi sample audio untuk replay real API"],
-  ["Mini public price", 29000, "Harga customer final", null, "Reference sample help clicks", simulation.helpClicks, "Jumlah klik bantuan yang direplay merata sepanjang sample"],
+  ["Mini public price", 29000, "Harga customer final", null, "Reference scheduled help clicks", simulation.scheduledHelpClicks, "Jumlah klik bantuan yang dijadwalkan merata sepanjang sample; observed completed avg ada di Benchmarks"],
   ["Starter public price", 98000, "Harga customer final", null, "Primary runtime actions", "Jawab/Tanggapi/Follow-up/Explain/Keywords/Ask", "General meeting overlay actions; user tetap memilih kapan bantuan AI muncul"],
   ["Pro public price", 379000, "Harga customer final", null, "Notes", "General meeting assistant", "Berlaku untuk meeting online umum: interview, B2B, internal, sales, planning, review, dan konteks lain"],
   ["Meeting duration (minutes)", simulation.targetMinutes, "Unit sesi utama untuk pricing", null, null, null, null],
@@ -78,41 +91,41 @@ inputs.getRange("B7").formulas = [["=1/(1+B6)"]];
 benchmarks.getRange("A1").values = [["Measured General Meeting Runtime Benchmarks"]];
 benchmarks.getRange("A3:G31").values = [
   ["Metric", "Value", "Notes", null, "Pricing Metric", "Value", "Notes"],
-  ["Avg transcribe input tokens", simulation.transcribeInputTokens, "Average of 3 real API replays; transcription prompt text + audio input tokens", null, "Transcribe input price per 1M tokens (USD)", 3, "Pricing assumption; update only when pricing source changes"],
-  ["Avg transcribe output tokens", simulation.transcribeOutputTokensAvg, "Average of 3 real API replays; transcription output tokens", null, "Transcribe output price per 1M tokens (USD)", 5, "Pricing assumption; update only when pricing source changes"],
-  ["Avg realtime total input tokens", simulation.realtimeInputTokensAvg, "Average total realtime input tokens from API usage", null, "Realtime regular input price per 1M tokens (USD)", 0.6, "Pricing assumption; applies to regular-priced input tokens"],
+  ["Avg transcribe input tokens", simulation.transcribeInputTokens, "Average of 10 full Realtime replays; transcription prompt text + audio input tokens", null, "Transcribe input price per 1M tokens (USD)", 3, "Pricing assumption; update only when pricing source changes"],
+  ["Avg transcribe output tokens", simulation.transcribeOutputTokensAvg, "Average of 10 full Realtime replays; transcription output tokens", null, "Transcribe output price per 1M tokens (USD)", 5, "Pricing assumption; update only when pricing source changes"],
+  ["Avg realtime total input tokens", simulation.realtimeInputTokensAvg, "Average response.done realtime input tokens from 10 full replays", null, "Realtime regular input price per 1M tokens (USD)", 0.6, "Pricing assumption; applies to regular-priced input tokens"],
   ["Less: avg realtime cached input tokens", simulation.realtimeCachedInputTokensAvg, "Cached input is part of total input, priced at discounted rate", null, "Realtime cached input price per 1M tokens (USD)", 0.06, "Pricing assumption; discounted portion of input tokens"],
   ["Avg realtime regular-priced input tokens", null, "Formula: total input minus cached input", null, "Realtime output price per 1M tokens (USD)", 2.4, "Pricing assumption; generated text output tokens"],
   ["Sample duration (minutes)", null, "Linked from Inputs", null, "gpt-5-mini input price per 1M tokens (USD)", 0.25, "For future profile/context preprocessing measurement"],
   ["45-minute scale factor", null, "Target duration / sample duration", null, "gpt-5-mini output price per 1M tokens (USD)", 2, "For future profile/context preprocessing measurement"],
-  ["Observed help rate per minute", null, "Sample help clicks / sample duration", null, "Transcribe sample cost (USD)", null, "Formula from measured transcribe input/output tokens"],
-  ["Avg realtime output tokens", simulation.realtimeOutputTokensAvg, "Average realtime answer/keyword output tokens", null, "Realtime sample measured billing cost (USD)", null, "Formula: regular-priced input + cached input + output"],
-  ["Observed help clicks per 45-minute meeting", null, "Help rate scaled to target duration", null, "Total sample measured billing cost (USD)", null, "Transcribe + realtime measured billing"],
-  ["User Profile preprocessing input tokens", preprocessingSimulation.profileInputTokensAvg, "Average of 5 real preprocessing API runs", null, "User Profile preprocessing output tokens", preprocessingSimulation.profileOutputTokensAvg, "Average output tokens from profile document preprocessing"],
-  ["Meeting Context preprocessing input tokens", preprocessingSimulation.meetingInputTokensAvg, "Average of 5 real preprocessing API runs", null, "Meeting Context preprocessing output tokens", preprocessingSimulation.meetingOutputTokensAvg, "Average output tokens from meeting context preprocessing"],
+  ["Observed completed help rate per minute", null, "Completed help actions avg / sample duration", null, "Transcribe sample cost (USD)", null, "Formula from measured transcribe input/output tokens"],
+  ["Avg realtime output tokens", simulation.realtimeOutputTokensAvg, "Average response.done realtime text output tokens", null, "Realtime sample measured billing cost (USD)", null, "Formula: regular-priced input + cached input + output"],
+  ["Observed completed help actions per 45-minute meeting", null, "Completed help rate scaled to target duration", null, "Total sample measured billing cost (USD)", null, "Transcribe + realtime measured billing"],
+  ["User Profile preprocessing input tokens", preprocessingSimulation.profileInputTokensAvg, "Average of 10 real preprocessing API runs", null, "User Profile preprocessing output tokens", preprocessingSimulation.profileOutputTokensAvg, "Average output tokens from profile document preprocessing"],
+  ["Meeting Context preprocessing input tokens", preprocessingSimulation.meetingInputTokensAvg, "Average of 10 real preprocessing API runs", null, "Meeting Context preprocessing output tokens", preprocessingSimulation.meetingOutputTokensAvg, "Average output tokens from meeting context preprocessing"],
   ["Profile + Meeting Context input tokens", null, "Formula: profile input + meeting context input", null, "Profile + Meeting Context output tokens", null, "Formula: profile output + meeting context output"],
   [null, null, null, null, null, null, null],
   ["Derived 45-minute meeting costs", "Formula result", "Notes", null, "Preprocessing costs", "Formula result", "Notes"],
   ["45-minute measured avg live runtime cost (USD)", null, "Average measured billing cost x scale factor", null, "User Profile preprocess cost (IDR)", null, "gpt-5-mini input/output tokens x FX"],
   ["45-minute measured avg live runtime cost (IDR)", null, "USD x FX", null, "Meeting Context preprocess cost (IDR)", null, "gpt-5-mini input/output tokens x FX"],
   ["Rounded measured avg live runtime cost (IDR)", null, "Used by Packages as one clear measured baseline", null, "Profile + Meeting Context preprocess cost (IDR)", null, "User Profile + Meeting Context preprocessing"],
-  ["Measured 45-min range (IDR)", simulation.projected45IdrMin, "Low observed from 3 real API replays", null, "Measured 45-min high (IDR)", simulation.projected45IdrMax, "High observed from 3 real API replays"],
+  ["Measured 45-min range (IDR)", simulation.projected45IdrMin, "Low observed from 10 full Realtime replays", null, "Measured 45-min high (IDR)", simulation.projected45IdrMax, "High observed from 10 full Realtime replays"],
   ["Real-run audit metrics", "Value", "Notes", null, "Source / Metric", "Value", "Notes"],
-  ["Simulation source", null, "3 run folders listed in script; workbook stores aggregate results", null, "Realtime model", "gpt-realtime-mini", "Live response + keyword runtime"],
-  ["Transcription model", "gpt-4o-mini-transcribe", "Realtime input transcription model", null, "Usage records avg", simulation.usageRecords, "Average usage records across 3 runs"],
-  ["Transcript turns", simulation.transcriptTurns, "Stable across 3 sample replays", null, "Keyword requests avg", simulation.keywordRequestsAvg, "Observed range: 18-19"],
-  ["Help clicks completed", null, "Linked from Inputs sample help clicks", null, "Preprocessing source", "5 real API runs", preprocessingSimulation.runFolder],
+  ["Simulation source", simulation.sourceFolder, "10 complete run folders listed in script; one failed partial folder is excluded", null, "Realtime model", "gpt-realtime-mini", "Live response + keyword runtime"],
+  ["Transcription model", "gpt-4o-mini-transcribe", "Realtime input transcription model", null, "Usage records avg", simulation.usageRecords, "Average usage records across 10 full replays"],
+  ["Transcript turns", simulation.transcriptTurns, "Stable across 10 full replays", null, "Keyword requests avg", simulation.keywordRequestsAvg, "Observed range: 18-19"],
+  ["Help clicks completed avg", simulation.helpClicksCompletedAvg, "Observed average completed help actions; scheduled sample clicks = 7", null, "Preprocessing source", `${preprocessingSimulation.runCount} real API runs`, preprocessingSimulation.runFolder],
   ["Avg measured API tokens", null, "Formula: transcribe input + transcribe output + realtime input + realtime output; cached tokens are subset of realtime input", null, "Projected 45-min tokens", null, "Avg measured tokens x scale factor"],
   ["Preprocessing measured tokens", null, "Formula: profile + meeting context preprocessing total tokens", null, "Preprocessing model", preprocessingSimulation.model, "Backend non-live preprocessing model"],
-  [null, null, null, null, null, null, null],
-  [null, null, null, null, null, null, null]
+  ["Live run validation", `${simulation.validRuns}/${simulation.observedRuns} full-valid`, "7 runs completed all 7 help actions; 3 observed runs completed 6/7 and are included as observed reality", null, "Aggregate source", simulation.aggregateFolder, "summary.json + README.md"],
+  ["Pricing token basis", "Observed average", "Uses all 10 completed replays, not valid-only subset, to represent actual runtime behavior", null, "Preprocessing aggregate", preprocessingSimulation.aggregateFolder, "Combined 10x preprocessing + 10x live usage audit"]
 ];
 
 benchmarks.getRange("B8:B11").formulas = [
   ["=B6-B7"],
   ["=Inputs!F8"],
   ["=Inputs!B12/B9"],
-  ["=Inputs!F9/B9"]
+  ["=B27/B9"]
 ];
 benchmarks.getRange("B13").formulas = [["=B11*Inputs!B12"]];
 benchmarks.getRange("B16").formulas = [["=B14+B15"]];
@@ -136,10 +149,7 @@ benchmarks.getRange("F19:F21").formulas = [
   ["=ROUND(((B15/1000000)*F9 + (F15/1000000)*F10)*Inputs!B8,0)"],
   ["=F19+F20"]
 ];
-benchmarks.getRange("B27:B28").formulas = [
-  ["=Inputs!F9"],
-  ["=B4+B5+B6+B12"]
-];
+benchmarks.getRange("B28").formulas = [["=B4+B5+B6+B12"]];
 benchmarks.getRange("F28").formulas = [["=B28*B10"]];
 benchmarks.getRange("B29").formulas = [["=B16+F16"]];
 
@@ -151,8 +161,8 @@ packages.getRange("A3:J12").values = [
   ["Pro", null, null, null, null, null, null, null, null, null],
   [null, null, null, null, null, null, null, null, null, null],
   ["Preprocessing capacity from remaining buffer", "Mini", "Starter", "Pro", "Formula", "Notes", null, null, null, null],
-  ["User Profile preprocessing capacity", null, null, null, "Buffer / profile cost", "Uses 5-run measured User Profile preprocessing cost", null, null, null, null],
-  ["Meeting Context preprocessing capacity", null, null, null, "Buffer / meeting context cost", "Uses 5-run measured Meeting Context preprocessing cost", null, null, null, null],
+  ["User Profile preprocessing capacity", null, null, null, "Buffer / profile cost", "Uses 10-run measured User Profile preprocessing cost", null, null, null, null],
+  ["Meeting Context preprocessing capacity", null, null, null, "Buffer / meeting context cost", "Uses 10-run measured Meeting Context preprocessing cost", null, null, null, null],
   ["Profile + Meeting Context capacity", null, null, null, "Buffer / combined preprocessing cost", "One profile + one meeting context pair capacity", null, null, null, null],
   ["Implied target reserve % kept", null, null, null, 1, "Checks policy reserve actually preserved", null, null, null, null]
 ];
@@ -230,7 +240,7 @@ function formatWorkbook({ inputs, benchmarks, packages, roi }) {
   inputs.getRange("B4:B7").format.numberFormat = "0.0%";
   inputs.getRange("B8:B12").format.numberFormat = "#,##0";
   inputs.getRange("F4").format.numberFormat = "0.0%";
-  inputs.getRange("F8").format.numberFormat = "0.0";
+  inputs.getRange("F8").format.numberFormat = "0.000000";
   inputs.getRange("F9").format.numberFormat = "#,##0";
 
   benchmarks.getRange("A1:G1").format = titleFormat();
@@ -245,19 +255,22 @@ function formatWorkbook({ inputs, benchmarks, packages, roi }) {
   benchmarks.getRange("E:E").format.columnWidthPx = 260;
   benchmarks.getRange("F:F").format.columnWidthPx = 160;
   benchmarks.getRange("G:G").format.columnWidthPx = 340;
-  benchmarks.getRange("B4:B8").format.numberFormat = "#,##0";
-  benchmarks.getRange("B9").format.numberFormat = "0.0";
+  benchmarks.getRange("B4").format.numberFormat = "#,##0";
+  benchmarks.getRange("B5:B8").format.numberFormat = "#,##0.0";
+  benchmarks.getRange("B9").format.numberFormat = "0.000000";
   benchmarks.getRange("B10:B11").format.numberFormat = "0.000000";
-  benchmarks.getRange("B12").format.numberFormat = "#,##0";
+  benchmarks.getRange("B12:B13").format.numberFormat = "#,##0.0";
   benchmarks.getRange("B13").format.numberFormat = "0.0";
-  benchmarks.getRange("B14:B16").format.numberFormat = "#,##0";
+  benchmarks.getRange("B14:B16").format.numberFormat = "#,##0.0";
   benchmarks.getRange("B19").format.numberFormat = "0.000000";
   benchmarks.getRange("B20:B22").format.numberFormat = "#,##0";
-  benchmarks.getRange("B26:B28").format.numberFormat = "#,##0";
+  benchmarks.getRange("B26").format.numberFormat = "#,##0";
+  benchmarks.getRange("B27").format.numberFormat = "0.0";
+  benchmarks.getRange("B28:B29").format.numberFormat = "#,##0.0";
   benchmarks.getRange("F4:F13").format.numberFormat = "0.000000";
-  benchmarks.getRange("F14:F16").format.numberFormat = "#,##0";
-  benchmarks.getRange("F14:F22").format.numberFormat = "#,##0";
-  benchmarks.getRange("F25").format.numberFormat = "#,##0";
+  benchmarks.getRange("F14:F16").format.numberFormat = "#,##0.0";
+  benchmarks.getRange("F19:F22").format.numberFormat = "#,##0";
+  benchmarks.getRange("F25").format.numberFormat = "0.0";
   benchmarks.getRange("F26").format.numberFormat = "0.0";
   benchmarks.getRange("F28").format.numberFormat = "#,##0";
 

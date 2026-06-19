@@ -1,4 +1,6 @@
 const { app, BrowserWindow } = require("electron");
+const fs = require("node:fs");
+const path = require("node:path");
 const { readFile, writeFile } = require("node:fs/promises");
 
 const debug = process.env.ORVIKO_AUDIO_DECODER_DEBUG === "1";
@@ -44,6 +46,14 @@ const chunkMs = Number(options.chunkMs || 40);
 const maxSeconds = Number.isFinite(Number(options.maxSeconds)) ? Number(options.maxSeconds) : null;
 
 app.disableHardwareAcceleration();
+app.commandLine.appendSwitch("disable-gpu");
+app.commandLine.appendSwitch("disable-gpu-compositing");
+app.commandLine.appendSwitch("disable-software-rasterizer");
+app.commandLine.appendSwitch("no-sandbox");
+const electronStateDir = path.join(process.cwd(), "Price-Calc", "outputs", ".electron-audio-decoder-state");
+fs.mkdirSync(electronStateDir, { recursive: true });
+app.setPath("userData", electronStateDir);
+app.setPath("cache", path.join(electronStateDir, "cache"));
 logDebug("registered Electron startup");
 
 const keepAlive = setInterval(() => undefined, 1000);

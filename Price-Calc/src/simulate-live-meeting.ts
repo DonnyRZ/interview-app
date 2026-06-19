@@ -10,11 +10,10 @@ import { buildRealtimeMeetingSessionInstructions } from "../../apps/api/src/modu
 import { buildRealtimeMeetingTranscriptionPrompt } from "../../apps/api/src/modules/ai/actions/realtime/realtime-meeting-transcription.js";
 import { formatMeetingContextForPrompt, meetingContextUsagePolicy } from "../../apps/api/src/modules/ai/actions/shared/meeting-context-format.js";
 import { buildRealtimeMeetingResponseSections } from "../../apps/api/src/modules/ai/actions/response/meeting-response-router.js";
-import { buildRealtimeContext } from "../../apps/api/src/modules/live-meetings/realtime-context.js";
 import {
-  endLiveMeetingForDevUser,
-  startLiveMeetingForDevUser
-} from "../../apps/api/src/modules/live-meetings/live-meeting.service.js";
+  buildRealtimeContext,
+  compactRealtimeContextForLiveSession
+} from "../../apps/api/src/modules/live-meetings/realtime-context.js";
 import {
   buildConversationWindow,
   buildKeywordSourceText,
@@ -383,22 +382,19 @@ async function resolveSimulationContext(options: SimulationOptions): Promise<Sim
 
 async function resolveProductionAppSimulationContext(meetingContextId?: string): Promise<SimulationContextConfig> {
   const resolvedMeetingContextId = meetingContextId || await loadActiveMeetingContextId();
-  const { session, realtimeContext } = await startLiveMeetingForDevUser({
-    meetingContextId: resolvedMeetingContextId,
-    sessionType: "OTHER"
-  });
+  const realtimeContext = compactRealtimeContextForLiveSession(
+    await loadDbRealtimeContextByMeetingContextId(resolvedMeetingContextId)
+  );
 
   return {
     sessionContext: realtimeContext,
     focusContext: realtimeContext,
-    contextSource: "startLiveMeetingForDevUser",
+    contextSource: "compactRealtimeContextForLiveSession(loadDbRealtimeContextByMeetingContextId)",
     meetingContextId: resolvedMeetingContextId,
-    liveMeetingSessionId: session.id,
-    shouldEndLiveMeetingSession: true,
     routingNotes: [
-      "Production app mode calls startLiveMeetingForDevUser and uses the returned realtimeContext.",
-      "No simulator-local compactRealtimeContext variant is used in this mode.",
-      "The live meeting session is ended after the simulation so DB state does not remain open."
+      "Production app mode loads the pinned DB meeting context and applies compactRealtimeContextForLiveSession.",
+      "This matches the realtimeContext shape returned by current startLiveMeetingForUser without creating quota/session side effects.",
+      "No simulator-local compactRealtimeContext variant is used in this mode."
     ]
   };
 }
@@ -426,7 +422,43 @@ async function loadActiveMeetingContextId(): Promise<string> {
 
 async function closeSimulationContext(config: SimulationContextConfig, transcriptText: string) {
   if (!config.shouldEndLiveMeetingSession || !config.liveMeetingSessionId) return;
-  await endLiveMeetingForDevUser(config.liveMeetingSessionId, { transcriptText });
+  void transcriptText;
+}
+
+async function loadDbRealtimeContextByMeetingContextId(meetingContextId: string): Promise<RealtimeContext> {
+  const sql = postgres(databaseUrl, { max: 1, connect_timeout: 5 });
+  try {
+    const [row] = await sql`
+      select
+        mc.id as meeting_context_id,
+        mc.context_name,
+        mc.meeting_topic,
+        mc.meeting_brief,
+        mc.meeting_summary_json,
+        mc.meeting_context_text,
+        mc.profile_document_id,
+        pd.id as profile_document_id,
+        pd.file_name,
+        pd.file_path,
+        pd.file_mime_type,
+        pd.summary_json,
+        pd.ready_context
+      from meeting_contexts mc
+      join profile_documents pd on pd.id = mc.profile_document_id
+      where mc.id = ${meetingContextId}
+        and mc.status = 'active'
+        and pd.processing_status = 'ready'
+      limit 1
+    `;
+
+    if (!row) {
+      throw new Error(`No active DB realtime context found for meeting context id ${meetingContextId}.`);
+    }
+
+    return buildRealtimeContextFromDbRow(row);
+  } finally {
+    await sql.end({ timeout: 1 });
+  }
 }
 
 async function loadActiveDbRealtimeContext(): Promise<RealtimeContext> {
@@ -459,38 +491,42 @@ async function loadActiveDbRealtimeContext(): Promise<RealtimeContext> {
       throw new Error("No active DB realtime context found. Create an active meeting context linked to a ready profile first.");
     }
 
-    return buildRealtimeContext({
-      profileDocument: {
-        id: row.profile_document_id,
-        userId: "",
-        fileName: row.file_name,
-        filePath: row.file_path,
-        fileMimeType: row.file_mime_type,
-        summaryJson: row.summary_json,
-        readyContext: row.ready_context,
-        processingStatus: "ready",
-        processingError: null,
-        isActive: true,
-        createdAt: new Date()
-      },
-      meetingContext: {
-        id: row.meeting_context_id,
-        userId: "",
-        profileDocumentId: row.profile_document_id,
-        contextName: row.context_name,
-        meetingTopic: row.meeting_topic,
-        meetingBrief: row.meeting_brief,
-        meetingSummaryJson: row.meeting_summary_json,
-        meetingContextText: row.meeting_context_text,
-        status: "active",
-        createdAt: new Date(),
-        updatedAt: new Date()
-      },
-      sessionType: "OTHER"
-    });
+    return buildRealtimeContextFromDbRow(row);
   } finally {
     await sql.end({ timeout: 1 });
   }
+}
+
+function buildRealtimeContextFromDbRow(row: Record<string, unknown>): RealtimeContext {
+  return buildRealtimeContext({
+    profileDocument: {
+      id: String(row.profile_document_id || ""),
+      userId: "",
+      fileName: String(row.file_name || ""),
+      filePath: String(row.file_path || ""),
+      fileMimeType: typeof row.file_mime_type === "string" ? row.file_mime_type : null,
+      summaryJson: row.summary_json,
+      readyContext: typeof row.ready_context === "string" ? row.ready_context : null,
+      processingStatus: "ready",
+      processingError: null,
+      isActive: true,
+      createdAt: new Date()
+    },
+    meetingContext: {
+      id: String(row.meeting_context_id || ""),
+      userId: "",
+      profileDocumentId: String(row.profile_document_id || ""),
+      contextName: String(row.context_name || ""),
+      meetingTopic: String(row.meeting_topic || ""),
+      meetingBrief: typeof row.meeting_brief === "string" ? row.meeting_brief : null,
+      meetingSummaryJson: row.meeting_summary_json,
+      meetingContextText: typeof row.meeting_context_text === "string" ? row.meeting_context_text : null,
+      status: "active",
+      createdAt: new Date(),
+      updatedAt: new Date()
+    },
+    sessionType: "OTHER"
+  });
 }
 
 function compactRealtimeContext(context: RealtimeContext): RealtimeContext {
@@ -746,7 +782,7 @@ function findElectronCommand() {
   if (process.platform === "win32") {
     return {
       command: "cmd.exe",
-      prefixArgs: ["/c", electronCmd, "--no-sandbox", "--disable-gpu"]
+      prefixArgs: ["/c", electronCmd]
     };
   }
 
@@ -758,10 +794,13 @@ function findElectronCommand() {
 
 function runCommand(command: string, args: string[]) {
   return new Promise<void>((resolve, reject) => {
+    const childEnv = { ...process.env };
+    delete childEnv.ELECTRON_RUN_AS_NODE;
     const child = spawn(command, args, {
       cwd: repoRoot,
       stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true
+      windowsHide: true,
+      env: childEnv
     });
     let stderr = "";
     child.stderr.on("data", (chunk) => {
@@ -1005,55 +1044,7 @@ async function waitForRealtimeDrain(config: {
 }
 
 async function createSimulationRealtimeClientSecret(config: { instructions: string; transcriptionPrompt: string }) {
-  const response = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${openAiApiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      expires_after: {
-        anchor: "created_at",
-        seconds: 600
-      },
-      session: {
-        type: "realtime",
-        model: realtimeModel,
-        instructions: config.instructions,
-        output_modalities: ["text"],
-        audio: {
-          input: {
-            format: {
-              type: "audio/pcm",
-              rate: 24000
-            },
-            noise_reduction: {
-              type: "near_field"
-            },
-            transcription: {
-              model: "gpt-4o-mini-transcribe",
-              language: "id",
-              prompt: config.transcriptionPrompt
-            },
-            turn_detection: {
-              type: "server_vad",
-              threshold: 0.5,
-              prefix_padding_ms: 300,
-              silence_duration_ms: 500,
-              create_response: false,
-              interrupt_response: false
-            }
-          }
-        },
-        max_output_tokens: 500
-      }
-    })
-  });
-
-  const payload = await response.json() as RealtimeClientSecretResponse;
-  if (!response.ok) {
-    throw new Error(payload.error?.message || `OpenAI realtime client secret request failed with ${response.status}`);
-  }
+  const payload = await fetchRealtimeClientSecretWithRetry(config);
 
   const clientSecret = payload.value || payload.session?.client_secret?.value;
   const expiresAt = payload.expires_at || payload.session?.client_secret?.expires_at;
@@ -1066,6 +1057,78 @@ async function createSimulationRealtimeClientSecret(config: { instructions: stri
     clientSecret,
     expiresAt
   };
+}
+
+async function fetchRealtimeClientSecretWithRetry(config: { instructions: string; transcriptionPrompt: string }) {
+  const body = JSON.stringify({
+    expires_after: {
+      anchor: "created_at",
+      seconds: 600
+    },
+    session: {
+      type: "realtime",
+      model: realtimeModel,
+      instructions: config.instructions,
+      output_modalities: ["text"],
+      audio: {
+        input: {
+          format: {
+            type: "audio/pcm",
+            rate: 24000
+          },
+          noise_reduction: {
+            type: "near_field"
+          },
+          transcription: {
+            model: "gpt-4o-mini-transcribe",
+            language: "id",
+            prompt: config.transcriptionPrompt
+          },
+          turn_detection: {
+            type: "server_vad",
+            threshold: 0.5,
+            prefix_padding_ms: 300,
+            silence_duration_ms: 500,
+            create_response: false,
+            interrupt_response: false
+          }
+        }
+      },
+      max_output_tokens: 500
+    }
+  });
+
+  const maxAttempts = 4;
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const response = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${openAiApiKey}`,
+          "Content-Type": "application/json"
+        },
+        body
+      });
+
+      const payload = await response.json() as RealtimeClientSecretResponse;
+      if (!response.ok) {
+        throw new Error(payload.error?.message || `OpenAI realtime client secret request failed with ${response.status}`);
+      }
+
+      return payload;
+    } catch (error) {
+      lastError = error;
+      if (attempt === maxAttempts) {
+        break;
+      }
+      const waitMs = 1500 * attempt;
+      console.warn(`[retry] Realtime client secret attempt ${attempt} failed: ${error instanceof Error ? error.message : String(error)}. Waiting ${waitMs}ms.`);
+      await sleep(waitMs);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }
 
 function waitForSocketOpen(socket: WebSocket) {

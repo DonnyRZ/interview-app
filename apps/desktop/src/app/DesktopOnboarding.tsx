@@ -394,8 +394,8 @@ function DesktopPricingScreen({
             name="Starter"
             price="Rp98rb"
             featured
-            features={["Semua di Mini", "12 kali sesi live", "Overlay privat", "Mode screen share"]}
-            goldFeatures={["Overlay privat", "Mode screen share"]}
+            features={["Semua di Mini", "12 kali sesi live", "Gunakan di web (coming soon)", "Review CV (coming soon)"]}
+            goldFeatures={["Gunakan di web (coming soon)", "Review CV (coming soon)"]}
             isOpening={openingPlan === "starter"}
             onSelect={openCheckout}
           />

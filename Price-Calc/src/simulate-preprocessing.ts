@@ -76,6 +76,11 @@ const runs = Number(readArg("--runs") || "5");
 const model = process.env.OPENAI_TEXT_MODEL || "gpt-5-mini";
 const databaseUrl = process.env.DATABASE_URL || "postgres://postgres:postgres@127.0.0.1:5432/orviko_dev";
 const outputRoot = path.resolve(readArg("--output-dir") || path.join("Price-Calc", "outputs", `preprocessing-simulation-${timestamp()}`));
+const profileDocumentId = readArg("--profile-document-id");
+const profileFileName = readArg("--profile-file-name");
+const meetingContextId = readArg("--meeting-context-id");
+const meetingContextName = readArg("--meeting-context-name");
+const meetingTopic = readArg("--meeting-topic");
 
 if (!process.env.OPENAI_API_KEY) {
   throw new Error("OPENAI_API_KEY is not configured.");
@@ -86,8 +91,8 @@ const sql = postgres(databaseUrl, { max: 1, connect_timeout: 5 });
 try {
   await mkdir(outputRoot, { recursive: true });
 
-  const profileDocument = await loadActiveProfileDocument();
-  const meetingContext = await loadActiveMeetingContext();
+  const profileDocument = await loadProfileDocument();
+  const meetingContext = await loadMeetingContext();
 
   const results = [];
   for (let index = 1; index <= runs; index += 1) {
@@ -100,24 +105,33 @@ try {
 
     console.log(`[run ${index}/${runs}] profile preprocessing...`);
     const profileRun = await runProfilePreprocessing(profileDocument);
-    const profileOutput = preprocessProfileDocumentResultSchema.parse(profileRun.parsedOutput);
+    const profileOutput = preprocessProfileDocumentResultSchema.safeParse(profileRun.parsedOutput);
+    const profileReadyContext = profileOutput.success
+      ? profileOutput.data.result.readyContext
+      : readNestedString(profileRun.parsedOutput, ["result", "readyContext"]);
 
     console.log(`[run ${index}/${runs}] meeting context preprocessing...`);
-    const meetingRun = await runMeetingContextPreprocessing(meetingContext, profileOutput.result.readyContext);
-    const meetingOutput = preprocessMeetingContextResultSchema.parse(meetingRun.parsedOutput);
+    const meetingRun = await runMeetingContextPreprocessing(meetingContext, profileReadyContext);
+    const meetingOutput = preprocessMeetingContextResultSchema.safeParse(meetingRun.parsedOutput);
 
     const runResult = {
       run: index,
       model,
       profile: sanitizeActionRun(profileRun, {
-        outputStatus: profileOutput.status,
-        outputConfidence: profileOutput.confidence,
-        readyContextCharacters: profileOutput.result.readyContext.length
+        schemaValid: profileOutput.success,
+        schemaIssues: profileOutput.success ? [] : profileOutput.error.issues,
+        outputStatus: profileOutput.success ? profileOutput.data.status : readNestedString(profileRun.parsedOutput, ["status"]) || "schema_invalid",
+        outputConfidence: profileOutput.success ? profileOutput.data.confidence : readNestedString(profileRun.parsedOutput, ["confidence"]) || "unknown",
+        readyContextCharacters: profileReadyContext.length
       }),
       meetingContext: sanitizeActionRun(meetingRun, {
-        outputStatus: meetingOutput.status,
-        outputConfidence: meetingOutput.confidence,
-        contextTextCharacters: meetingOutput.result.contextText.length
+        schemaValid: meetingOutput.success,
+        schemaIssues: meetingOutput.success ? [] : meetingOutput.error.issues,
+        outputStatus: meetingOutput.success ? meetingOutput.data.status : readNestedString(meetingRun.parsedOutput, ["status"]) || "schema_invalid",
+        outputConfidence: meetingOutput.success ? meetingOutput.data.confidence : readNestedString(meetingRun.parsedOutput, ["confidence"]) || "unknown",
+        contextTextCharacters: meetingOutput.success
+          ? meetingOutput.data.result.contextText.length
+          : readNestedString(meetingRun.parsedOutput, ["result", "contextText"]).length
       }),
       combinedUsage: combineUsage(profileRun.usage, meetingRun.usage)
     };
@@ -156,7 +170,30 @@ try {
   await sql.end({ timeout: 1 });
 }
 
-async function loadActiveProfileDocument(): Promise<ProfileDocumentRow> {
+async function loadProfileDocument(): Promise<ProfileDocumentRow> {
+  if (profileDocumentId) {
+    const [row] = await sql`
+      select id, file_name, file_path, file_mime_type
+      from profile_documents
+      where id = ${profileDocumentId} and processing_status = 'ready'
+      limit 1
+    `;
+
+    return validateProfileDocumentRow(row, `No ready profile document found for id ${profileDocumentId}.`);
+  }
+
+  if (profileFileName) {
+    const [row] = await sql`
+      select id, file_name, file_path, file_mime_type
+      from profile_documents
+      where file_name = ${profileFileName} and processing_status = 'ready'
+      order by created_at desc
+      limit 1
+    `;
+
+    return validateProfileDocumentRow(row, `No ready profile document found for file name ${profileFileName}.`);
+  }
+
   const [row] = await sql.unsafe(`
     select id, file_name, file_path, file_mime_type
     from profile_documents
@@ -165,18 +202,61 @@ async function loadActiveProfileDocument(): Promise<ProfileDocumentRow> {
     limit 1
   `);
 
-  if (!row) {
-    throw new Error("No active ready profile document found in DB.");
-  }
-
-  if (!existsSync(row.file_path)) {
-    throw new Error(`Profile document file is missing: ${row.file_path}`);
-  }
-
-  return row as ProfileDocumentRow;
+  return validateProfileDocumentRow(row, "No active ready profile document found in DB.");
 }
 
-async function loadActiveMeetingContext(): Promise<MeetingContextRow> {
+function validateProfileDocumentRow(row: unknown, missingMessage: string): ProfileDocumentRow {
+  if (!row) {
+    throw new Error(missingMessage);
+  }
+  const profileDocument = row as ProfileDocumentRow;
+  if (!existsSync(profileDocument.file_path)) {
+    throw new Error(`Profile document file is missing: ${profileDocument.file_path}`);
+  }
+
+  return profileDocument;
+}
+
+async function loadMeetingContext(): Promise<MeetingContextRow> {
+  if (meetingContextId) {
+    const [row] = await sql`
+      select id, context_name, meeting_topic, meeting_brief
+      from meeting_contexts
+      where id = ${meetingContextId} and status = 'active'
+      limit 1
+    `;
+
+    return validateMeetingContextRow(row, `No active meeting context found for id ${meetingContextId}.`);
+  }
+
+  if (meetingContextName || meetingTopic) {
+    const [row] = meetingContextName && meetingTopic
+      ? await sql`
+        select id, context_name, meeting_topic, meeting_brief
+        from meeting_contexts
+        where context_name = ${meetingContextName} and meeting_topic = ${meetingTopic} and status = 'active'
+        order by created_at desc
+        limit 1
+      `
+      : meetingContextName
+        ? await sql`
+          select id, context_name, meeting_topic, meeting_brief
+          from meeting_contexts
+          where context_name = ${meetingContextName} and status = 'active'
+          order by created_at desc
+          limit 1
+        `
+        : await sql`
+          select id, context_name, meeting_topic, meeting_brief
+          from meeting_contexts
+          where meeting_topic = ${meetingTopic} and status = 'active'
+          order by created_at desc
+          limit 1
+        `;
+
+    return validateMeetingContextRow(row, "No active meeting context found for the requested name/topic.");
+  }
+
   const [row] = await sql.unsafe(`
     select id, context_name, meeting_topic, meeting_brief
     from meeting_contexts
@@ -185,8 +265,12 @@ async function loadActiveMeetingContext(): Promise<MeetingContextRow> {
     limit 1
   `);
 
+  return validateMeetingContextRow(row, "No active meeting context found in DB.");
+}
+
+function validateMeetingContextRow(row: unknown, missingMessage: string): MeetingContextRow {
   if (!row) {
-    throw new Error("No active meeting context found in DB.");
+    throw new Error(missingMessage);
   }
 
   return row as MeetingContextRow;
@@ -308,6 +392,18 @@ function sanitizeActionRun(run: ActionRunResult, extra: Record<string, unknown>)
     promptDebug: run.promptDebug,
     ...extra
   };
+}
+
+function readNestedString(source: unknown, pathParts: string[]) {
+  let current: unknown = source;
+  for (const pathPart of pathParts) {
+    if (!current || typeof current !== "object" || Array.isArray(current)) {
+      return "";
+    }
+    current = (current as Record<string, unknown>)[pathPart];
+  }
+
+  return typeof current === "string" ? current : "";
 }
 
 function combineUsage(left: Usage, right: Usage): Usage {
