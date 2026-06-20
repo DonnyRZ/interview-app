@@ -4,8 +4,8 @@ export const realtimeActionNames = [
   "answer",
   "followup",
   "explain",
-  "keyword",
-  "ask"
+  "explain_text",
+  "keyword"
 ] as const;
 
 export type RealtimeActionName = typeof realtimeActionNames[number];

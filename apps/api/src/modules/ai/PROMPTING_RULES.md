@@ -82,7 +82,8 @@ Pengecualian sementara:
 - Prompt Realtime backend tetap harus berada di `ai/actions/`, bukan di `openai.client.ts`, route, atau service meeting legacy.
 - `apps/desktop/src/features/overlay/realtime-action-prompt.ts` boleh memiliki action instruction pendek untuk live Realtime trigger selama runtime live masih langsung berbicara dengan OpenAI Realtime WebSocket dari desktop.
 - React component seperti `InterviewOverlay.tsx` tidak boleh menampung prompt/instruksi model; component hanya boleh memanggil builder prompt yang sudah dipisahkan.
-- Instruksi di `realtime-action-prompt.ts` harus terbatas pada action live seperti `JAWAB_PERTANYAAN`, `TANGGAPI`, `BANTU_FOLLOWUP`, `JELASKAN_MAKSUDNYA`, `EXPLAIN_KEYWORD`, dan `ASK`.
+- Instruksi di `realtime-action-prompt.ts` harus terbatas pada action live seperti `JAWAB_PERTANYAAN`, `TANGGAPI`, `BANTU_FOLLOWUP`, `JELASKAN_MAKSUDNYA`, dan `EXPLAIN_KEYWORD`.
+- Free-text harus dirutekan ke `JELASKAN_MAKSUDNYA` dengan sumber `USER_TEXT`; teks user menjadi subjek utama dan bukan pengganti transcript atau `latestQuestion`.
 - Jangan menambahkan prompt preprocessing profil user/konteks meeting, summary, scoring, atau business logic AI baru ke overlay/desktop.
 - Jika realtime action prompt makin besar atau kompleks, pindahkan ke modul bersama/backend agar governance prompt kembali terpusat.
 

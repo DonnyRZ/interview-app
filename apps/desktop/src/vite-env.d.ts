@@ -75,7 +75,7 @@ type OverlayTranscriptEvent = {
 
 type RealtimeOverlayAction = {
   requestId: number;
-  action: "answer_qna" | "answer_convo" | "answer" | "followup" | "explain" | "keyword" | "ask";
+  action: "answer_qna" | "answer_convo" | "answer" | "followup" | "explain" | "explain_text" | "keyword";
   latestQuestion?: string;
   recentTranscript?: string;
   triggerText?: string;

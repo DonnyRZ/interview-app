@@ -161,7 +161,7 @@ function capitalizeFirstLetter(text: string) {
 
 function stripRealtimeTriggerPrefix(line: string) {
   return line
-    .replace(/^(?:BANTU_[A-Z_]+|JAWAB_PERTANYAAN|TANGGAPI|BANTU_FOLLOWUP|JELASKAN_MAKSUDNYA|EXPLAIN_KEYWORD|ASK):\s*/i, "")
+    .replace(/^(?:BANTU_[A-Z_]+|JAWAB_PERTANYAAN|TANGGAPI|BANTU_FOLLOWUP|JELASKAN_MAKSUDNYA|EXPLAIN_KEYWORD):\s*/i, "")
     .trim();
 }
 

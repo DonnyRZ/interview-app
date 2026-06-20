@@ -29,9 +29,7 @@ import {
   isRealtimeResponseOwnedBy
 } from "./overlay-realtime-state.js";
 import {
-  classifyMeetingConversationMode,
-  isDomainRelatedText,
-  looksLikeMeetingQuestion
+  classifyMeetingConversationMode
 } from "./runtime-rules/transcript-focus-rules.js";
 
 type OverlayMode = "mini" | "expanded" | "loading" | "response";
@@ -967,8 +965,11 @@ export function InterviewOverlay() {
       return;
     }
 
-    const inferredMode = freshContext?.conversationMode || classifyMeetingConversationMode(triggerText || transcriptState.latestFocusRef.current);
-    const conversationMode = getExplicitActionConversationMode(type) || inferredMode;
+    const conversationMode = type === "explain_text"
+      ? undefined
+      : getExplicitActionConversationMode(type)
+        || freshContext?.conversationMode
+        || classifyMeetingConversationMode(triggerText || transcriptState.latestFocusRef.current);
 
     const response = await sendRealtimeActionToSocket({
       requestId,
@@ -993,12 +994,7 @@ export function InterviewOverlay() {
     const text = String(formData.get("ask") || "").trim();
     if (!text) return;
     form.reset();
-    if (looksLikeMeetingQuestion(text) || isDomainRelatedText(text, context)) {
-      void window.interviewDesktop?.updateOverlayContext?.({
-        latestQuestion: text
-      });
-    }
-    void requestHelp("ask", text);
+    void requestHelp("explain_text", text);
   }
 
   function endInterview() {

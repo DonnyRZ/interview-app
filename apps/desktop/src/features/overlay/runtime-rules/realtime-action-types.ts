@@ -4,8 +4,8 @@ export type RealtimeActionName =
   | "answer"
   | "followup"
   | "explain"
-  | "keyword"
-  | "ask";
+  | "explain_text"
+  | "keyword";
 
 export type RealtimeConversationMode = "qna" | "convo" | "unknown";
 

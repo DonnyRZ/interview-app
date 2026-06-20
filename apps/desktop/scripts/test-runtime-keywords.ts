@@ -6,6 +6,7 @@ import { generateMeetingExplanationSpec } from "../../api/src/modules/ai/actions
 import { generateMeetingFollowupSpec } from "../../api/src/modules/ai/actions/followup/generate-meeting-followup.js";
 import { buildRealtimeMeetingSessionInstructions } from "../../api/src/modules/ai/actions/realtime/realtime-meeting-session.js";
 import { buildRealtimeActionPrompt } from "../src/features/overlay/runtime-rules/realtime-action-prompt.js";
+import { isConversationHelpActionName } from "../src/features/overlay/runtime-rules/realtime-action-types.js";
 import { formatRealtimeResponsePoints } from "../src/features/overlay/runtime-rules/overlay-response-copy.js";
 import {
   getForcedConversationMode,
@@ -138,6 +139,28 @@ const convoAnswerPrompt = buildRealtimeActionPrompt({
 assert(convoAnswerPrompt.includes("TRIGGER: TANGGAPI"));
 assert(convoAnswerPrompt.includes("Conversation mode hint:\nconvo"));
 
+const explanationSubjectSentinel = "EXPLANATION_SUBJECT_SENTINEL_7F3A";
+const explainTextPrompt = buildRealtimeActionPrompt({
+  action: "explain_text",
+  triggerText: explanationSubjectSentinel,
+  recentTranscript: "Konteks percakapan netral.",
+  latestQuestion: "Fokus percakapan netral."
+});
+assert(explainTextPrompt.includes("TRIGGER: JELASKAN_MAKSUDNYA"));
+assert(explainTextPrompt.includes("EXPLANATION_SOURCE: USER_TEXT"));
+assert(explainTextPrompt.includes(`Explanation subject from user:\n${explanationSubjectSentinel}`));
+assert(!explainTextPrompt.includes("Conversation mode hint:"));
+assert(!explainTextPrompt.includes("TRIGGER: ASK"));
+
+const explainTranscriptPrompt = buildRealtimeActionPrompt({
+  action: "explain",
+  recentTranscript: "Konteks percakapan netral.",
+  latestQuestion: "Fokus percakapan netral."
+});
+assert(explainTranscriptPrompt.includes("TRIGGER: JELASKAN_MAKSUDNYA"));
+assert(explainTranscriptPrompt.includes("EXPLANATION_SOURCE: LATEST_TRANSCRIPT"));
+assert(!explainTranscriptPrompt.includes("Explanation subject from user:"));
+
 const surfacePrompt = buildRealtimeActionPrompt({
   action: "surface_keywords",
   recentTranscript: "Lawan bicara menyebut selected keyword dalam percakapan terbaru.",
@@ -159,6 +182,11 @@ assert(realtimeInstructions.includes("KEYWORDS: term one | term two | term three
 assert(realtimeInstructions.includes("transcript-first"));
 assert(realtimeInstructions.includes("QnA mode rules"));
 assert(realtimeInstructions.includes("Convo mode rules"));
+assert(realtimeInstructions.includes("JELASKAN_MAKSUDNYA: follow EXPLANATION_SOURCE"));
+assert(realtimeInstructions.includes("For USER_TEXT, do not apply QnA or Convo routing"));
+assert(realtimeInstructions.includes("explain the user-provided explanation subject as the primary subject"));
+assert(realtimeInstructions.includes("For LATEST_TRANSCRIPT, explain the other speaker's likely meaning"));
+assert(!/\bASK\b/.test(realtimeInstructions));
 assert(!realtimeInstructions.includes("TikTok"));
 assert(!realtimeInstructions.includes("CAC"));
 assert(!realtimeInstructions.includes("ROAS"));
@@ -168,7 +196,11 @@ assert(!/interview|candidate|kandidat|interviewer|CV|JD|BANTU_JAWAB|sales|client
 
 assert.equal(isRealtimeActionName("answer_qna"), true);
 assert.equal(isRealtimeActionName("answer_convo"), true);
+assert.equal(isRealtimeActionName("explain_text"), true);
+assert.equal(isRealtimeActionName("ask"), false);
 assert.equal(isRealtimeActionName("answer_wrong"), false);
+assert.equal(isConversationHelpActionName("explain"), true);
+assert.equal(isConversationHelpActionName("explain_text"), false);
 assert.equal(getForcedConversationMode("answer_qna"), "qna");
 assert.equal(getForcedConversationMode("answer_convo"), "convo");
 assert.equal(getForcedConversationMode("answer"), undefined);

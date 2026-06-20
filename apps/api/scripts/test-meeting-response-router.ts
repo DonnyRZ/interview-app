@@ -70,6 +70,11 @@ const meetingContextPrompt = buildPrompt(preprocessMeetingContextSpec, {
 
 assert.match(realtimeInstructions, /JAWAB_PERTANYAAN must use QnA mode rules/);
 assert.match(realtimeInstructions, /TANGGAPI must use Convo mode rules/);
+assert.match(realtimeInstructions, /JELASKAN_MAKSUDNYA: follow EXPLANATION_SOURCE/);
+assert.match(realtimeInstructions, /For USER_TEXT, do not apply QnA or Convo routing/);
+assert.match(realtimeInstructions, /explain the user-provided explanation subject as the primary subject/);
+assert.match(realtimeInstructions, /For LATEST_TRANSCRIPT, explain the other speaker's likely meaning/);
+assert.doesNotMatch(realtimeInstructions, /\bASK\b/);
 assert.match(realtimeInstructions, /Do not override JAWAB_PERTANYAAN or TANGGAPI/);
 assert.match(realtimeInstructions, /For JAWAB_PERTANYAAN and legacy answer action in QnA mode, produce a direct ready-to-say answer/);
 assert.match(realtimeInstructions, /Do not use meta-intro openers such as Berikut/);
