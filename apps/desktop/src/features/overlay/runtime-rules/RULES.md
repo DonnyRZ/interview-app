@@ -14,9 +14,9 @@ Untuk aturan context integrity overlay secara keseluruhan, baca `../CONTEXT_INTE
 
 ## Pembagian Saat Ini
 
-- `realtime-action-prompt.ts`: prompt/action instruction untuk tombol live Realtime.
+- `packages/shared/src/realtime-overlay.ts`: prompt/action instruction dan parser response untuk desktop serta web; file lokal hanya re-export kompatibilitas.
 - `overlay-response-copy.ts`: copy notice, formatting response, dan parser response text.
-- `transcript-focus-rules.ts`: rule transcript quality gate, conversation focus, relevance, dan noise filtering.
+- `packages/shared/src/transcript-focus-rules.ts`: rule transcript quality gate, conversation focus, relevance, dan noise filtering; file lokal hanya re-export kompatibilitas.
 
 ## Saat Menambah Use Case
 

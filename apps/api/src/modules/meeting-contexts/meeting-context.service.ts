@@ -112,8 +112,7 @@ async function preprocessMeetingContext(
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown OpenAI meeting context preprocessing error";
-    console.warn(`[ai:fallback] preprocess_meeting_context failed: ${message}`);
-    return normalizeMeetingContextResult(buildFallbackMeetingContextResult(input, message));
+    throw new Error(`Meeting context AI processing failed: ${message}`);
   }
 }
 
@@ -139,71 +138,6 @@ function normalizeMeetingContextResult(result: PreprocessMeetingContextResult): 
       contextText: truncateText(result.result.contextText, 1400)
     }
   };
-}
-
-function buildFallbackMeetingContextResult(
-  input: CreateMeetingContextRequest & { profileDocumentReadyContext?: string | null },
-  warning: string
-): PreprocessMeetingContextResult {
-  const briefPreview = input.meetingBrief?.slice(0, 220) || "Belum ada brief meeting.";
-  const seedConcepts = extractFallbackConcepts(input.meetingBrief || input.meetingTopic);
-  return {
-    status: "partial",
-    result: {
-      meetingSummary: `${input.meetingTopic} - ${input.contextName}. Ringkasan brief: ${briefPreview}`,
-      keyCriteria: [],
-      responsibilities: input.meetingBrief ? extractFallbackConcepts(input.meetingBrief) : [],
-      niceToHave: [],
-      domainProfile: {
-        primaryDomain: input.meetingTopic,
-        nicheDescription: input.meetingBrief
-          ? `Profil konteks sementara dibuat dari brief singkat: ${briefPreview}`
-          : "Profil konteks belum kuat karena brief meeting belum tersedia.",
-        inScopeConcepts: seedConcepts,
-        outOfScopeConcepts: [],
-        seedConcepts,
-        relevanceGuidance: "Boundary relevansi runtime: topik sesi, brief meeting, dan konsep in-scope konteks ini."
-      },
-      preparationThemes: input.meetingBrief ? ["Klarifikasi tujuan utama sesi", "Hubungkan profil dengan kebutuhan meeting"] : [],
-      contextText: `Konteks sementara untuk ${input.meetingTopic} - ${input.contextName}. Domain/niche masih partial. ${briefPreview}`
-    },
-    warnings: [`OpenAI meeting context preprocessing fallback: ${warning}`],
-    missingInputs: input.meetingBrief ? [] : ["meetingBrief"],
-    confidence: "low",
-    evidence: []
-  };
-}
-
-function extractFallbackConcepts(sourceText?: string) {
-  const stopWords = new Set([
-    "dan",
-    "atau",
-    "yang",
-    "untuk",
-    "dengan",
-    "dalam",
-    "pada",
-    "sebagai",
-    "akan",
-    "the",
-    "and",
-    "for",
-    "with",
-    "from",
-    "role",
-    "job"
-  ]);
-  const source = sourceText || "";
-  const phraseCandidates = source
-    .split(/[.,;:\n\r()[\]{}]+/)
-    .map((item) => item.trim())
-    .filter((item) => item.length >= 4 && item.length <= 48);
-  const wordCandidates = source
-    .split(/[^A-Za-z0-9+#.-]+/)
-    .map((item) => item.trim())
-    .filter((item) => item.length >= 4 && !stopWords.has(item.toLowerCase()));
-
-  return compactList(Array.from(new Set([...phraseCandidates, ...wordCandidates])), 5, 42);
 }
 
 function compactList(items: string[], maxItems: number, maxCharacters: number) {

@@ -46,6 +46,13 @@ contextBridge.exposeInMainWorld("interviewDesktop", {
     ipcRenderer.on("desktop-auth:changed", listener);
     return () => ipcRenderer.removeListener("desktop-auth:changed", listener);
   },
+  getUpdaterState: () => ipcRenderer.invoke("updater:get-state"),
+  downloadUpdate: () => ipcRenderer.invoke("updater:download"),
+  onUpdaterStateChanged: (callback: (payload: unknown) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: unknown) => callback(payload);
+    ipcRenderer.on("updater:state-changed", listener);
+    return () => ipcRenderer.removeListener("updater:state-changed", listener);
+  },
   openOverlay: (context: unknown) => ipcRenderer.invoke("overlay:open", context),
   updateOverlayContext: (context: unknown) => ipcRenderer.invoke("overlay:update-context", context),
   sendRealtimeAction: (payload: unknown) => ipcRenderer.invoke("overlay:send-realtime-action", payload),

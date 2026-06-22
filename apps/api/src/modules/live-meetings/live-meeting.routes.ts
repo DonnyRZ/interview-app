@@ -21,7 +21,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { env } from "../../env.js";
 import { ensureUserHasActiveSubscription, SubscriptionRequiredError } from "../auth/auth.service.js";
-import { getSession } from "../auth/session.js";
+import { getRequestSession } from "../dev/local-web-testing.js";
 import { mapLiveMeetingSession } from "./live-meeting.mapper.js";
 import {
   deleteLiveMeetingSessionForUser,
@@ -47,14 +47,18 @@ const liveMeetingParamsSchema = z.object({
   id: z.string().uuid()
 });
 
-async function requireSubscribedSession(
+async function requireLiveMeetingAccess(
   request: FastifyRequest,
   reply: FastifyReply
 ) {
-  const session = getSession(request);
+  const session = await getRequestSession(request);
   if (!session) {
     await reply.code(401).send({ message: "Login diperlukan." });
     return null;
+  }
+
+  if (session.localWebTesting) {
+    return session;
   }
 
   try {
@@ -72,7 +76,7 @@ async function requireSubscribedSession(
 
 export async function registerLiveMeetingRoutes(app: FastifyInstance) {
   app.get("/meeting-context/:meetingContextId", async (request, reply) => {
-    const session = getSession(request);
+    const session = await getRequestSession(request);
     if (!session) {
       return reply.code(401).send({ message: "Login diperlukan." });
     }
@@ -93,7 +97,7 @@ export async function registerLiveMeetingRoutes(app: FastifyInstance) {
   });
 
   app.post("/start", async (request, reply) => {
-    const session = await requireSubscribedSession(request, reply);
+    const session = await requireLiveMeetingAccess(request, reply);
     if (!session) {
       return;
     }
@@ -104,7 +108,11 @@ export async function registerLiveMeetingRoutes(app: FastifyInstance) {
     }
 
     try {
-      const { session: liveMeetingSession, realtimeContext } = await startLiveMeetingForUser(session.userId, body.data);
+      const { session: liveMeetingSession, realtimeContext } = await startLiveMeetingForUser(
+        session.userId,
+        body.data,
+        { bypassSubscription: session.localWebTesting }
+      );
       return reply.code(201).send(liveMeetingSessionResponseSchema.parse({
         liveMeetingSession: mapLiveMeetingSession(liveMeetingSession),
         realtimeContext
@@ -120,7 +128,7 @@ export async function registerLiveMeetingRoutes(app: FastifyInstance) {
   });
 
   app.post("/realtime/client-secret", async (request, reply) => {
-    const session = await requireSubscribedSession(request, reply);
+    const session = await requireLiveMeetingAccess(request, reply);
     if (!session) {
       return;
     }
@@ -150,7 +158,7 @@ export async function registerLiveMeetingRoutes(app: FastifyInstance) {
   if (env.NODE_ENV !== "production") {
     // Dev/fallback harness only. Live meeting runtime must use gpt-realtime-mini.
     app.post("/answer", async (request, reply) => {
-      const session = await requireSubscribedSession(request, reply);
+      const session = await requireLiveMeetingAccess(request, reply);
       if (!session) {
         return;
       }
@@ -165,7 +173,7 @@ export async function registerLiveMeetingRoutes(app: FastifyInstance) {
     });
 
     app.post("/followup", async (request, reply) => {
-      const session = await requireSubscribedSession(request, reply);
+      const session = await requireLiveMeetingAccess(request, reply);
       if (!session) {
         return;
       }
@@ -180,7 +188,7 @@ export async function registerLiveMeetingRoutes(app: FastifyInstance) {
     });
 
     app.post("/explain", async (request, reply) => {
-      const session = await requireSubscribedSession(request, reply);
+      const session = await requireLiveMeetingAccess(request, reply);
       if (!session) {
         return;
       }
@@ -195,7 +203,7 @@ export async function registerLiveMeetingRoutes(app: FastifyInstance) {
     });
 
     app.post("/keyword-help", async (request, reply) => {
-      const session = await requireSubscribedSession(request, reply);
+      const session = await requireLiveMeetingAccess(request, reply);
       if (!session) {
         return;
       }
@@ -210,7 +218,7 @@ export async function registerLiveMeetingRoutes(app: FastifyInstance) {
     });
 
     app.post("/runtime-keywords", async (request, reply) => {
-      const session = await requireSubscribedSession(request, reply);
+      const session = await requireLiveMeetingAccess(request, reply);
       if (!session) {
         return;
       }
@@ -227,7 +235,7 @@ export async function registerLiveMeetingRoutes(app: FastifyInstance) {
   }
 
   app.post("/:id/end", async (request, reply) => {
-    const session = getSession(request);
+    const session = await getRequestSession(request);
     if (!session) {
       return reply.code(401).send({ message: "Login diperlukan." });
     }
@@ -253,7 +261,7 @@ export async function registerLiveMeetingRoutes(app: FastifyInstance) {
   });
 
   app.delete("/:id", async (request, reply) => {
-    const session = getSession(request);
+    const session = await getRequestSession(request);
     if (!session) {
       return reply.code(401).send({ message: "Login diperlukan." });
     }

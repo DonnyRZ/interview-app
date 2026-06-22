@@ -7,7 +7,7 @@ import {
 } from "@interview-app/shared";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { getSession } from "../auth/session.js";
+import { getRequestSession } from "../dev/local-web-testing.js";
 import { mapMeetingContext } from "./meeting-context.mapper.js";
 import {
   createMeetingContextForUser,
@@ -23,7 +23,7 @@ const meetingContextParamsSchema = z.object({
 
 export async function registerMeetingContextRoutes(app: FastifyInstance) {
   app.get("/", async (request, reply) => {
-    const session = getSession(request);
+    const session = await getRequestSession(request);
     if (!session) {
       return reply.code(401).send({ message: "Login diperlukan." });
     }
@@ -35,7 +35,7 @@ export async function registerMeetingContextRoutes(app: FastifyInstance) {
   });
 
   app.post("/", async (request, reply) => {
-    const session = getSession(request);
+    const session = await getRequestSession(request);
     if (!session) {
       return reply.code(401).send({ message: "Login diperlukan." });
     }
@@ -57,7 +57,7 @@ export async function registerMeetingContextRoutes(app: FastifyInstance) {
   });
 
   app.get("/:id", async (request, reply) => {
-    const session = getSession(request);
+    const session = await getRequestSession(request);
     if (!session) {
       return reply.code(401).send({ message: "Login diperlukan." });
     }
@@ -78,7 +78,7 @@ export async function registerMeetingContextRoutes(app: FastifyInstance) {
   });
 
   app.patch("/:id", async (request, reply) => {
-    const session = getSession(request);
+    const session = await getRequestSession(request);
     if (!session) {
       return reply.code(401).send({ message: "Login diperlukan." });
     }
@@ -109,7 +109,7 @@ export async function registerMeetingContextRoutes(app: FastifyInstance) {
   });
 
   app.delete("/:id", async (request, reply) => {
-    const session = getSession(request);
+    const session = await getRequestSession(request);
     if (!session) {
       return reply.code(401).send({ message: "Login diperlukan." });
     }

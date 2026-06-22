@@ -10,6 +10,8 @@ coverage/
 dist/
 dist-electron/
 build/
+!apps/desktop/build/
+!apps/desktop/build/icon.ico
 release/
 out/
 apps/api/dist/

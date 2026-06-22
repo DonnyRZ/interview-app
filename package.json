@@ -11,9 +11,11 @@
     "dev:api": "npm --workspace @interview-app/api run dev",
     "dev:desktop": "npm --workspace @interview-app/desktop run dev",
     "dev:web": "npm --workspace @interview-app/web run dev",
+    "dev:web-app": "npm --workspace @interview-app/web-app run dev",
     "build:web": "npm --workspace @interview-app/web run build",
-    "build": "npm --workspace @interview-app/shared run build && npm --workspace @interview-app/api run build && npm --workspace @interview-app/desktop run build && npm --workspace @interview-app/web run build",
-    "typecheck": "npm --workspace @interview-app/shared run build && npm --workspace @interview-app/api run typecheck && npm --workspace @interview-app/desktop run typecheck",
+    "build:web-app": "npm --workspace @interview-app/web-app run build",
+    "build": "npm --workspace @interview-app/shared run build && npm --workspace @interview-app/api run build && npm --workspace @interview-app/desktop run build && npm --workspace @interview-app/web run build && npm --workspace @interview-app/web-app run build",
+    "typecheck": "npm --workspace @interview-app/shared run build && npm --workspace @interview-app/api run typecheck && npm --workspace @interview-app/desktop run typecheck && npm --workspace @interview-app/web-app run typecheck",
     "db:migrate": "npm --workspace @interview-app/api run db:migrate",
     "db:seed:dev": "npm --workspace @interview-app/api run db:seed:dev"
   },

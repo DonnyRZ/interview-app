@@ -8,7 +8,7 @@ import {
 } from "@interview-app/shared";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { getSession } from "../auth/session.js";
+import { getRequestSession } from "../dev/local-web-testing.js";
 import { mapProfileDocument } from "./profile-document.mapper.js";
 import {
   getActiveProfileDocumentForUser,
@@ -25,7 +25,7 @@ const profileDocumentParamsSchema = z.object({
 
 export async function registerProfileDocumentRoutes(app: FastifyInstance) {
   app.get("/list", async (request, reply) => {
-    const session = getSession(request);
+    const session = await getRequestSession(request);
     if (!session) {
       return reply.code(401).send({ message: "Login diperlukan." });
     }
@@ -37,7 +37,7 @@ export async function registerProfileDocumentRoutes(app: FastifyInstance) {
   });
 
   app.get("/active", async (request, reply) => {
-    const session = getSession(request);
+    const session = await getRequestSession(request);
     if (!session) {
       return reply.code(401).send({ message: "Login diperlukan." });
     }
@@ -49,7 +49,7 @@ export async function registerProfileDocumentRoutes(app: FastifyInstance) {
   });
 
   app.post("/upload", async (request, reply) => {
-    const session = getSession(request);
+    const session = await getRequestSession(request);
     if (!session) {
       return reply.code(401).send({ message: "Login diperlukan." });
     }
@@ -71,7 +71,7 @@ export async function registerProfileDocumentRoutes(app: FastifyInstance) {
   });
 
   app.post("/:id/set-active", async (request, reply) => {
-    const session = getSession(request);
+    const session = await getRequestSession(request);
     if (!session) {
       return reply.code(401).send({ message: "Login diperlukan." });
     }
@@ -92,7 +92,7 @@ export async function registerProfileDocumentRoutes(app: FastifyInstance) {
   });
 
   app.post("/:id/retry-processing", async (request, reply) => {
-    const session = getSession(request);
+    const session = await getRequestSession(request);
     if (!session) {
       return reply.code(401).send({ message: "Login diperlukan." });
     }
@@ -113,7 +113,7 @@ export async function registerProfileDocumentRoutes(app: FastifyInstance) {
   });
 
   app.delete("/:id", async (request, reply) => {
-    const session = getSession(request);
+    const session = await getRequestSession(request);
     if (!session) {
       return reply.code(401).send({ message: "Login diperlukan." });
     }

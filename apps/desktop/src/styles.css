@@ -1,4 +1,5 @@
 :root {
+  --desktop-titlebar-height: 36px;
   color-scheme: dark;
   --ink: #f3f7ff;
   --muted: #aab8d0;
@@ -1834,6 +1835,91 @@ summary {
   display: grid;
   padding: clamp(22px, 3vw, 36px);
   overflow: auto;
+}
+
+.desktop-window-shell {
+  min-height: 100vh;
+  padding-top: var(--desktop-titlebar-height);
+}
+
+.desktop-window-content {
+  min-height: calc(100vh - var(--desktop-titlebar-height));
+}
+
+.desktop-window-content > .desktop-loading-screen,
+.desktop-window-content > .desktop-login-shell,
+.desktop-window-content > .desktop-pricing-shell {
+  min-height: calc(100vh - var(--desktop-titlebar-height));
+}
+
+.desktop-titlebar {
+  -webkit-app-region: drag;
+  position: fixed;
+  z-index: 1000;
+  top: env(titlebar-area-y, 0);
+  left: env(titlebar-area-x, 0);
+  width: env(titlebar-area-width, calc(100% - 138px));
+  height: env(titlebar-area-height, var(--desktop-titlebar-height));
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 8px 0 10px;
+  color: #f3f7ff;
+  background: #0e1420;
+  user-select: none;
+}
+
+.desktop-titlebar-brand {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.desktop-titlebar-brand img {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+
+.desktop-update-button {
+  -webkit-app-region: no-drag;
+  width: 82px;
+  height: 24px;
+  margin-left: auto;
+  padding: 0 9px;
+  border: 1px solid rgba(77, 163, 255, 0.58);
+  border-radius: 4px;
+  color: #f3f7ff;
+  background: rgba(47, 128, 237, 0.28);
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-update-button:hover:not(:disabled) {
+  border-color: #78bcff;
+  background: rgba(47, 128, 237, 0.48);
+}
+
+.desktop-update-button:focus-visible {
+  outline: 2px solid #78bcff;
+  outline-offset: 1px;
+}
+
+.desktop-update-button.is-downloading {
+  background: rgba(94, 234, 212, 0.18);
+  border-color: rgba(94, 234, 212, 0.5);
+}
+
+.desktop-update-button.is-waiting-for-meeting {
+  background: rgba(251, 191, 36, 0.18);
+  border-color: rgba(251, 191, 36, 0.55);
 }
 
 .desktop-pricing-content {

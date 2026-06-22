@@ -13,6 +13,13 @@ module.exports = {
   directories: {
     output: "release"
   },
+  artifactName: "Orviko-Setup-${version}-dev.${ext}",
+  publish: [
+    {
+      provider: "generic",
+      url: "https://dev.orviko.net/updates/windows/"
+    }
+  ],
   files: [
     "dist/**",
     "dist-electron/**",
@@ -20,12 +27,18 @@ module.exports = {
   ],
   extraResources: [
     {
+      from: path.join("build", "icon.ico"),
+      to: "icon.ico"
+    },
+    {
       from: path.join("native", "windows-loopback", "bin", "WasapiLoopbackProbe.exe"),
       to: path.join("native", "windows-loopback", "WasapiLoopbackProbe.exe")
     }
   ],
   asar: true,
   win: {
+    icon: path.join("build", "icon.ico"),
+    signAndEditExecutable: false,
     target: [
       {
         target: "nsis",

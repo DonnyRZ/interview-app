@@ -258,6 +258,67 @@ sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = 'orviko_dev
 
 ## Deployment Flow
 
+### Desktop Update Feed Dev
+
+Auto-updater desktop dev membaca manifest dari:
+
+```txt
+https://dev.orviko.net/updates/windows/latest.yml
+```
+
+Artefak updater tidak disimpan di dalam Git atau folder build web. Simpan terpisah di VPS:
+
+```txt
+/srv/orviko/dev/updates/windows/
+  latest.yml
+  Orviko-Setup-0.1.1-dev.exe
+  Orviko-Setup-0.1.1-dev.exe.blockmap
+```
+
+Tambahkan route berikut ke server block `dev.orviko.net`:
+
+```nginx
+location = /updates/windows/latest.yml {
+    alias /srv/orviko/dev/updates/windows/latest.yml;
+    add_header Cache-Control "no-store, no-cache, must-revalidate" always;
+}
+
+location /updates/windows/ {
+    alias /srv/orviko/dev/updates/windows/;
+}
+```
+
+Siapkan folder dan aktifkan konfigurasi:
+
+```bash
+mkdir -p /srv/orviko/dev/updates/windows
+nginx -t
+systemctl reload nginx
+```
+
+Build release dilakukan di Windows dari root project:
+
+```powershell
+npm --workspace @interview-app/desktop run dist:win
+```
+
+Upload file versi dan blockmap terlebih dahulu. Upload `latest.yml` paling akhir agar client tidak pernah melihat manifest sebelum installer siap:
+
+```powershell
+scp apps/desktop/release/Orviko-Setup-0.1.1-dev.exe admin@147.139.206.25:/srv/orviko/dev/updates/windows/
+scp apps/desktop/release/Orviko-Setup-0.1.1-dev.exe.blockmap admin@147.139.206.25:/srv/orviko/dev/updates/windows/
+scp apps/desktop/release/latest.yml admin@147.139.206.25:/srv/orviko/dev/updates/windows/
+```
+
+Verifikasi feed dan installer:
+
+```bash
+curl -I https://dev.orviko.net/updates/windows/latest.yml
+curl -I https://dev.orviko.net/updates/windows/Orviko-Setup-0.1.1-dev.exe
+```
+
+Versi `0.1.1` adalah bootstrap dan masih perlu dipasang manual. Pengujian auto-update pertama dilakukan dengan memasang `0.1.1`, lalu menerbitkan `0.1.2` melalui urutan yang sama. Setiap release wajib menaikkan versi di `apps/desktop/package.json`; jangan menimpa installer versi lama dengan isi berbeda.
+
 ### Update Dev
 
 ```bash

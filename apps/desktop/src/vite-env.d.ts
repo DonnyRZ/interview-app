@@ -63,6 +63,16 @@ type DesktopApiResponsePayload = {
   text: string;
 };
 
+type DesktopUpdaterStatus = "idle" | "checking" | "available" | "downloading" | "ready" | "waiting-for-meeting" | "restarting" | "error";
+
+type DesktopUpdaterState = {
+  status: DesktopUpdaterStatus;
+  currentVersion: string;
+  availableVersion?: string;
+  progressPercent?: number;
+  message?: string;
+};
+
 type OverlayTranscriptEvent = {
   transcriptText: string;
   detectedQuestion?: string;
@@ -105,6 +115,9 @@ interface Window {
     openDesktopCheckout?: (plan: DesktopPlanSlug) => Promise<{ ok: boolean; message?: string }>;
     apiRequest?: (payload: DesktopApiRequestPayload) => Promise<DesktopApiResponsePayload>;
     onDesktopAuthChanged?: (callback: (payload: DesktopAuthState) => void) => () => void;
+    getUpdaterState?: () => Promise<DesktopUpdaterState>;
+    downloadUpdate?: () => Promise<{ ok: boolean; message?: string }>;
+    onUpdaterStateChanged?: (callback: (payload: DesktopUpdaterState) => void) => () => void;
     openOverlay?: (context: unknown) => Promise<unknown>;
     updateOverlayContext?: (context: unknown) => Promise<unknown>;
     sendRealtimeAction?: (payload: RealtimeOverlayAction) => Promise<{ ok: boolean; message?: string }>;

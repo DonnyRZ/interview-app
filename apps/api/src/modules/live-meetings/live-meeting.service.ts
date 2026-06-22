@@ -47,7 +47,11 @@ export async function getLiveMeetingSessionsForUser(userId: string, meetingConte
   return listLiveMeetingSessions(userId, meetingContextId);
 }
 
-export async function startLiveMeetingForUser(userId: string, input: StartLiveMeetingRequest) {
+export async function startLiveMeetingForUser(
+  userId: string,
+  input: StartLiveMeetingRequest,
+  options: { bypassSubscription?: boolean } = {}
+) {
   const { meetingContext, profileDocument } = await loadMeetingRealtimeContextDependencies(userId, input.meetingContextId);
 
   const session = await db.transaction(async (tx) => {
@@ -61,26 +65,32 @@ export async function startLiveMeetingForUser(userId: string, input: StartLiveMe
       throw new Error("User tidak ditemukan.");
     }
 
-    if (!hasActiveSubscription(lockedUser) || !lockedUser.subscriptionPeriodStartedAt) {
-      throw new SubscriptionRequiredError();
-    }
+    let usagePlan: "mini" | "starter" | "pro" | null = null;
+    let usagePeriodStartedAt: Date | null = null;
+    if (!options.bypassSubscription) {
+      if (!hasActiveSubscription(lockedUser) || !lockedUser.subscriptionPeriodStartedAt) {
+        throw new SubscriptionRequiredError();
+      }
 
-    const parsedPlan = planSlugSchema.safeParse(lockedUser.subscriptionPlan);
-    if (!parsedPlan.success) {
-      throw new SubscriptionRequiredError();
-    }
+      const parsedPlan = planSlugSchema.safeParse(lockedUser.subscriptionPlan);
+      if (!parsedPlan.success) {
+        throw new SubscriptionRequiredError();
+      }
 
-    const catalogItem = planCatalog[parsedPlan.data];
-    if (catalogItem.liveSessionLimit !== null) {
-      const [usage] = await tx.select({ total: count() })
-        .from(liveMeetingUsageEvents)
-        .where(and(
-          eq(liveMeetingUsageEvents.userId, userId),
-          eq(liveMeetingUsageEvents.periodStartedAt, lockedUser.subscriptionPeriodStartedAt)
-        ));
+      usagePlan = parsedPlan.data;
+      usagePeriodStartedAt = lockedUser.subscriptionPeriodStartedAt;
+      const catalogItem = planCatalog[usagePlan];
+      if (catalogItem.liveSessionLimit !== null) {
+        const [usage] = await tx.select({ total: count() })
+          .from(liveMeetingUsageEvents)
+          .where(and(
+            eq(liveMeetingUsageEvents.userId, userId),
+            eq(liveMeetingUsageEvents.periodStartedAt, usagePeriodStartedAt)
+          ));
 
-      if ((usage?.total || 0) >= catalogItem.liveSessionLimit) {
-        throw new SubscriptionQuotaExceededError(`Kuota sesi live paket ${catalogItem.name} sudah habis untuk periode ini.`);
+        if ((usage?.total || 0) >= catalogItem.liveSessionLimit) {
+          throw new SubscriptionQuotaExceededError(`Kuota sesi live paket ${catalogItem.name} sudah habis untuk periode ini.`);
+        }
       }
     }
 
@@ -94,12 +104,14 @@ export async function startLiveMeetingForUser(userId: string, input: StartLiveMe
       throw new Error("Failed to start live meeting session");
     }
 
-    await tx.insert(liveMeetingUsageEvents).values({
-      userId,
-      liveMeetingSessionId: createdSession.id,
-      plan: parsedPlan.data,
-      periodStartedAt: lockedUser.subscriptionPeriodStartedAt
-    });
+    if (usagePlan && usagePeriodStartedAt) {
+      await tx.insert(liveMeetingUsageEvents).values({
+        userId,
+        liveMeetingSessionId: createdSession.id,
+        plan: usagePlan,
+        periodStartedAt: usagePeriodStartedAt
+      });
+    }
 
     return createdSession;
   });

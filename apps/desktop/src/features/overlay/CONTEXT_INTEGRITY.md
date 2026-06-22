@@ -6,7 +6,7 @@ Masalah utama overlay live adalah sumber audio `system-loopback` bisa menangkap 
 
 ## Source Of Truth
 
-- `runtime-rules/transcript-focus-rules.ts` adalah source of truth untuk transcript quality gate, focus derivation, relevance, dan noise filtering.
+- `packages/shared/src/transcript-focus-rules.ts` adalah source of truth untuk transcript quality gate, focus derivation, relevance, dan noise filtering. File desktop `runtime-rules/transcript-focus-rules.ts` hanya re-export kompatibilitas.
 - `InterviewOverlay.tsx` hanya boleh melakukan event wiring, state update, dan rendering. Jangan menaruh rule transcript baru langsung di component.
 - `runtime-rules/realtime-action-prompt.ts` hanya boleh mengirim trigger pendek dan runtime payload. Jangan menaruh policy context integrity di prompt trigger.
 - Prompt/model policy tetap mengikuti `apps/api/src/modules/ai/PROMPTING_RULES.md`.

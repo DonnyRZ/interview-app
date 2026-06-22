@@ -9,8 +9,17 @@ import {
   type RealtimeActionName,
   type RealtimeConversationMode
 } from "./realtime-action-contract.js";
+import {
+  installDownloadedUpdateWhenSafe,
+  registerDesktopUpdater,
+  startDesktopUpdater,
+  stopDesktopUpdater
+} from "./app-updater.js";
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
+const desktopIconPath = app.isPackaged
+  ? path.join(process.resourcesPath, "icon.ico")
+  : path.join(currentDir, "..", "build", "icon.ico");
 const rendererDevUrl = process.env.VITE_DEV_SERVER_URL;
 const defaultDesktopBaseUrl = "https://dev.orviko.net";
 const apiBaseUrl = normalizeBaseUrl(process.env.VITE_DESKTOP_API_BASE_URL || defaultDesktopBaseUrl);
@@ -806,7 +815,15 @@ async function createMainWindow() {
     minWidth: 980,
     minHeight: 680,
     title: "Orviko Meeting Assistant",
+    icon: desktopIconPath,
     backgroundColor: "#f4f6fa",
+    titleBarStyle: "hidden",
+    titleBarOverlay: {
+      color: "#0e1420",
+      symbolColor: "#f3f7ff",
+      height: 36
+    },
+    autoHideMenuBar: true,
     show: false,
     webPreferences: {
       preload: preloadPath,
@@ -816,13 +833,23 @@ async function createMainWindow() {
     }
   });
 
-  mainWindow.once("ready-to-show", () => {
-    mainWindow?.show();
-  });
+  const showMainWindow = () => {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+      mainWindow.show();
+    }
+  };
+  mainWindow.once("ready-to-show", showMainWindow);
+  mainWindow.webContents.once("did-finish-load", showMainWindow);
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     void shell.openExternal(url);
     return { action: "deny" };
+  });
+  mainWindow.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedUrl) => {
+    console.error(`[main-window] Failed to load ${validatedUrl || "renderer"}: ${errorCode} ${errorDescription}`);
+  });
+  mainWindow.webContents.on("render-process-gone", (_event, details) => {
+    console.error(`[main-window] Renderer stopped: ${details.reason} (${details.exitCode})`);
   });
 
   if (rendererDevUrl) {
@@ -901,7 +928,9 @@ async function createOverlayWindow(context: unknown) {
         ...readOverlayEndContext(),
         transcriptText: "Overlay tertutup sebelum tombol End Meeting ditekan."
       };
-      void endOverlayRoundDirect(payload, "overlay tertutup");
+      void endOverlayRoundDirect(payload, "overlay tertutup").finally(() => {
+        installDownloadedUpdateWhenSafe();
+      });
       mainWindow?.webContents.send("overlay:interview-ended", payload);
       overlayContext = null;
     }
@@ -1041,6 +1070,7 @@ function registerOverlayIpc() {
     overlayContext = null;
     overlayWindow?.close();
     overlayWindow = null;
+    installDownloadedUpdateWhenSafe();
     return { ok: true };
   });
 }
@@ -1274,7 +1304,12 @@ if (!hasSingleInstanceLock) {
     registerDesktopAuthIpc();
     registerOverlayIpc();
     registerSystemAudioIpc();
+    registerDesktopUpdater({
+      getMainWindow: () => mainWindow,
+      isMeetingActive: () => Boolean(overlayWindow && !overlayWindow.isDestroyed())
+    });
     await createMainWindow();
+    startDesktopUpdater();
     if (pendingDeepLinkUrl) {
       const deepLinkUrl = pendingDeepLinkUrl;
       pendingDeepLinkUrl = null;
@@ -1312,6 +1347,7 @@ app.on("before-quit", (event) => {
 });
 
 app.on("window-all-closed", () => {
+  stopDesktopUpdater();
   stopRealtimeSession();
   stopSystemAudioProbe();
   if (process.platform !== "darwin") {
