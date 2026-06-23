@@ -74,8 +74,16 @@ assert.match(hookSource, /realtimeSettleUntilRef/, "help requests must respect a
 assert.match(hookSource, /getRealtimeRateLimitState/, "rate limit errors must be parsed instead of displayed raw");
 assert.match(hookSource, /realtimeRateLimitUntilRef/, "rate limit cooldown must gate help and keyword requests");
 assert.match(hookSource, /rateLimitRetryCount/, "rate-limited help must retry with a bounded retry budget");
+assert.match(hookSource, /const realtimeRateLimitMaxRetries = 2;/, "rate-limited help retries must stay conservative for TPM protection");
 assert.match(hookSource, /getRealtimeRateLimitState\(doneState\.errorMessage\)/, "rate-limited response.done failures must retry instead of displaying raw errors");
 assert.match(hookSource, /compactRealtimePromptPayload/, "runtime action prompts must be compacted before response.create");
+assert.match(hookSource, /buildKeywordSourceText/, "web keyword requests must use the same transcript-first source as desktop");
+assert.match(hookSource, /buildKeywordRequestFingerprint/, "web keyword requests must fingerprint context before sending");
+assert.match(hookSource, /keywordLastRequestedKeyRef/, "web keyword requests must dedupe against the last sent keyword context");
+assert.match(hookSource, /pendingKeywordRequestRef\.current\?\.requestKey/, "web keyword requests must dedupe against pending keyword context");
+const rateLimitSource = hookSource.slice(hookSource.indexOf("const handleRealtimeRateLimit"), hookSource.indexOf("function isCurrentHelpRequest"));
+assert.match(rateLimitSource, /pendingKeywordRequestRef\.current = null;/, "rate-limited keyword work must be dropped instead of retried");
+assert.doesNotMatch(rateLimitSource, /schedulePendingKeywordFlush/, "rate-limited keyword work must not schedule another keyword flush");
 const requestHelpSource = hookSource.slice(hookSource.indexOf("const requestHelp"), hookSource.indexOf("const stop"));
 assert.match(requestHelpSource, /queueHelpRequest\(queuedRequest\)/, "help button requests must enter the realtime queue");
 assert.doesNotMatch(requestHelpSource, /sendResponseRequest\(payload,\s*500\)/, "help button must not bypass the response slot");
@@ -83,7 +91,17 @@ assert.doesNotMatch(requestHelpSource, /sendResponseRequest\(payload,\s*500\)/, 
 const audioPath = fileURLToPath(new URL("../src/features/audio/system-audio-capture.ts", import.meta.url));
 const audioSource = await readFile(audioPath, "utf8");
 assert.match(audioSource, /maxPrebufferChunks = 20/);
+assert.match(audioSource, /audioSenderSignalThreshold = 0\.015/, "web audio sender should use the conservative desktop-style signal threshold");
+assert.match(audioSource, /audioSendTailChunks = 8/, "web audio sender must keep a short tail so server VAD can close the turn");
+assert.match(audioSource, /emitPcm16WithSilencePolicy/, "web audio must avoid sending endless silent PCM to realtime");
+assert.match(audioSource, /createPcm16SenderState/, "web audio subscriptions need isolated sender state");
+assert.match(audioSource, /sentAudioSeconds/, "web audio metrics must distinguish captured audio from realtime-sent audio");
+assert.match(audioSource, /suppressedSilentSeconds/, "web audio metrics must expose suppressed silent audio");
+assert.match(audioSource, /observeAudioCaptureMetrics/, "web audio must expose dev-only capture metrics");
+assert.match(audioSource, /\[orviko:web-audio-metrics\]/, "web audio metrics must be easy to identify in dev console");
 assert.doesNotMatch(audioSource, /level\s*[>=]=?\s*0\.025/);
+assert.doesNotMatch(audioSource, /return\s+;\s*\/\/\s*drop pcm/i, "audio instrumentation must not drop PCM chunks");
+assert.doesNotMatch(audioSource, /for \(const callback of pcm16Callbacks\) callback\(chunk\)/, "web audio must not broadcast every raw PCM chunk unconditionally");
 
 assert.equal(hasRealtimeResponseIdConflict(
   { requestId: 7, responseId: "resp_help" },
