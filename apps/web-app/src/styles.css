@@ -1157,6 +1157,11 @@ h2 {
   gap: 8px;
 }
 
+.overlay-loading-message {
+  color: rgba(255, 255, 255, 0.72);
+  margin: 6px 0 14px;
+}
+
 .overlay-loading span {
   height: 10px;
   border-radius: 999px;

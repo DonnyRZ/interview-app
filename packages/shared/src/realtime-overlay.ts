@@ -23,6 +23,20 @@ type RealtimeResponseFormatOptions = {
   sourceText?: string;
 };
 
+export type RealtimeResponseDoneStatus = "completed" | "cancelled" | "failed" | "incomplete" | "unknown";
+
+export type RealtimeResponseDoneState = {
+  status: RealtimeResponseDoneStatus;
+  reason: string;
+  errorCode: string;
+  errorMessage: string;
+};
+
+export type RealtimeRateLimitState = {
+  rateLimited: boolean;
+  retryAfterMs: number;
+};
+
 export function isConversationHelpActionName(action: string) {
   return action === "answer_qna"
     || action === "answer_convo"
@@ -112,6 +126,31 @@ export function getRealtimeResponseId(event: Record<string, unknown>) {
   return typeof response?.id === "string" && response.id.trim() ? response.id.trim() : "";
 }
 
+export function getRealtimeResponseDoneState(event: Record<string, unknown>): RealtimeResponseDoneState {
+  const response = event.response && typeof event.response === "object"
+    ? event.response as Record<string, unknown>
+    : {};
+  const rawStatus = typeof response.status === "string" ? response.status.trim().toLowerCase() : "";
+  const status: RealtimeResponseDoneStatus = rawStatus === "completed"
+    || rawStatus === "cancelled"
+    || rawStatus === "failed"
+    || rawStatus === "incomplete"
+    ? rawStatus
+    : "unknown";
+  const details = response.status_details && typeof response.status_details === "object"
+    ? response.status_details as Record<string, unknown>
+    : {};
+  const error = details.error && typeof details.error === "object"
+    ? details.error as Record<string, unknown>
+    : {};
+  return {
+    status,
+    reason: typeof details.reason === "string" ? details.reason : "",
+    errorCode: typeof error.code === "string" ? error.code : "",
+    errorMessage: typeof error.message === "string" ? error.message : ""
+  };
+}
+
 export function buildRealtimeCancelEvent(responseId?: string) {
   const normalized = responseId?.trim();
   return normalized ? { type: "response.cancel", response_id: normalized } : null;
@@ -119,6 +158,20 @@ export function buildRealtimeCancelEvent(responseId?: string) {
 
 export function isRecoverableRealtimeCancelError(message?: string) {
   return /cancellation failed:\s*no active response found/i.test(message || "");
+}
+
+export function getRealtimeRateLimitState(message?: string): RealtimeRateLimitState {
+  const value = message || "";
+  if (!/rate limit reached/i.test(value)) return { rateLimited: false, retryAfterMs: 0 };
+  const retryMatch = value.match(/try again in\s+([\d.]+)\s*(ms|milliseconds?|s|sec|secs|seconds?)\b/i);
+  if (!retryMatch) return { rateLimited: true, retryAfterMs: 1_000 };
+  const amount = Number.parseFloat(retryMatch[1] || "");
+  if (!Number.isFinite(amount) || amount <= 0) return { rateLimited: true, retryAfterMs: 1_000 };
+  const unit = (retryMatch[2] || "").toLowerCase();
+  return {
+    rateLimited: true,
+    retryAfterMs: unit.startsWith("m") ? Math.ceil(amount) : Math.ceil(amount * 1_000)
+  };
 }
 
 export function parseRealtimeKeywords(text: string) {

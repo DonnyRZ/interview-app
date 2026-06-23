@@ -1,5 +1,5 @@
 import type { RealtimeContext } from "@interview-app/shared";
-import { formatMeetingContextForPrompt, meetingContextUsagePolicy } from "../shared/meeting-context-format.js";
+import { formatRealtimeMeetingContextForPrompt, meetingContextUsagePolicy } from "../shared/meeting-context-format.js";
 import { buildRealtimeMeetingResponseSections } from "../response/meeting-response-router.js";
 
 export function buildRealtimeMeetingSessionInstructions(context: RealtimeContext) {
@@ -60,7 +60,7 @@ export function buildRealtimeMeetingSessionInstructions(context: RealtimeContext
     "- Hard guard: for external-looking casual observations, use a social response shape: acknowledge the observation, say it is not yet a broader conclusion, and suggest checking concrete examples only if needed. Do not use world knowledge.",
     "",
     "BEGIN_STATIC_CONTEXT_DATA",
-    formatMeetingContextForPrompt(context),
+    formatRealtimeMeetingContextForPrompt(context),
     "END_STATIC_CONTEXT_DATA"
   ].join("\n");
 }

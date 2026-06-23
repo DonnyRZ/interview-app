@@ -4,7 +4,9 @@ import {
   extractRealtimeResponseText,
   formatRealtimeResponsePoints,
   getExplicitActionConversationMode,
+  getRealtimeRateLimitState,
   getRealtimeActionTitle,
+  getRealtimeResponseDoneState,
   getRealtimeResponseId,
   isConversationHelpActionName,
   isRecoverableRealtimeCancelError,
@@ -80,13 +82,46 @@ type ActiveHelpResponse = {
   sourceText?: string;
   payload?: RealtimeActionPromptPayload;
   retryCount?: number;
+  nonCompletedRetryCount?: number;
+  rateLimitRetryCount?: number;
+  canceled?: boolean;
 };
 
 type ActiveKeywordResponse = {
   requestId: number;
   generation: number;
   responseId?: string;
+  canceled?: boolean;
 };
+
+type ResponseSlotState = "idle" | "creating" | "active" | "canceling";
+
+type QueuedHelpRequest = {
+  requestId: number;
+  title: string;
+  action: MeetingHelpAction;
+  conversationMode?: RealtimeConversationMode;
+  sourceText: string;
+  payload: RealtimeActionPromptPayload;
+  retryCount: number;
+  nonCompletedRetryCount: number;
+  rateLimitRetryCount: number;
+  settleUntil?: number;
+};
+
+const realtimeResponseSettleMs = 700;
+const realtimeResponseRetryDelayMs = 850;
+const realtimeResponseMaxNonCompletedRetries = 4;
+const realtimeRateLimitSafetyMs = 450;
+const realtimeRateLimitJitterMs = 350;
+const realtimeRateLimitMaxRetryDelayMs = 20_000;
+const realtimeRateLimitMaxRetries = 6;
+const realtimeHelpMaxOutputTokens = 260;
+const realtimeKeywordMaxOutputTokens = 48;
+const realtimeHelpTranscriptMaxChars = 900;
+const realtimeKeywordTranscriptMaxChars = 520;
+const realtimeFocusMaxChars = 360;
+const realtimeTriggerMaxChars = 160;
 
 const initialState: RealtimeTranscriptionState = {
   status: "idle",
@@ -126,6 +161,12 @@ export function useRealtimeTranscription(audio: AudioSource) {
   const keywordRequestIdRef = useRef(0);
   const keywordGenerationRef = useRef(0);
   const ignoredUnclaimedResponseCreatesRef = useRef(0);
+  const responseSlotStateRef = useRef<ResponseSlotState>("idle");
+  const responseSlotFallbackTimerRef = useRef<number | null>(null);
+  const queuedHelpRequestRef = useRef<QueuedHelpRequest | null>(null);
+  const drainQueuedRealtimeWorkRef = useRef<() => void>(() => undefined);
+  const realtimeSettleUntilRef = useRef(0);
+  const realtimeRateLimitUntilRef = useRef(0);
   const activeDisplayedHelpResponseRef = useRef<MeetingHelpResponse | null>(null);
   const activeHelpFinalRef = useRef(false);
   const pendingKeywordTranscriptRef = useRef("");
@@ -155,25 +196,103 @@ export function useRealtimeTranscription(audio: AudioSource) {
     return true;
   }, []);
 
+  function isResponseSlotIdle() {
+    return responseSlotStateRef.current === "idle"
+      && !activeHelpRealtimeResponseRef.current
+      && !activeKeywordResponseRef.current;
+  }
+
+  function clearResponseSlotFallbackTimer() {
+    if (responseSlotFallbackTimerRef.current !== null) window.clearTimeout(responseSlotFallbackTimerRef.current);
+    responseSlotFallbackTimerRef.current = null;
+  }
+
+  function requestQueuedRealtimeWorkDrain(delay = 0) {
+    window.setTimeout(() => drainQueuedRealtimeWorkRef.current(), delay);
+  }
+
+  function releaseResponseSlot() {
+    responseSlotStateRef.current = "idle";
+    clearResponseSlotFallbackTimer();
+    requestQueuedRealtimeWorkDrain();
+  }
+
+  function scheduleResponseSlotFallback(delay = 3_500) {
+    clearResponseSlotFallbackTimer();
+    responseSlotFallbackTimerRef.current = window.setTimeout(() => {
+      responseSlotFallbackTimerRef.current = null;
+      if (responseSlotStateRef.current === "idle") return;
+      if (activeHelpRealtimeResponseRef.current?.canceled) activeHelpRealtimeResponseRef.current = null;
+      if (activeKeywordResponseRef.current?.canceled) activeKeywordResponseRef.current = null;
+      helpResponseBufferRef.current = "";
+      keywordResponseBufferRef.current = "";
+      responseSlotStateRef.current = "idle";
+      requestQueuedRealtimeWorkDrain();
+    }, delay);
+  }
+
+  function markRealtimeSettleWindow(delay = realtimeResponseSettleMs) {
+    realtimeSettleUntilRef.current = Math.max(realtimeSettleUntilRef.current, Date.now() + delay);
+  }
+
+  function getRealtimeSettleDelay() {
+    return Math.max(0, realtimeSettleUntilRef.current - Date.now());
+  }
+
+  function getRateLimitCooldownDelay() {
+    return Math.max(0, realtimeRateLimitUntilRef.current - Date.now());
+  }
+
+  function startRateLimitCooldown(retryAfterMs: number) {
+    const retryDelay = Number.isFinite(retryAfterMs) && retryAfterMs > 0 ? retryAfterMs : 1_000;
+    const jitter = Math.floor(Math.random() * realtimeRateLimitJitterMs);
+    const delay = Math.min(realtimeRateLimitMaxRetryDelayMs, retryDelay + realtimeRateLimitSafetyMs + jitter);
+    realtimeRateLimitUntilRef.current = Math.max(realtimeRateLimitUntilRef.current, Date.now() + delay);
+    return delay;
+  }
+
+  function cloneQueuedHelpRequest(
+    active: ActiveHelpResponse,
+    fallbackAction: MeetingHelpAction = "explain_text"
+  ): QueuedHelpRequest | null {
+    if (!active.payload) return null;
+    const action = active.action || fallbackAction;
+    return {
+      requestId: active.requestId,
+      title: activeDisplayedHelpResponseRef.current?.title || getRealtimeActionTitle({ action }),
+      action,
+      conversationMode: active.conversationMode,
+      sourceText: active.sourceText || "",
+      payload: active.payload,
+      retryCount: active.retryCount || 0,
+      nonCompletedRetryCount: active.nonCompletedRetryCount || 0,
+      rateLimitRetryCount: active.rateLimitRetryCount || 0
+    };
+  }
+
   const cancelActiveHelpResponse = useCallback(() => {
-    const responseId = activeHelpRealtimeResponseRef.current?.responseId;
-    if (responseId) ignoredResponseIdsRef.current.add(responseId);
+    const active = activeHelpRealtimeResponseRef.current;
+    if (!active) return;
+    activeHelpRealtimeResponseRef.current = { ...active, canceled: true };
+    const responseId = active.responseId;
     const cancelEvent = buildRealtimeCancelEvent(responseId);
     if (cancelEvent) sendClientEvent(cancelEvent);
-    activeHelpRealtimeResponseRef.current = null;
     helpResponseBufferRef.current = "";
+    responseSlotStateRef.current = "canceling";
+    scheduleResponseSlotFallback();
   }, [sendClientEvent]);
 
   const cancelActiveKeywordResponse = useCallback(() => {
     keywordGenerationRef.current += 1;
     const activeKeyword = activeKeywordResponseRef.current;
+    if (!activeKeyword) return;
+    activeKeywordResponseRef.current = { ...activeKeyword, canceled: true };
     const responseId = activeKeyword?.responseId;
-    if (responseId) ignoredResponseIdsRef.current.add(responseId);
-    else if (activeKeyword) ignoredUnclaimedResponseCreatesRef.current += 1;
     const cancelEvent = buildRealtimeCancelEvent(responseId);
     if (cancelEvent) sendClientEvent(cancelEvent);
-    activeKeywordResponseRef.current = null;
     keywordResponseBufferRef.current = "";
+    responseSlotStateRef.current = "canceling";
+    scheduleResponseSlotFallback();
   }, [sendClientEvent]);
 
   const clearRuntimeTimers = useCallback(() => {
@@ -181,10 +300,12 @@ export function useRealtimeTranscription(audio: AudioSource) {
     reconnectTimerRef.current = null;
     if (keywordTimerRef.current !== null) window.clearTimeout(keywordTimerRef.current);
     keywordTimerRef.current = null;
+    clearResponseSlotFallbackTimer();
   }, []);
 
   const closeTransport = useCallback(() => {
     clearRuntimeTimers();
+    queuedHelpRequestRef.current = null;
     cancelActiveHelpResponse();
     cancelActiveKeywordResponse();
     unsubscribeAudioRef.current?.();
@@ -195,12 +316,13 @@ export function useRealtimeTranscription(audio: AudioSource) {
   }, [cancelActiveHelpResponse, cancelActiveKeywordResponse, clearRuntimeTimers]);
 
   const sendResponseRequest = useCallback((payload: RealtimeActionPromptPayload, maxOutputTokens: number) => {
+    const compactPayload = compactRealtimePromptPayload(payload);
     const itemSent = sendClientEvent({
       type: "conversation.item.create",
       item: {
         type: "message",
         role: "user",
-        content: [{ type: "input_text", text: buildRealtimeActionPrompt(payload) }]
+        content: [{ type: "input_text", text: buildRealtimeActionPrompt(compactPayload) }]
       }
     });
     const responseSent = sendClientEvent({
@@ -211,7 +333,12 @@ export function useRealtimeTranscription(audio: AudioSource) {
   }, [sendClientEvent]);
 
   const flushPendingKeywords = useCallback(() => {
-    if (activeHelpRealtimeResponseRef.current || activeKeywordResponseRef.current || !pendingKeywordTranscriptRef.current) return;
+    if (!isResponseSlotIdle() || queuedHelpRequestRef.current || !pendingKeywordTranscriptRef.current) return;
+    const cooldownDelay = getRateLimitCooldownDelay();
+    if (cooldownDelay > 0) {
+      requestQueuedRealtimeWorkDrain(cooldownDelay + 200);
+      return;
+    }
     const transcript = pendingKeywordTranscriptRef.current;
     pendingKeywordTranscriptRef.current = "";
     const requestId = keywordRequestIdRef.current + 1;
@@ -219,14 +346,16 @@ export function useRealtimeTranscription(audio: AudioSource) {
     const generation = keywordGenerationRef.current;
     activeKeywordResponseRef.current = { requestId, generation };
     keywordResponseBufferRef.current = "";
+    responseSlotStateRef.current = "creating";
     const sent = sendResponseRequest({
       action: "surface_keywords",
       latestQuestion: latestTranscriptRef.current,
       recentTranscript: transcript,
       conversationMode: "unknown"
-    }, 80);
+    }, realtimeKeywordMaxOutputTokens);
     if (!sent) {
       activeKeywordResponseRef.current = null;
+      responseSlotStateRef.current = "idle";
       pendingKeywordTranscriptRef.current = transcript;
     }
   }, [sendResponseRequest]);
@@ -240,6 +369,126 @@ export function useRealtimeTranscription(audio: AudioSource) {
       flushPendingKeywords();
     }, delay);
   }, [flushPendingKeywords]);
+
+  const queueHelpRequest = useCallback((request: QueuedHelpRequest) => {
+    queuedHelpRequestRef.current = request;
+    if (!isResponseSlotIdle()) {
+      updateHelpState((current) => ({
+        ...current,
+        mode: "loading",
+        activeResponse: current.activeResponse
+          ? { ...current.activeResponse, points: ["Menunggu respons realtime sebelumnya selesai..."] }
+          : { title: request.title, kind: "help", points: ["Menunggu respons realtime sebelumnya selesai..."] }
+      }));
+    }
+    requestQueuedRealtimeWorkDrain();
+  }, [updateHelpState]);
+
+  const drainQueuedRealtimeWork = useCallback(() => {
+    if (!shouldRunRef.current) return;
+    const queued = queuedHelpRequestRef.current;
+    if (queued) {
+      if (!isResponseSlotIdle()) return;
+      const cooldownDelay = getRateLimitCooldownDelay();
+      if (cooldownDelay > 0) {
+        updateHelpState((current) => ({
+          ...current,
+          mode: "loading",
+          activeResponse: current.activeResponse
+            ? {
+                ...current.activeResponse,
+                points: [`Menunggu kapasitas realtime sebentar (${formatDelaySeconds(cooldownDelay)}).`]
+              }
+            : { title: queued.title, kind: "help", points: [`Menunggu kapasitas realtime sebentar (${formatDelaySeconds(cooldownDelay)}).`] }
+        }));
+        requestQueuedRealtimeWorkDrain(cooldownDelay + 50);
+        return;
+      }
+      const settleDelay = Math.max(0, queued.settleUntil || 0, realtimeSettleUntilRef.current) - Date.now();
+      if (settleDelay > 0) {
+        requestQueuedRealtimeWorkDrain(settleDelay);
+        return;
+      }
+      const socket = socketRef.current;
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        queuedHelpRequestRef.current = null;
+        updateHelpState((current) => ({
+          ...current,
+          mode: "response",
+          activeResponse: buildNotice("Realtime Belum Aktif", "Bantuan tidak terkirim karena koneksi realtime tertutup.")
+        }));
+        return;
+      }
+      queuedHelpRequestRef.current = null;
+      activeHelpRealtimeResponseRef.current = {
+        requestId: queued.requestId,
+        action: queued.action,
+        conversationMode: queued.conversationMode,
+        sourceText: queued.sourceText,
+        payload: queued.payload,
+        retryCount: queued.retryCount,
+        nonCompletedRetryCount: queued.nonCompletedRetryCount,
+        rateLimitRetryCount: queued.rateLimitRetryCount
+      };
+      helpResponseBufferRef.current = "";
+      responseSlotStateRef.current = "creating";
+      const sent = sendResponseRequest(queued.payload, realtimeHelpMaxOutputTokens);
+      if (!sent) {
+        activeHelpRealtimeResponseRef.current = null;
+        responseSlotStateRef.current = "idle";
+        updateHelpState((current) => ({
+          ...current,
+          mode: "response",
+          activeResponse: buildNotice("Realtime Belum Aktif", "Bantuan tidak terkirim karena koneksi realtime tertutup.")
+        }));
+      }
+      return;
+    }
+    flushPendingKeywords();
+  }, [flushPendingKeywords, sendResponseRequest, updateHelpState]);
+  drainQueuedRealtimeWorkRef.current = drainQueuedRealtimeWork;
+
+  const handleRealtimeRateLimit = useCallback((retryAfterMs: number, fallbackActiveHelp?: ActiveHelpResponse | null) => {
+    const cooldownDelay = startRateLimitCooldown(retryAfterMs);
+    const activeHelp = fallbackActiveHelp || activeHelpRealtimeResponseRef.current;
+    if (activeHelp?.payload && activeHelp.action && !activeHelp.canceled) {
+      const retry = cloneQueuedHelpRequest(activeHelp);
+      activeHelpRealtimeResponseRef.current = null;
+      helpResponseBufferRef.current = "";
+      if (retry && retry.rateLimitRetryCount < realtimeRateLimitMaxRetries) {
+        retry.rateLimitRetryCount += 1;
+        retry.settleUntil = Date.now() + cooldownDelay;
+        queuedHelpRequestRef.current = retry;
+        updateHelpState((current) => ({
+          ...current,
+          mode: "loading",
+          activeResponse: current.activeResponse
+            ? {
+                ...current.activeResponse,
+                points: [`Menunggu kapasitas realtime sebentar (${formatDelaySeconds(cooldownDelay)}).`]
+              }
+            : { title: retry.title, kind: "help", points: [`Menunggu kapasitas realtime sebentar (${formatDelaySeconds(cooldownDelay)}).`] }
+        }));
+        releaseResponseSlot();
+        return true;
+      }
+    }
+    if (activeKeywordResponseRef.current && !activeHelpRealtimeResponseRef.current) {
+      activeKeywordResponseRef.current = null;
+      keywordResponseBufferRef.current = "";
+      releaseResponseSlot();
+      if (pendingKeywordTranscriptRef.current) scheduleKeywordRefresh(pendingKeywordTranscriptRef.current, cooldownDelay + 500);
+      return true;
+    }
+    activeHelpFinalRef.current = false;
+    releaseResponseSlot();
+    updateHelpState((current) => ({
+      ...current,
+      mode: "response",
+      activeResponse: buildNotice("Realtime Sedang Penuh", "Kapasitas realtime sedang penuh. Sistem sudah mencoba ulang; tunggu sebentar sebelum mengirim bantuan lagi.")
+    }));
+    return true;
+  }, [scheduleKeywordRefresh, updateHelpState]);
 
   function isCurrentHelpRequest(requestId: number) {
     return helpRequestIdRef.current === requestId;
@@ -259,14 +508,14 @@ export function useRealtimeTranscription(audio: AudioSource) {
     return isRealtimeResponseOwnedBy(
       activeHelpRealtimeResponseRef.current,
       responseId,
-      isCurrentHelpRequest,
+      active.canceled ? () => true : isCurrentHelpRequest,
       true
     );
   }
 
   function isActiveKeywordResponseEvent(responseId: string) {
     const active = activeKeywordResponseRef.current;
-    if (!active || active.generation !== keywordGenerationRef.current) return false;
+    if (!active || (!active.canceled && active.generation !== keywordGenerationRef.current)) return false;
     if (hasRealtimeResponseIdConflict(active, activeHelpRealtimeResponseRef.current, responseId)) return false;
     if (canClaimRealtimeResponseId(active, activeHelpRealtimeResponseRef.current, responseId, canKeywordUseMissingResponseIdFallback())) {
       activeKeywordResponseRef.current = { ...active, responseId };
@@ -281,31 +530,47 @@ export function useRealtimeTranscription(audio: AudioSource) {
   }
 
   function claimCreatedResponse(responseId: string) {
-    if (!responseId) return;
+    if (!responseId) return false;
     if (ignoredUnclaimedResponseCreatesRef.current > 0) {
       ignoredUnclaimedResponseCreatesRef.current -= 1;
       ignoredResponseIdsRef.current.add(responseId);
-      return;
+      return false;
     }
     const help = activeHelpRealtimeResponseRef.current;
     if (
       help
-      && isCurrentHelpRequest(help.requestId)
+      && (isCurrentHelpRequest(help.requestId) || help.canceled)
       && !hasRealtimeResponseIdConflict(help, activeKeywordResponseRef.current, responseId)
       && canClaimRealtimeResponseId(help, activeKeywordResponseRef.current, responseId, true)
     ) {
-      activeHelpRealtimeResponseRef.current = { ...help, responseId };
-      return;
+      const claimed = { ...help, responseId };
+      activeHelpRealtimeResponseRef.current = claimed;
+      responseSlotStateRef.current = claimed.canceled ? "canceling" : "active";
+      if (claimed.canceled) {
+        const cancelEvent = buildRealtimeCancelEvent(responseId);
+        if (cancelEvent) sendClientEvent(cancelEvent);
+        scheduleResponseSlotFallback();
+      }
+      return true;
     }
 
     const keyword = activeKeywordResponseRef.current;
     if (
       keyword
-      && keyword.generation === keywordGenerationRef.current
+      && (keyword.canceled || keyword.generation === keywordGenerationRef.current)
       && canClaimRealtimeResponseId(keyword, activeHelpRealtimeResponseRef.current, responseId, canKeywordUseMissingResponseIdFallback())
     ) {
-      activeKeywordResponseRef.current = { ...keyword, responseId };
+      const claimed = { ...keyword, responseId };
+      activeKeywordResponseRef.current = claimed;
+      responseSlotStateRef.current = claimed.canceled ? "canceling" : "active";
+      if (claimed.canceled) {
+        const cancelEvent = buildRealtimeCancelEvent(responseId);
+        if (cancelEvent) sendClientEvent(cancelEvent);
+        scheduleResponseSlotFallback();
+      }
+      return true;
     }
+    return false;
   }
 
   const finalizeKeywordResponse = useCallback((event: Record<string, unknown>, responseId: string) => {
@@ -316,7 +581,8 @@ export function useRealtimeTranscription(audio: AudioSource) {
     activeKeywordResponseRef.current = null;
     keywordResponseBufferRef.current = "";
     ignoredUnclaimedResponseCreatesRef.current = 0;
-    if (active.generation === keywordGenerationRef.current) {
+    releaseResponseSlot();
+    if (!active.canceled && active.generation === keywordGenerationRef.current) {
       const keywords = parseRealtimeKeywords(finalText);
       updateHelpState((current) => ({ ...current, keywords }));
     }
@@ -326,13 +592,63 @@ export function useRealtimeTranscription(audio: AudioSource) {
   const finalizeHelpResponse = useCallback((event: Record<string, unknown>, responseId: string) => {
     const active = activeHelpRealtimeResponseRef.current;
     if (!active || !isActiveHelpResponseEvent(responseId)) return;
+    const doneState = getRealtimeResponseDoneState(event);
     const finalText = extractRealtimeResponseText(event) || helpResponseBufferRef.current.trim();
     activeHelpRealtimeResponseRef.current = null;
     helpResponseBufferRef.current = "";
 
+    if (active.canceled) {
+      releaseResponseSlot();
+      return;
+    }
+
+    if (
+      doneState.status !== "completed"
+      && !(doneState.status === "unknown" && finalText.trim())
+      && !(doneState.status === "incomplete" && finalText.trim())
+    ) {
+      const rateLimit = getRealtimeRateLimitState(doneState.errorMessage);
+      if (rateLimit.rateLimited) {
+        handleRealtimeRateLimit(rateLimit.retryAfterMs, active);
+        return;
+      }
+      const retryable = isRetryableRealtimeDoneState(doneState);
+      const retryCount = active.nonCompletedRetryCount || 0;
+      const retry = cloneQueuedHelpRequest(active);
+      if (retryable && retry && retryCount < realtimeResponseMaxNonCompletedRetries) {
+        retry.nonCompletedRetryCount = retryCount + 1;
+        retry.settleUntil = Date.now() + realtimeResponseRetryDelayMs + getRealtimeSettleDelay();
+        queuedHelpRequestRef.current = retry;
+        updateHelpState((current) => ({
+          ...current,
+          mode: "loading",
+          activeResponse: current.activeResponse
+            ? { ...current.activeResponse, points: ["Menunggu realtime selesai memproses giliran bicara terbaru..."] }
+            : current.activeResponse
+        }));
+        releaseResponseSlot();
+        return;
+      }
+
+      activeHelpFinalRef.current = false;
+      updateHelpState((current) => ({
+        ...current,
+        mode: "response",
+        activeResponse: buildNotice(
+          doneState.status === "failed" ? "Bantuan Realtime Gagal" : "Realtime Belum Siap",
+          getRealtimeDoneNoticeMessage(doneState)
+        )
+      }));
+      releaseResponseSlot();
+      return;
+    }
+
     if (!finalText.trim() && active.payload && (active.retryCount || 0) < 1) {
-      const retry = { ...active, responseId: undefined, retryCount: (active.retryCount || 0) + 1 };
-      activeHelpRealtimeResponseRef.current = retry;
+      const retry = cloneQueuedHelpRequest(active);
+      if (!retry) return;
+      retry.retryCount = (active.retryCount || 0) + 1;
+      retry.settleUntil = Date.now() + realtimeResponseRetryDelayMs + getRealtimeSettleDelay();
+      queuedHelpRequestRef.current = retry;
       updateHelpState((current) => ({
         ...current,
         mode: "loading",
@@ -340,8 +656,8 @@ export function useRealtimeTranscription(audio: AudioSource) {
           ? { ...current.activeResponse, points: ["Mencoba ulang bantuan realtime..."] }
           : current.activeResponse
       }));
-      if (sendResponseRequest(active.payload, 500)) return;
-      activeHelpRealtimeResponseRef.current = null;
+      releaseResponseSlot();
+      return;
     }
 
     const points = formatRealtimeResponsePoints(finalText, {
@@ -359,8 +675,9 @@ export function useRealtimeTranscription(audio: AudioSource) {
     };
     activeHelpFinalRef.current = true;
     updateHelpState((current) => ({ ...current, mode: "response", activeResponse: response }));
+    releaseResponseSlot();
     if (pendingKeywordTranscriptRef.current) scheduleKeywordRefresh(pendingKeywordTranscriptRef.current, 500);
-  }, [scheduleKeywordRefresh, sendResponseRequest, updateHelpState]);
+  }, [scheduleKeywordRefresh, updateHelpState]);
 
   handleServerEventRef.current = (data: unknown) => {
     if (typeof data !== "string") return;
@@ -374,21 +691,29 @@ export function useRealtimeTranscription(audio: AudioSource) {
     const type = typeof event.type === "string" ? event.type : "";
     const responseId = getRealtimeResponseId(event);
     if (responseId && ignoredResponseIdsRef.current.has(responseId)) {
-      if (type === "response.done") ignoredResponseIdsRef.current.delete(responseId);
+      if (type === "response.done") {
+        ignoredResponseIdsRef.current.delete(responseId);
+        releaseResponseSlot();
+      }
       return;
     }
     if (type === "response.created") {
-      claimCreatedResponse(responseId);
+      if (responseId && !claimCreatedResponse(responseId) && responseSlotStateRef.current !== "idle") {
+        ignoredResponseIdsRef.current.add(responseId);
+        responseSlotStateRef.current = "active";
+      }
       return;
     }
     if (type === "input_audio_buffer.speech_started") {
       speechPendingRef.current = true;
       speechStartedAtRef.current = Date.now();
+      markRealtimeSettleWindow();
       conversationStateRef.current?.markSpeechStarted(speechStartedAtRef.current);
       setState((current) => ({ ...current, status: "transcribing", message: "Ucapan terdeteksi...", interimTranscript: "" }));
       return;
     }
     if (type === "input_audio_buffer.speech_stopped") {
+      markRealtimeSettleWindow();
       conversationStateRef.current?.markSpeechStopped();
       setState((current) => ({ ...current, status: "transcribing", message: "Ucapan selesai, menunggu transkrip..." }));
       return;
@@ -414,6 +739,7 @@ export function useRealtimeTranscription(audio: AudioSource) {
     if (type === "conversation.item.input_audio_transcription.completed") {
       speechPendingRef.current = false;
       speechStartedAtRef.current = 0;
+      markRealtimeSettleWindow();
       conversationStateRef.current?.clearPendingSpeech();
       const transcript = typeof event.transcript === "string" ? normalizeTranscript(event.transcript) : "";
       if (!transcript) {
@@ -451,10 +777,12 @@ export function useRealtimeTranscription(audio: AudioSource) {
     }
     if (type === "response.output_text.delta" && typeof event.delta === "string") {
       if (isActiveKeywordResponseEvent(responseId)) {
+        if (activeKeywordResponseRef.current?.canceled) return;
         keywordResponseBufferRef.current += event.delta;
         return;
       }
       if (!isActiveHelpResponseEvent(responseId)) return;
+      if (activeHelpRealtimeResponseRef.current?.canceled) return;
       helpResponseBufferRef.current += event.delta;
       const active = activeHelpRealtimeResponseRef.current;
       const points = formatRealtimeResponsePoints(helpResponseBufferRef.current, {
@@ -473,10 +801,12 @@ export function useRealtimeTranscription(audio: AudioSource) {
     }
     if (type === "response.output_text.done" && typeof event.text === "string") {
       if (isActiveKeywordResponseEvent(responseId)) {
+        if (activeKeywordResponseRef.current?.canceled) return;
         if (!keywordResponseBufferRef.current.trim()) keywordResponseBufferRef.current = event.text;
         return;
       }
       if (!isActiveHelpResponseEvent(responseId)) return;
+      if (activeHelpRealtimeResponseRef.current?.canceled) return;
       if (!helpResponseBufferRef.current.trim()) helpResponseBufferRef.current = event.text;
       return;
     }
@@ -492,15 +822,55 @@ export function useRealtimeTranscription(audio: AudioSource) {
       const error = event.error && typeof event.error === "object" ? event.error as Record<string, unknown> : null;
       const message = typeof error?.message === "string" ? error.message : "OpenAI Realtime mengembalikan error.";
       if (isRecoverableRealtimeCancelError(message)) return;
+      const rateLimit = getRealtimeRateLimitState(message);
+      if (rateLimit.rateLimited) {
+        handleRealtimeRateLimit(rateLimit.retryAfterMs);
+        return;
+      }
+      if (isActiveResponseInProgressError(message)) {
+        const activeHelp = activeHelpRealtimeResponseRef.current;
+        if (activeHelp?.payload && activeHelp.action && !activeHelp.canceled) {
+          queuedHelpRequestRef.current = {
+            requestId: activeHelp.requestId,
+            title: activeDisplayedHelpResponseRef.current?.title || getRealtimeActionTitle({ action: activeHelp.action }),
+            action: activeHelp.action,
+            conversationMode: activeHelp.conversationMode,
+            sourceText: activeHelp.sourceText || "",
+            payload: activeHelp.payload,
+            retryCount: activeHelp.retryCount || 0,
+            nonCompletedRetryCount: activeHelp.nonCompletedRetryCount || 0,
+            rateLimitRetryCount: activeHelp.rateLimitRetryCount || 0,
+            settleUntil: Date.now() + realtimeResponseRetryDelayMs
+          };
+          activeHelpRealtimeResponseRef.current = null;
+          helpResponseBufferRef.current = "";
+          updateHelpState((current) => ({
+            ...current,
+            mode: "loading",
+            activeResponse: current.activeResponse
+              ? { ...current.activeResponse, points: ["Menunggu respons realtime sebelumnya selesai..."] }
+              : current.activeResponse
+          }));
+        }
+        if (activeKeywordResponseRef.current && !activeKeywordResponseRef.current.responseId && !activeKeywordResponseRef.current.canceled) {
+          activeKeywordResponseRef.current = null;
+          keywordResponseBufferRef.current = "";
+        }
+        responseSlotStateRef.current = "canceling";
+        scheduleResponseSlotFallback(1_200);
+        return;
+      }
       if (activeKeywordResponseRef.current && !activeHelpRealtimeResponseRef.current) {
         activeKeywordResponseRef.current = null;
         keywordResponseBufferRef.current = "";
+        releaseResponseSlot();
         if (pendingKeywordTranscriptRef.current) scheduleKeywordRefresh(pendingKeywordTranscriptRef.current, 1_000);
         return;
       }
       if (activeHelpRealtimeResponseRef.current) {
         activeHelpRealtimeResponseRef.current = null;
         helpResponseBufferRef.current = "";
+        releaseResponseSlot();
         activeHelpFinalRef.current = false;
         updateHelpState((current) => ({
           ...current,
@@ -559,6 +929,9 @@ export function useRealtimeTranscription(audio: AudioSource) {
       }
       activeHelpRealtimeResponseRef.current = null;
       activeKeywordResponseRef.current = null;
+      queuedHelpRequestRef.current = null;
+      responseSlotStateRef.current = "idle";
+      realtimeRateLimitUntilRef.current = 0;
       helpResponseBufferRef.current = "";
       keywordResponseBufferRef.current = "";
       ignoredUnclaimedResponseCreatesRef.current = 0;
@@ -602,6 +975,7 @@ export function useRealtimeTranscription(audio: AudioSource) {
 
   const closeResponse = useCallback(() => {
     helpRequestIdRef.current += 1;
+    queuedHelpRequestRef.current = null;
     cancelActiveHelpResponse();
     activeHelpFinalRef.current = false;
     updateHelpState((current) => ({ ...current, mode: "idle", activeResponse: null }));
@@ -645,8 +1019,6 @@ export function useRealtimeTranscription(audio: AudioSource) {
       const previous = activeDisplayedHelpResponseRef.current;
       updateHelpState((current) => ({ ...current, recentHelp: [previous, ...current.recentHelp].slice(0, 5) }));
     }
-    cancelActiveKeywordResponse();
-    cancelActiveHelpResponse();
     activeHelpFinalRef.current = false;
     const title = getRealtimeActionTitle({ action, triggerText: normalizedTrigger });
     updateHelpState((current) => ({
@@ -667,7 +1039,10 @@ export function useRealtimeTranscription(audio: AudioSource) {
       ? undefined
       : getExplicitActionConversationMode(action) || "unknown";
     const latestTranscript = stableContext?.focus || latestTranscriptRef.current.trim();
-    const recentTranscript = stableContext?.windowText || conversationStateRef.current?.getRecentTranscriptText() || "";
+    const recentTranscript = compactRecentTranscript(
+      stableContext?.windowText || conversationStateRef.current?.getRecentTranscriptText() || "",
+      realtimeHelpTranscriptMaxChars
+    );
     const payload: RealtimeActionPromptPayload = {
       action,
       latestQuestion: latestTranscript,
@@ -675,21 +1050,22 @@ export function useRealtimeTranscription(audio: AudioSource) {
       triggerText: normalizedTrigger || undefined,
       conversationMode
     };
-    activeHelpRealtimeResponseRef.current = {
+    const queuedRequest: QueuedHelpRequest = {
       requestId,
+      title,
       action,
       conversationMode,
       sourceText: [recentTranscript, latestTranscript, normalizedTrigger].filter(Boolean).join("\n"),
       payload,
-      retryCount: 0
+      retryCount: 0,
+      nonCompletedRetryCount: 0,
+      rateLimitRetryCount: 0,
+      settleUntil: Date.now() + getRealtimeSettleDelay()
     };
-    helpResponseBufferRef.current = "";
-    const sent = sendResponseRequest(payload, 500);
-    if (!sent) {
-      activeHelpRealtimeResponseRef.current = null;
-      updateHelpState((current) => ({ ...current, mode: "response", activeResponse: buildNotice("Realtime Belum Aktif", "Bantuan tidak terkirim karena koneksi realtime tertutup.") }));
-    }
-  }, [cancelActiveHelpResponse, cancelActiveKeywordResponse, sendResponseRequest, updateHelpState]);
+    cancelActiveKeywordResponse();
+    cancelActiveHelpResponse();
+    queueHelpRequest(queuedRequest);
+  }, [cancelActiveHelpResponse, cancelActiveKeywordResponse, queueHelpRequest, updateHelpState]);
 
   const stop = useCallback(async () => {
     shouldRunRef.current = false;
@@ -711,8 +1087,16 @@ export function useRealtimeTranscription(audio: AudioSource) {
     speechStartedAtRef.current = 0;
     realtimeContextRef.current = undefined;
     pendingKeywordTranscriptRef.current = "";
+    activeHelpRealtimeResponseRef.current = null;
+    activeKeywordResponseRef.current = null;
+    helpResponseBufferRef.current = "";
+    keywordResponseBufferRef.current = "";
     ignoredResponseIdsRef.current.clear();
     ignoredUnclaimedResponseCreatesRef.current = 0;
+    queuedHelpRequestRef.current = null;
+    responseSlotStateRef.current = "idle";
+    realtimeRateLimitUntilRef.current = 0;
+    clearResponseSlotFallbackTimer();
     activeDisplayedHelpResponseRef.current = null;
     activeHelpFinalRef.current = false;
     setState(endError ? { ...initialState, status: "error", message: `${endError} Akhiri sesi dari Riwayat Sesi Live.` } : initialState);
@@ -793,6 +1177,66 @@ function buildNotice(title: string, message: string): MeetingHelpResponse {
 
 function normalizeTranscript(value: string) {
   return value.replace(/\s+/g, " ").trim();
+}
+
+function isActiveResponseInProgressError(message: string) {
+  return /active response in progress/i.test(message)
+    || /wait until the response is finished/i.test(message);
+}
+
+function isRetryableRealtimeDoneState(state: ReturnType<typeof getRealtimeResponseDoneState>) {
+  if (state.status === "cancelled") return true;
+  if (state.status === "unknown") return true;
+  return state.status === "incomplete" && !/content_filter/i.test(state.reason);
+}
+
+function getRealtimeDoneNoticeMessage(state: ReturnType<typeof getRealtimeResponseDoneState>) {
+  if (state.status === "failed") {
+    return state.errorMessage || state.errorCode || "Realtime gagal membuat bantuan.";
+  }
+  if (state.status === "incomplete") {
+    if (/content_filter/i.test(state.reason)) return "Realtime menghentikan bantuan karena filter konten.";
+    if (/max_output_tokens/i.test(state.reason)) return "Realtime menghentikan bantuan karena batas token tercapai. Coba kirim ulang bantuan.";
+    return "Realtime belum menyelesaikan bantuan. Coba kirim ulang setelah konteks stabil.";
+  }
+  if (state.status === "cancelled") {
+    return "Realtime membatalkan bantuan karena giliran bicara/audio masih berubah. Coba kirim ulang setelah konteks stabil.";
+  }
+  return "Realtime belum memberi status selesai yang valid. Coba kirim ulang bantuan.";
+}
+
+function compactRealtimePromptPayload(payload: RealtimeActionPromptPayload): RealtimeActionPromptPayload {
+  const isKeywordPrompt = payload.action === "surface_keywords";
+  return {
+    ...payload,
+    latestQuestion: compactText(payload.latestQuestion || "", realtimeFocusMaxChars),
+    recentTranscript: compactRecentTranscript(
+      payload.recentTranscript || "",
+      isKeywordPrompt ? realtimeKeywordTranscriptMaxChars : realtimeHelpTranscriptMaxChars
+    ),
+    triggerText: compactText(payload.triggerText || "", realtimeTriggerMaxChars)
+  };
+}
+
+function compactRecentTranscript(value: string, maxCharacters: number) {
+  const lines = value
+    .split(/\r?\n+/)
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .slice(-4);
+  const joined = lines.join("\n").trim();
+  if (joined.length <= maxCharacters) return joined;
+  return joined.slice(joined.length - maxCharacters).trim();
+}
+
+function compactText(value: string, maxCharacters: number) {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxCharacters) return normalized;
+  return normalized.slice(0, maxCharacters).trim();
+}
+
+function formatDelaySeconds(delayMs: number) {
+  return `${Math.max(1, Math.ceil(delayMs / 1_000))} detik`;
 }
 
 function encodeBase64(bytes: Uint8Array) {

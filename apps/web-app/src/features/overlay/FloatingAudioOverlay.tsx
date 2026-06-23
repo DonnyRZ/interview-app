@@ -147,7 +147,10 @@ export function FloatingAudioOverlay({
 
       {displayMode === "loading" ? (
         <aside className="response-shell" aria-live="polite">
-          <h2>Menyiapkan bantuan...</h2>
+          <h2>{help.activeResponse?.title || "Menyiapkan bantuan..."}</h2>
+          {help.activeResponse?.points.length ? (
+            <p className="overlay-loading-message">{help.activeResponse.points[0]}</p>
+          ) : null}
           <div className="overlay-loading"><span /><span /><span /></div>
         </aside>
       ) : null}
