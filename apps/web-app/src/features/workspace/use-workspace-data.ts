@@ -9,6 +9,7 @@ import {
   getProfileDocuments,
   retryProfileDocumentProcessing,
   setActiveProfileDocument,
+  updateMeetingContext,
   uploadProfileDocument
 } from "./workspace-api.js";
 import { mapWorkspaceMeetingContext } from "./workspace-model.js";
@@ -18,6 +19,7 @@ export type WorkspaceBusyAction =
   | "uploading-profile"
   | "updating-profile"
   | "creating-context"
+  | "updating-context"
   | "deleting-context"
   | null;
 
@@ -191,6 +193,17 @@ export function useWorkspaceData() {
     await refreshMeetingContexts(true);
   }, [refreshMeetingContexts, runAction]);
 
+  const selectContextProfile = useCallback(async (meetingContext: MeetingContext, profile: ProfileDocument) => {
+    const response = await runAction(
+      "context",
+      "updating-context",
+      () => updateMeetingContext(meetingContext.id, { profileDocumentId: profile.id }),
+      () => `${profile.fileName} sekarang dipakai oleh ${meetingContext.contextName}.`
+    );
+    await refreshMeetingContexts(true);
+    return mapWorkspaceMeetingContext(response.meetingContext);
+  }, [refreshMeetingContexts, runAction]);
+
   return {
     activeProfile,
     profileDocuments,
@@ -207,7 +220,8 @@ export function useWorkspaceData() {
     retryProfile,
     removeProfile,
     addMeetingContext,
-    removeMeetingContext
+    removeMeetingContext,
+    selectContextProfile
   };
 }
 

@@ -183,3 +183,4 @@ npm.cmd --workspace @interview-app/desktop run test:transcript-focus
 - [apps/api/src/modules/ai/PROMPTING_RULES.md](./apps/api/src/modules/ai/PROMPTING_RULES.md)
 - [apps/desktop/src/features/overlay/OVERLAY_UX_RULES.md](./apps/desktop/src/features/overlay/OVERLAY_UX_RULES.md)
 - [apps/desktop/src/features/overlay/CONTEXT_INTEGRITY.md](./apps/desktop/src/features/overlay/CONTEXT_INTEGRITY.md)
+- [apps/web-app/PARITY_RULES.md](./apps/web-app/PARITY_RULES.md)

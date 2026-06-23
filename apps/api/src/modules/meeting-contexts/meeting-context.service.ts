@@ -112,8 +112,44 @@ async function preprocessMeetingContext(
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown OpenAI meeting context preprocessing error";
-    throw new Error(`Meeting context AI processing failed: ${message}`);
+    console.warn(`[ai:evidence-fallback] preprocess_meeting_context failed: ${message}`);
+    return buildEvidenceOnlyMeetingContextFallback(input, message);
   }
+}
+
+function buildEvidenceOnlyMeetingContextFallback(
+  input: CreateMeetingContextRequest & { profileDocumentReadyContext?: string | null },
+  warning: string
+): PreprocessMeetingContextResult {
+  const providedBrief = input.meetingBrief?.replace(/\s+/g, " ").trim() || "";
+  const providedSummary = [input.contextName, input.meetingTopic, providedBrief].filter(Boolean).join(" — ");
+  return normalizeMeetingContextResult({
+    status: "partial",
+    result: {
+      meetingSummary: providedSummary,
+      keyCriteria: [],
+      responsibilities: [],
+      niceToHave: [],
+      domainProfile: {
+        primaryDomain: input.meetingTopic,
+        nicheDescription: providedBrief,
+        inScopeConcepts: [],
+        outOfScopeConcepts: [],
+        seedConcepts: [],
+        relevanceGuidance: ""
+      },
+      preparationThemes: [],
+      contextText: providedSummary
+    },
+    warnings: [`AI processing gagal; konteks ini hanya memakai input user: ${warning}`],
+    missingInputs: providedBrief ? [] : ["meetingBrief"],
+    confidence: "low",
+    evidence: [
+      { field: "contextName", source: "user_input", quote: input.contextName },
+      { field: "meetingTopic", source: "user_input", quote: input.meetingTopic },
+      ...(providedBrief ? [{ field: "meetingBrief", source: "user_input", quote: providedBrief }] : [])
+    ]
+  });
 }
 
 function normalizeMeetingContextResult(result: PreprocessMeetingContextResult): PreprocessMeetingContextResult {

@@ -20,6 +20,8 @@ async function run() {
   assert.equal(parseOAuthState(`${state.slice(0, -1)}x`), null);
   const desktopState = createOAuthState("starter", "desktop");
   assert.equal(parseOAuthState(desktopState)?.flow, "desktop");
+  const webAppState = createOAuthState("starter", "web-app");
+  assert.equal(parseOAuthState(webAppState)?.flow, "web-app");
 
   const lynkPayload = parseLynkWebhook({
     event_name: "Product Sold",

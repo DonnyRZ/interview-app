@@ -15,7 +15,7 @@ type SessionPayload = {
 
 type OAuthStatePayload = {
   plan: string;
-  flow?: "web" | "desktop";
+  flow?: "web" | "web-app" | "desktop";
   nonce: string;
   exp: number;
 };
@@ -79,7 +79,7 @@ function readCookie(request: FastifyRequest, name: string) {
     ?.slice(name.length + 1);
 }
 
-export function createOAuthState(plan: string, flow: "web" | "desktop" = "web") {
+export function createOAuthState(plan: string, flow: "web" | "web-app" | "desktop" = "web") {
   return encodeSignedPayload({
     plan,
     flow,

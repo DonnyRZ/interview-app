@@ -1,4 +1,4 @@
-import type { ProfileDocument } from "@interview-app/shared";
+import type { LiveMeetingSession, ProfileDocument } from "@interview-app/shared";
 import { AudioLevelMeter } from "../audio/AudioLevelMeter.js";
 import type { SystemAudioStatus } from "../audio/use-system-audio.js";
 import type { WorkspaceMeetingContext } from "./workspace-model.js";
@@ -17,6 +17,10 @@ type AudioController = {
 type MeetingContextDetailProps = {
   meetingContext: WorkspaceMeetingContext;
   profile: ProfileDocument | null;
+  profiles: ProfileDocument[];
+  sessions: LiveMeetingSession[];
+  sessionError: string;
+  workspaceBusy: boolean;
   audio: AudioController;
   overlayActive: boolean;
   overlayError: string;
@@ -25,6 +29,9 @@ type MeetingContextDetailProps = {
   latestTranscript: string;
   onStartMeeting(): void;
   onCloseOverlay(): void;
+  onSelectProfile(profile: ProfileDocument): void;
+  onEndSession(session: LiveMeetingSession): void;
+  onDeleteSession(session: LiveMeetingSession): void;
   onBack(): void;
 };
 
@@ -41,6 +48,10 @@ const audioStatusLabels: Record<SystemAudioStatus, string> = {
 export function MeetingContextDetail({
   meetingContext,
   profile,
+  profiles,
+  sessions,
+  sessionError,
+  workspaceBusy,
   audio,
   overlayActive,
   overlayError,
@@ -49,6 +60,9 @@ export function MeetingContextDetail({
   latestTranscript,
   onStartMeeting,
   onCloseOverlay,
+  onSelectProfile,
+  onEndSession,
+  onDeleteSession,
   onBack
 }: MeetingContextDetailProps) {
   const requesting = audio.status === "requesting";
@@ -70,6 +84,26 @@ export function MeetingContextDetail({
           <section className="meeting-detail-card">
             <p className="summary-label">Ringkasan Meeting</p>
             <p>{meetingContext.summary}</p>
+          </section>
+
+          <section className="meeting-detail-card">
+            <p className="summary-label">Riwayat Sesi Live</p>
+            {sessionError ? <p className="overlay-error" role="status">{sessionError}</p> : null}
+            {sessions.length ? (
+              <div className="round-list">
+                {sessions.map((session) => (
+                  <div className="round-row" key={session.id}>
+                    <div>
+                      <strong>Sesi meeting</strong>
+                      <span>{session.endedAt ? "Selesai" : "Dimulai"} - {formatDate(session.startedAt)}</span>
+                    </div>
+                    <button className={`secondary-btn small ${session.endedAt ? "danger-btn" : ""}`} type="button" onClick={() => session.endedAt ? onDeleteSession(session) : onEndSession(session)}>
+                      {session.endedAt ? "Hapus" : "Akhiri"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : <p className="meeting-detail-muted">Belum ada sesi meeting.</p>}
           </section>
 
           <section className="meeting-detail-card realtime-readiness-card" aria-labelledby="realtime-readiness-title">
@@ -99,6 +133,16 @@ export function MeetingContextDetail({
             <p className="meeting-detail-muted">
               {profile ? "Profil siap dipakai sebagai referensi selama meeting." : "Pilih profil sebelum memulai meeting."}
             </p>
+            <div className="session-profile-list">
+              {profiles.map((candidate) => (
+                <div className={`session-profile-row ${candidate.id === meetingContext.profileDocumentId ? "selected" : ""}`} key={candidate.id}>
+                  <span>{candidate.fileName}</span>
+                  {candidate.id === meetingContext.profileDocumentId
+                    ? <span className="pill good">Dipakai</span>
+                    : <button className="secondary-btn small" type="button" disabled={workspaceBusy || candidate.processingStatus !== "ready"} onClick={() => onSelectProfile(candidate)}>Pakai</button>}
+                </div>
+              ))}
+            </div>
           </section>
 
           <details className="meeting-detail-card meeting-brief">
@@ -155,6 +199,10 @@ export function MeetingContextDetail({
       </div>
     </section>
   );
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
 function formatRealtimeStatus(status: string) {

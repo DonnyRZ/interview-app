@@ -16,7 +16,7 @@ import {
 
 const loginQuerySchema = z.object({
   plan: planSlugSchema,
-  flow: z.enum(["web", "desktop"]).default("web")
+  flow: z.enum(["web", "web-app", "desktop"]).default("web")
 });
 
 const callbackQuerySchema = z.object({
@@ -80,6 +80,9 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       if (state.flow === "desktop") {
         const token = createDesktopAuthToken({ userId: user.id, email: user.email });
         return reply.redirect(`${env.FRONTEND_BASE_URL.replace(/\/$/, "")}/desktop-sign-in.html?token=${encodeURIComponent(token)}`);
+      }
+      if (state.flow === "web-app") {
+        return reply.redirect(`${env.FRONTEND_BASE_URL.replace(/\/$/, "")}/app/`);
       }
       return reply.redirect(`${env.FRONTEND_BASE_URL.replace(/\/$/, "")}/checkout.html?plan=${encodeURIComponent(plan.data)}`);
     } catch (error) {

@@ -106,7 +106,7 @@ export function FloatingAudioOverlay({
 
         <div className="overlay-actions">
           {actionButtons.map(({ action, label }) => (
-            <button key={action} type="button" disabled={!help.enabled} onClick={() => help.requestHelp(action)}>
+            <button key={action} type="button" onClick={() => help.requestHelp(action)}>
               {label}
             </button>
           ))}
@@ -131,9 +131,8 @@ export function FloatingAudioOverlay({
             onChange={(event) => setAskText(event.target.value)}
             placeholder="Tulis bantuan spesifik..."
             aria-label="Tulis bantuan spesifik"
-            disabled={!help.enabled}
           />
-          <button type="submit" disabled={!help.enabled || !askText.trim()}>Ask</button>
+          <button type="submit" disabled={!askText.trim()}>Ask</button>
         </form>
 
         {help.recentHelp.length ? (

@@ -79,6 +79,8 @@ export async function startSystemAudioCapture(): Promise<ActiveSystemAudioCaptur
   let silentGainNode: GainNode;
   const endedCallbacks = new Set<() => void>();
   const pcm16Callbacks = new Set<(chunk: Uint8Array) => void>();
+  const pcm16Prebuffer: Uint8Array[] = [];
+  const maxPrebufferChunks = 20;
   let stopped = false;
 
   try {
@@ -86,7 +88,7 @@ export async function startSystemAudioCapture(): Promise<ActiveSystemAudioCaptur
     analyserNode = audioContext.createAnalyser();
     analyserNode.fftSize = 1024;
     analyserNode.smoothingTimeConstant = 0.78;
-    await audioContext.audioWorklet.addModule("/audio/pcm16-processor.js");
+    await audioContext.audioWorklet.addModule(`${import.meta.env.BASE_URL}audio/pcm16-processor.js`);
     processorNode = new AudioWorkletNode(audioContext, "orviko-pcm16-processor", {
       numberOfInputs: 1,
       numberOfOutputs: 1,
@@ -99,10 +101,13 @@ export async function startSystemAudioCapture(): Promise<ActiveSystemAudioCaptur
     processorNode.connect(silentGainNode);
     silentGainNode.connect(audioContext.destination);
     processorNode.port.onmessage = (event: MessageEvent<ArrayBuffer>) => {
-      if (stopped || !pcm16Callbacks.size) return;
+      if (stopped) return;
       const chunk = new Uint8Array(event.data);
+      pcm16Prebuffer.push(chunk.slice());
+      if (pcm16Prebuffer.length > maxPrebufferChunks) pcm16Prebuffer.shift();
       for (const callback of pcm16Callbacks) callback(chunk);
     };
+    processorNode.port.postMessage({ type: "active", value: true });
     if (audioContext.state === "suspended") {
       await audioContext.resume();
     }
@@ -139,11 +144,11 @@ export async function startSystemAudioCapture(): Promise<ActiveSystemAudioCaptur
       return Math.min(1, Math.sqrt(squareSum / samples.length) * 3.2);
     },
     subscribePcm16(callback) {
+      for (const chunk of pcm16Prebuffer) callback(chunk);
+      pcm16Prebuffer.length = 0;
       pcm16Callbacks.add(callback);
-      processorNode.port.postMessage({ type: "active", value: true });
       return () => {
         pcm16Callbacks.delete(callback);
-        if (!pcm16Callbacks.size) processorNode.port.postMessage({ type: "active", value: false });
       };
     },
     onEnded(callback) {
@@ -155,6 +160,7 @@ export async function startSystemAudioCapture(): Promise<ActiveSystemAudioCaptur
       stopped = true;
       endedCallbacks.clear();
       pcm16Callbacks.clear();
+      pcm16Prebuffer.length = 0;
       processorNode.port.postMessage({ type: "active", value: false });
       for (const track of stream.getTracks()) {
         track.removeEventListener("ended", handleTrackEnded);

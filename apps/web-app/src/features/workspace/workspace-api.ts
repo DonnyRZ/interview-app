@@ -5,6 +5,7 @@ import type {
   DeleteProfileDocumentResponse,
   MeetingContextListResponse,
   MeetingContextResponse,
+  UpdateMeetingContextRequest,
   ProfileDocumentListResponse,
   RetryProfileDocumentProcessingResponse,
   SetActiveProfileDocumentResponse,
@@ -61,5 +62,12 @@ export function createMeetingContext(input: CreateMeetingContextRequest) {
 export function deleteMeetingContext(meetingContextId: string) {
   return apiRequest<DeleteMeetingContextResponse>(`/meeting-contexts/${meetingContextId}`, {
     method: "DELETE"
+  });
+}
+
+export function updateMeetingContext(meetingContextId: string, input: UpdateMeetingContextRequest) {
+  return apiRequest<MeetingContextResponse>(`/meeting-contexts/${meetingContextId}`, {
+    method: "PATCH",
+    body: JSON.stringify(input)
   });
 }

@@ -929,30 +929,6 @@ h2 {
   height: 100%;
 }
 
-.floating-overlay-fallback {
-  position: fixed;
-  right: 22px;
-  bottom: 22px;
-  z-index: 30;
-  overflow: hidden;
-  background: transparent;
-}
-
-.floating-overlay-fallback.mini {
-  width: 430px;
-  height: 72px;
-}
-
-.floating-overlay-fallback.expanded {
-  width: 560px;
-  height: 440px;
-}
-
-.floating-overlay-fallback.response {
-  width: 900px;
-  height: 440px;
-}
-
 
 .overlay-root {
   width: 100%;
@@ -1429,18 +1405,29 @@ h2 {
     width: 100%;
   }
 
-  .floating-overlay-fallback,
-  .floating-overlay-fallback.mini,
-  .floating-overlay-fallback.expanded,
-  .floating-overlay-fallback.response {
-    right: 12px;
-    bottom: 12px;
-    width: calc(100vw - 24px);
-  }
-
-  .floating-overlay-fallback.expanded,
-  .floating-overlay-fallback.response {
-    height: calc(100vh - 24px);
-  }
-
 }
+/* Authentication and subscription gate */
+.web-gate-shell { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: #070a12; }
+.web-gate-card { width: min(520px, 100%); text-align: center; padding: 40px; }
+.web-gate-card img { width: 72px; height: 72px; object-fit: contain; }
+.web-gate-card h1 { margin: 18px 0 8px; }
+.web-gate-card > p { color: var(--muted, #aeb7ca); }
+.web-pricing-actions { display: flex; justify-content: center; gap: 10px; margin-top: 24px; }
+.web-pricing-actions a { text-decoration: none; }
+.gate-message { margin-top: 16px; font-size: .9rem; color: var(--muted, #aeb7ca); }
+
+.round-list, .session-profile-list { display: grid; gap: 8px; margin-top: 10px; }
+.round-row, .session-profile-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid var(--soft-line);
+  border-radius: 8px;
+  background: var(--surface-raised);
+}
+.round-row strong, .round-row span { display: block; }
+.round-row span { margin-top: 3px; color: var(--muted); font-size: 12px; }
+.session-profile-row.selected { border-color: rgba(77, 163, 255, .55); box-shadow: inset 0 0 0 1px rgba(77, 163, 255, .24); }
+.session-profile-row > span:first-child { min-width: 0; overflow-wrap: anywhere; }

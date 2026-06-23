@@ -16,10 +16,9 @@ import type {
   RealtimeConversationMode
 } from "@interview-app/shared/realtime-overlay";
 import {
-  buildConversationWindow,
-  classifyTranscriptQuality,
-  deriveLatestConversationFocus
-} from "@interview-app/shared/transcript-focus-rules";
+  RealtimeConversationState,
+  type RealtimeContext
+} from "@interview-app/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createRealtimeClientSecret,
@@ -27,10 +26,6 @@ import {
   startLiveMeeting,
   type RealtimeClientSecret
 } from "./realtime-api.js";
-import {
-  hasFreshConversation,
-  hasRecentAudioSignal
-} from "./realtime-context-policy.js";
 
 export type RealtimeTranscriptionStatus = "idle" | "connecting" | "listening" | "transcribing" | "error";
 export type MeetingHelpMode = "idle" | "loading" | "response";
@@ -79,6 +74,8 @@ type ActiveResponse = {
   action?: MeetingHelpAction;
   conversationMode?: RealtimeConversationMode;
   sourceText?: string;
+  payload?: RealtimeActionPromptPayload;
+  retryCount?: number;
 };
 
 const initialState: RealtimeTranscriptionState = {
@@ -102,11 +99,10 @@ export function useRealtimeTranscription(audio: AudioSource) {
   const socketRef = useRef<WebSocket | null>(null);
   const unsubscribeAudioRef = useRef<(() => void) | null>(null);
   const liveMeetingSessionIdRef = useRef("");
-  const transcriptHistoryRef = useRef<string[]>([]);
   const latestTranscriptRef = useRef("");
-  const latestTranscriptAtRef = useRef(0);
-  const lastAudioSignalAtRef = useRef(0);
   const speechPendingRef = useRef(false);
+  const speechStartedAtRef = useRef(0);
+  const realtimeContextRef = useRef<RealtimeContext | undefined>(undefined);
   const shouldRunRef = useRef(false);
   const secretRef = useRef<RealtimeClientSecret | null>(null);
   const reconnectAttemptsRef = useRef(0);
@@ -121,6 +117,13 @@ export function useRealtimeTranscription(audio: AudioSource) {
   const keywordTimerRef = useRef<number | null>(null);
   const handleServerEventRef = useRef<(data: unknown) => void>(() => undefined);
   const connectRef = useRef<(secret: RealtimeClientSecret) => void>(() => undefined);
+  const conversationStateRef = useRef<RealtimeConversationState | null>(null);
+  if (!conversationStateRef.current) {
+    conversationStateRef.current = new RealtimeConversationState({
+      waitingFocusText: "Belum ada konteks percakapan tertangkap.",
+      getContext: () => ({ realtimeContext: realtimeContextRef.current })
+    });
+  }
 
   const updateHelpState = useCallback((updater: (current: MeetingHelpState) => MeetingHelpState) => {
     setHelpState((current) => {
@@ -228,6 +231,20 @@ export function useRealtimeTranscription(audio: AudioSource) {
       return;
     }
 
+    if (!finalText.trim() && active.payload && (active.retryCount || 0) < 1) {
+      const retry = { ...active, responseId: undefined, retryCount: (active.retryCount || 0) + 1 };
+      activeResponseRef.current = retry;
+      updateHelpState((current) => ({
+        ...current,
+        mode: "loading",
+        activeResponse: current.activeResponse
+          ? { ...current.activeResponse, points: ["Mencoba ulang bantuan realtime..."] }
+          : current.activeResponse
+      }));
+      if (sendResponseRequest(active.payload, 500)) return;
+      activeResponseRef.current = null;
+    }
+
     const points = formatRealtimeResponsePoints(finalText, {
       action: active.action,
       conversationMode: active.conversationMode,
@@ -244,7 +261,7 @@ export function useRealtimeTranscription(audio: AudioSource) {
     activeHelpFinalRef.current = true;
     updateHelpState((current) => ({ ...current, mode: "response", activeResponse: response }));
     if (pendingKeywordTranscriptRef.current) scheduleKeywordRefresh(pendingKeywordTranscriptRef.current, 500);
-  }, [scheduleKeywordRefresh, updateHelpState]);
+  }, [scheduleKeywordRefresh, sendResponseRequest, updateHelpState]);
 
   handleServerEventRef.current = (data: unknown) => {
     if (typeof data !== "string") return;
@@ -269,33 +286,50 @@ export function useRealtimeTranscription(audio: AudioSource) {
     }
     if (type === "input_audio_buffer.speech_started") {
       speechPendingRef.current = true;
+      speechStartedAtRef.current = Date.now();
+      conversationStateRef.current?.markSpeechStarted(speechStartedAtRef.current);
       setState((current) => ({ ...current, status: "transcribing", message: "Ucapan terdeteksi...", interimTranscript: "" }));
       return;
     }
+    if (type === "input_audio_buffer.speech_stopped") {
+      conversationStateRef.current?.markSpeechStopped();
+      setState((current) => ({ ...current, status: "transcribing", message: "Ucapan selesai, menunggu transkrip..." }));
+      return;
+    }
+    if (type === "input_audio_buffer.committed") {
+      const itemId = typeof event.item_id === "string" ? event.item_id : "";
+      const previousItemId = typeof event.previous_item_id === "string" ? event.previous_item_id : undefined;
+      if (itemId) conversationStateRef.current?.ensureTranscriptOrder(itemId, previousItemId);
+      return;
+    }
     if (type === "conversation.item.input_audio_transcription.delta" && typeof event.delta === "string") {
-      setState((current) => ({
-        ...current,
-        status: "transcribing",
-        message: "Menyusun transkrip...",
-        interimTranscript: `${current.interimTranscript}${event.delta}`
-      }));
+      const itemId = typeof event.item_id === "string" && event.item_id.trim() ? event.item_id.trim() : "interim-audio";
+      const previousItemId = typeof event.previous_item_id === "string" ? event.previous_item_id : undefined;
+      const update = conversationStateRef.current?.registerTranscriptDelta({
+        itemId,
+        previousItemId,
+        delta: event.delta,
+        capturedAt: new Date().toISOString()
+      });
+      setState((current) => ({ ...current, status: "transcribing", message: "Menyusun transkrip...", interimTranscript: update?.focus || "" }));
       return;
     }
     if (type === "conversation.item.input_audio_transcription.completed") {
       speechPendingRef.current = false;
+      speechStartedAtRef.current = 0;
+      conversationStateRef.current?.clearPendingSpeech();
       const transcript = typeof event.transcript === "string" ? normalizeTranscript(event.transcript) : "";
-      if (!transcript) return;
-      if (!hasRecentAudioSignal(lastAudioSignalAtRef.current)) {
-        setState((current) => ({
-          ...current,
-          status: "listening",
-          message: "Transkrip tanpa signal audio diabaikan.",
-          interimTranscript: ""
-        }));
+      if (!transcript) {
+        setState((current) => ({ ...current, status: "listening", message: "Menunggu ucapan berikutnya...", interimTranscript: "" }));
         return;
       }
-      const quality = classifyTranscriptQuality(transcript);
-      if (quality.status !== "accept") {
+      const result = conversationStateRef.current?.registerCompletedTranscript({
+        transcriptText: transcript,
+        itemId: typeof event.item_id === "string" ? event.item_id : undefined,
+        previousItemId: typeof event.previous_item_id === "string" ? event.previous_item_id : undefined,
+        capturedAt: new Date().toISOString()
+      });
+      if (!result?.turn || !result.update?.stable) {
         setState((current) => ({
           ...current,
           status: "listening",
@@ -304,24 +338,9 @@ export function useRealtimeTranscription(audio: AudioSource) {
         }));
         return;
       }
-      const history = [...transcriptHistoryRef.current, transcript].slice(-8);
-      const focus = deriveLatestConversationFocus(
-        buildConversationWindow(history.map((text) => ({ text }))),
-        transcript,
-        {}
-      );
-      if (!focus) {
-        setState((current) => ({
-          ...current,
-          status: "listening",
-          message: "Transkrip belum membentuk konteks percakapan yang stabil.",
-          interimTranscript: ""
-        }));
-        return;
-      }
-      transcriptHistoryRef.current = history;
+      const history = conversationStateRef.current?.getTranscriptHistory() || [];
+      const focus = result.update.stable.focus;
       latestTranscriptRef.current = focus;
-      latestTranscriptAtRef.current = Date.now();
       setState((current) => ({
         ...current,
         status: "listening",
@@ -330,7 +349,7 @@ export function useRealtimeTranscription(audio: AudioSource) {
         interimTranscript: "",
         transcriptHistory: history
       }));
-      scheduleKeywordRefresh(history.slice(-4).join("\n"));
+      scheduleKeywordRefresh(result.update.stable.windowText);
       return;
     }
     if (type === "response.output_text.delta" && typeof event.delta === "string" && activeResponseRef.current) {
@@ -400,9 +419,6 @@ export function useRealtimeTranscription(audio: AudioSource) {
       unsubscribeAudioRef.current?.();
       unsubscribeAudioRef.current = audio.subscribePcm16((chunk) => {
         if (socket.readyState !== WebSocket.OPEN) return;
-        const now = Date.now();
-        if (audio.hasSignal()) lastAudioSignalAtRef.current = now;
-        if (!hasRecentAudioSignal(lastAudioSignalAtRef.current, now)) return;
         socket.send(JSON.stringify({ type: "input_audio_buffer.append", audio: encodeBase64(chunk) }));
       });
       setState((current) => ({ ...current, status: "listening", message: "Realtime terhubung. Menunggu ucapan..." }));
@@ -436,18 +452,7 @@ export function useRealtimeTranscription(audio: AudioSource) {
       activeResponseRef.current = null;
       responseBufferRef.current = "";
 
-      if (reconnectAttemptsRef.current >= 2) {
-        setState((current) => ({ ...current, status: "error", message: "Realtime terputus dan gagal disambungkan ulang." }));
-        return;
-      }
-
-      reconnectAttemptsRef.current += 1;
-      setState((current) => ({
-        ...current,
-        status: "connecting",
-        message: `Koneksi terputus. Menyambungkan ulang (${reconnectAttemptsRef.current}/2)...`
-      }));
-      reconnectTimerRef.current = window.setTimeout(async () => {
+      const attemptReconnect = async () => {
         reconnectTimerRef.current = null;
         if (!shouldRunRef.current) return;
         try {
@@ -462,11 +467,24 @@ export function useRealtimeTranscription(audio: AudioSource) {
         } catch (error) {
           setState((current) => ({
             ...current,
-            status: "error",
-            message: error instanceof Error ? error.message : "Realtime gagal disambungkan ulang."
+            status: "connecting",
+            message: `${error instanceof Error ? error.message : "Realtime gagal disambungkan ulang."} Mencoba kembali...`
           }));
+          scheduleReconnect();
         }
-      }, 800 * reconnectAttemptsRef.current);
+      };
+      const scheduleReconnect = () => {
+        if (!shouldRunRef.current) return;
+        reconnectAttemptsRef.current += 1;
+        const attempt = reconnectAttemptsRef.current;
+        setState((current) => ({
+          ...current,
+          status: "connecting",
+          message: `Koneksi terputus. Menyambungkan ulang (percobaan ${attempt})...`
+        }));
+        reconnectTimerRef.current = window.setTimeout(attemptReconnect, Math.min(10_000, 800 * attempt));
+      };
+      scheduleReconnect();
     });
   }, [audio, scheduleKeywordRefresh, updateHelpState]);
   connectRef.current = connect;
@@ -480,7 +498,10 @@ export function useRealtimeTranscription(audio: AudioSource) {
   }, [cancelActiveResponse, scheduleKeywordRefresh, updateHelpState]);
 
   const requestHelp = useCallback((action: MeetingHelpAction, triggerText = "") => {
-    if (!shouldRunRef.current) return;
+    if (!shouldRunRef.current) {
+      updateHelpState((current) => ({ ...current, mode: "response", activeResponse: buildNotice("Realtime Belum Aktif", "Mulai meeting dan pastikan system audio terhubung.") }));
+      return;
+    }
     const normalizedTrigger = triggerText.trim();
     if (action === "keyword" && !normalizedTrigger) {
       updateHelpState((current) => ({ ...current, mode: "response", activeResponse: buildNotice("Keyword Belum Ada", "Pilih keyword yang tersedia dari konteks terbaru.") }));
@@ -488,13 +509,23 @@ export function useRealtimeTranscription(audio: AudioSource) {
     }
 
     const requiresConversation = isConversationHelpActionName(action);
-    const latestTranscript = latestTranscriptRef.current.trim();
-    const conversationIsFresh = hasFreshConversation(latestTranscript, latestTranscriptAtRef.current);
-    if (requiresConversation && speechPendingRef.current) {
-      updateHelpState((current) => ({ ...current, mode: "response", activeResponse: buildNotice("Ucapan Sedang Diproses", "Tunggu transkrip selesai, lalu kirim bantuan lagi.") }));
+    const stableContext = conversationStateRef.current?.getStableConversationSnapshot({ blockPendingSpeech: requiresConversation });
+    if (requiresConversation && speechPendingRef.current && !stableContext) {
+      const waitingRequestId = requestIdRef.current + 1;
+      requestIdRef.current = waitingRequestId;
+      updateHelpState((current) => ({ ...current, mode: "loading", activeResponse: { title: "Menunggu Transkrip", kind: "notice", points: ["Ucapan sedang diproses..."] } }));
+      window.setTimeout(() => {
+        if (requestIdRef.current !== waitingRequestId || !shouldRunRef.current) return;
+        const completedContext = conversationStateRef.current?.getStableConversationSnapshot({ blockPendingSpeech: true });
+        if (completedContext) {
+          requestHelp(action, triggerText);
+          return;
+        }
+        updateHelpState((current) => ({ ...current, mode: "response", activeResponse: buildNotice("Konteks Belum Siap", "Transkrip ucapan belum selesai. Coba lagi setelah konteks terbaru muncul.") }));
+      }, 1_500);
       return;
     }
-    if (requiresConversation && !conversationIsFresh) {
+    if (requiresConversation && !stableContext) {
       updateHelpState((current) => ({ ...current, mode: "response", activeResponse: buildNotice("Konteks Belum Tertangkap", "Tunggu transkrip terbaru muncul, lalu kirim bantuan lagi.") }));
       return;
     }
@@ -523,22 +554,26 @@ export function useRealtimeTranscription(audio: AudioSource) {
     const conversationMode = action === "explain_text"
       ? undefined
       : getExplicitActionConversationMode(action) || "unknown";
-    const recentTranscript = transcriptHistoryRef.current.slice(-6).join("\n");
-    activeResponseRef.current = {
-      kind: "help",
-      requestId,
-      action,
-      conversationMode,
-      sourceText: [recentTranscript, latestTranscript, normalizedTrigger].filter(Boolean).join("\n")
-    };
-    responseBufferRef.current = "";
-    const sent = sendResponseRequest({
+    const latestTranscript = stableContext?.focus || latestTranscriptRef.current.trim();
+    const recentTranscript = stableContext?.windowText || conversationStateRef.current?.getRecentTranscriptText() || "";
+    const payload: RealtimeActionPromptPayload = {
       action,
       latestQuestion: latestTranscript,
       recentTranscript,
       triggerText: normalizedTrigger || undefined,
       conversationMode
-    }, 500);
+    };
+    activeResponseRef.current = {
+      kind: "help",
+      requestId,
+      action,
+      conversationMode,
+      sourceText: [recentTranscript, latestTranscript, normalizedTrigger].filter(Boolean).join("\n"),
+      payload,
+      retryCount: 0
+    };
+    responseBufferRef.current = "";
+    const sent = sendResponseRequest(payload, 500);
     if (!sent) {
       activeResponseRef.current = null;
       updateHelpState((current) => ({ ...current, mode: "response", activeResponse: buildNotice("Realtime Belum Aktif", "Bantuan tidak terkirim karena koneksi realtime tertutup.") }));
@@ -551,19 +586,24 @@ export function useRealtimeTranscription(audio: AudioSource) {
     const liveMeetingSessionId = liveMeetingSessionIdRef.current;
     liveMeetingSessionIdRef.current = "";
     secretRef.current = null;
+    let endError = "";
     if (liveMeetingSessionId) {
-      await endLiveMeeting(liveMeetingSessionId, transcriptHistoryRef.current.join("\n")).catch(() => undefined);
+      try {
+        await endLiveMeeting(liveMeetingSessionId, conversationStateRef.current?.getFullTranscriptText() || "");
+      } catch (error) {
+        endError = error instanceof Error ? error.message : "Sesi meeting gagal diakhiri.";
+      }
     }
-    transcriptHistoryRef.current = [];
+    conversationStateRef.current?.reset();
     latestTranscriptRef.current = "";
-    latestTranscriptAtRef.current = 0;
-    lastAudioSignalAtRef.current = 0;
     speechPendingRef.current = false;
+    speechStartedAtRef.current = 0;
+    realtimeContextRef.current = undefined;
     pendingKeywordTranscriptRef.current = "";
     ignoredResponseIdsRef.current.clear();
     activeHelpResponseRef.current = null;
     activeHelpFinalRef.current = false;
-    setState(initialState);
+    setState(endError ? { ...initialState, status: "error", message: `${endError} Akhiri sesi dari Riwayat Sesi Live.` } : initialState);
     setHelpState(initialHelpState);
   }, [closeTransport]);
 
@@ -576,6 +616,7 @@ export function useRealtimeTranscription(audio: AudioSource) {
     try {
       const meeting = await startLiveMeeting(meetingContextId);
       liveMeetingSessionIdRef.current = meeting.liveMeetingSession.id;
+      realtimeContextRef.current = meeting.realtimeContext;
       const secret = await createRealtimeClientSecret(meeting.liveMeetingSession.id);
       if (secret.model !== "gpt-realtime-mini" || !secret.clientSecret || !secret.expiresAt) {
         throw new Error("Realtime client secret dari backend tidak valid.");
@@ -588,11 +629,19 @@ export function useRealtimeTranscription(audio: AudioSource) {
       shouldRunRef.current = false;
       const liveMeetingSessionId = liveMeetingSessionIdRef.current;
       liveMeetingSessionIdRef.current = "";
-      if (liveMeetingSessionId) await endLiveMeeting(liveMeetingSessionId, "").catch(() => undefined);
+      let cleanupError = "";
+      if (liveMeetingSessionId) {
+        try {
+          await endLiveMeeting(liveMeetingSessionId, "");
+        } catch (caught) {
+          cleanupError = caught instanceof Error ? caught.message : "cleanup sesi gagal";
+        }
+      }
+      realtimeContextRef.current = undefined;
       setState({
         ...initialState,
         status: "error",
-        message: error instanceof Error ? error.message : "Sesi realtime gagal dimulai."
+        message: `${error instanceof Error ? error.message : "Sesi realtime gagal dimulai."}${cleanupError ? ` Sesi mungkin masih aktif (${cleanupError}); gunakan Riwayat Sesi Live untuk mengakhirinya.` : ""}`
       });
       return false;
     }
@@ -602,7 +651,10 @@ export function useRealtimeTranscription(audio: AudioSource) {
     shouldRunRef.current = false;
     closeTransport();
     const sessionId = liveMeetingSessionIdRef.current;
-    if (sessionId) void endLiveMeeting(sessionId, transcriptHistoryRef.current.join("\n")).catch(() => undefined);
+    if (sessionId) {
+      // Unload cannot await network completion. Any failed cleanup remains recoverable from session history.
+      void endLiveMeeting(sessionId, conversationStateRef.current?.getFullTranscriptText() || "").catch(() => undefined);
+    }
   }, [closeTransport]);
 
   const helpEnabled = shouldRunRef.current
