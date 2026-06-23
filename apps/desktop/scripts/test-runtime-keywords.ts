@@ -63,6 +63,10 @@ assert(!promptText.includes("TikTok"));
 assert(!promptText.includes("CAC"));
 assert(!promptText.includes("ROAS"));
 assert(!promptText.includes("kandidat saat interview"));
+const realtimeSessionInstructions = buildRealtimeMeetingSessionInstructions(realtimeContext);
+assert(realtimeSessionInstructions.includes("the first character of the final response must be '-'"));
+assert(realtimeSessionInstructions.includes("do not start with acknowledgements or meta/persona framing"));
+assert(realtimeSessionInstructions.includes("do not describe the answer as the user's experience or as an AI Engineer template"));
 
 assert.deepEqual(
   formatRealtimeResponsePoints("- Berikut adalah penjelasan mengenai tahapan yang disebutkan:\n- Fokus pada stabilisasi harga pangan.", {
@@ -84,6 +88,20 @@ assert.deepEqual(
     conversationMode: "qna"
   }),
   ["Fokus pada risiko utama dulu."]
+);
+assert.deepEqual(
+  formatRealtimeResponsePoints("Tentu. Ini pengalaman saya sebagai AI Engineer: saya pernah membangun model klasifikasi dan memonitor performanya setelah deployment.", {
+    action: "answer_qna",
+    conversationMode: "qna"
+  }),
+  ["Saya pernah membangun model klasifikasi dan memonitor performanya setelah deployment."]
+);
+assert.deepEqual(
+  formatRealtimeResponsePoints("Sebagai AI assistant: saya akan fokus pada metrik performa setelah deployment.", {
+    action: "answer_qna",
+    conversationMode: "qna"
+  }),
+  ["Saya akan fokus pada metrik performa setelah deployment."]
 );
 assert.deepEqual(
   formatRealtimeResponsePoints("- Mungkin kita bisa mulai dari concern yang paling berdampak.", {

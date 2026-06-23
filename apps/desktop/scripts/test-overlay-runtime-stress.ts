@@ -20,7 +20,10 @@ const qnaMetaOpeners = [
   "Ini adalah jawaban singkat:",
   "Poin-poinnya:",
   "Saya akan menjawab seperti ini:",
-  "Jawabannya adalah:"
+  "Jawabannya adalah:",
+  "Tentu. Ini pengalaman saya sebagai AI Engineer:",
+  "Baik, sebagai AI assistant:",
+  "Sebagai AI Engineer template:"
 ];
 const qnaAnswerLines = [
   "Fokus dulu pada risiko utama yang paling dekat dengan keputusan.",
@@ -97,7 +100,7 @@ for (let iteration = 0; iteration < 50; iteration++) {
   });
 
   assert.deepEqual(points, [answer]);
-  assert.doesNotMatch(points.join("\n"), /^(?:berikut|ini adalah|poin(?:-poin)?|saya akan|jawabannya|JAWAB_PERTANYAAN)/i);
+  assert.doesNotMatch(points.join("\n"), /^(?:tentu|baik|berikut|ini adalah|poin(?:-poin)?|saya akan|jawabannya|sebagai|JAWAB_PERTANYAAN)/i);
 }
 
 for (let iteration = 0; iteration < 50; iteration++) {

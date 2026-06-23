@@ -368,7 +368,7 @@ function deriveQuestionFromTranscriptText(transcriptText: string, context: Trans
 
 function deriveContextFromTranscriptWindow(recentTranscript: string, latestSegment: string, context: TranscriptFocusContext) {
   const directQuestion = deriveQuestionFromTranscriptText(latestSegment, context);
-  if (directQuestion && directQuestion.length >= 48 && isConfirmedMeetingQuestion(directQuestion, context)) {
+  if (directQuestion && isConfirmedMeetingQuestion(directQuestion, context)) {
     return directQuestion;
   }
 
@@ -410,8 +410,8 @@ function isRelevantTranscriptText(text: string, context: TranscriptFocusContext)
 
   return includesAnySignal(normalized, [
     ...broadMeetingSignals,
-    "apa yang", "bagaimana", "ceritakan", "explain", "jelaskan", "kenapa", "mengapa", "tell me",
-    "how would", "why would"
+    "apa yang", "apa itu", "bagaimana", "ceritakan", "explain", "jelaskan", "kenapa", "mengapa", "tell me",
+    "what is", "how would", "why would"
   ]);
 }
 

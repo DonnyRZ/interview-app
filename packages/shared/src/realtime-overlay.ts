@@ -167,7 +167,11 @@ function splitLongRealtimeParagraph(text: string) {
 function sanitizeRealtimeResponsePoint(point: string, options: RealtimeResponseFormatOptions) {
   const isQnaAnswer = options.action === "answer_qna"
     || (options.action === "answer" && options.conversationMode === "qna");
-  if (isQnaAnswer && isQnaMetaIntro(point)) return sanitizeQnaMetaIntro(point);
+  if (isQnaAnswer) {
+    const sanitizedQna = sanitizeQnaAnswerPoint(point);
+    if (!sanitizedQna) return "";
+    point = sanitizedQna;
+  }
 
   const isConvoAnswer = options.action === "answer_convo"
     || (options.action === "answer" && options.conversationMode === "convo");
@@ -205,4 +209,38 @@ function sanitizeQnaMetaIntro(point: string) {
   const colonIndex = trimmed.indexOf(":");
   if (colonIndex < 0 || colonIndex === trimmed.length - 1) return "";
   return capitalizeFirstLetter(trimmed.slice(colonIndex + 1).trim());
+}
+
+function sanitizeQnaAnswerPoint(point: string) {
+  let sanitized = point.trim();
+  sanitized = sanitized
+    .replace(/^(?:tentu|baik|oke|ok|siap)[,.\s]+/i, "")
+    .trim();
+
+  if (isQnaMetaIntro(sanitized)) {
+    return sanitizeQnaMetaIntro(sanitized);
+  }
+
+  const colonIndex = sanitized.indexOf(":");
+  if (colonIndex > 0 && colonIndex < 120) {
+    const leadIn = sanitized.slice(0, colonIndex).trim();
+    const content = sanitized.slice(colonIndex + 1).trim();
+    if (content && isMetaLeadIn(leadIn)) {
+      return capitalizeFirstLetter(content);
+    }
+    if (!content && isMetaLeadIn(leadIn)) {
+      return "";
+    }
+  }
+
+  return sanitized;
+}
+
+function isMetaLeadIn(value: string) {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return false;
+  if (/\b(?:ai|assistant|asisten|chatgpt|model)\b/.test(normalized)) return true;
+  if (/\b(?:pengalaman|jawaban|respons|respon|poin|template|contoh)\b/.test(normalized)) return true;
+  if (/^(?:ini|berikut|jawabannya|sebagai|dalam konteks|untuk menjawab)\b/.test(normalized)) return true;
+  return false;
 }

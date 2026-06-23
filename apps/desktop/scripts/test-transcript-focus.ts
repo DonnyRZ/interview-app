@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+  buildConversationWindow,
   classifyMeetingConversationMode,
   classifyTranscriptQuality,
   deriveLatestConversationFocus,
@@ -56,6 +57,12 @@ const impliedQnaContext = "Menurut kamu, opsi mana yang paling realistis untuk t
 const convoConcernContext = "Tim kami sedang cukup penuh, jadi perubahan proses harus dibuat ringan.";
 const casualConvoContext = "Aku kemarin ikut sesi komunitas dan diskusinya menarik banget.";
 const transcriptionPromptArtifact = "Istilah teknis, nama tools, nama produk, metode kerja, nama orang, dan topik domain bisa bercampur Inggris.";
+const shortLatestQuestionWindow = buildConversationWindow([
+  { text: "Apa pengalaman kamu sebagai AI Engineer?" },
+  { text: "Bagaimana kamu membangun pipeline model?" },
+  { text: "Apa tantangan deployment model?" },
+  { text: "Apa itu overfitting?" }
+]);
 
 assert.notEqual(classifyTranscriptQuality(contaminatedAssistantQuestion).status, "accept");
 assert.equal(isLikelyTranscriptNoise(contaminatedAssistantQuestion), true);
@@ -79,6 +86,10 @@ assert.equal(classifyTranscriptQuality(shortMeetingQuestion).status, "accept");
 assert.equal(
   deriveLatestConversationFocus(shortMeetingQuestion, shortMeetingQuestion, focusContext),
   shortMeetingQuestion
+);
+assert.equal(
+  deriveLatestConversationFocus(shortLatestQuestionWindow, "Apa itu overfitting?", focusContext),
+  "Apa itu overfitting?"
 );
 
 assert.equal(classifyTranscriptQuality(relevantStatement).status, "accept");

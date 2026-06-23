@@ -26,6 +26,11 @@ import {
   startLiveMeeting,
   type RealtimeClientSecret
 } from "./realtime-api.js";
+import {
+  canClaimRealtimeResponseId,
+  hasRealtimeResponseIdConflict,
+  isRealtimeResponseOwnedBy
+} from "./realtime-response-ownership.js";
 
 export type RealtimeTranscriptionStatus = "idle" | "connecting" | "listening" | "transcribing" | "error";
 export type MeetingHelpMode = "idle" | "loading" | "response";
@@ -67,8 +72,7 @@ type AudioSource = {
   hasSignal(): boolean;
 };
 
-type ActiveResponse = {
-  kind: "help" | "keywords";
+type ActiveHelpResponse = {
   requestId: number;
   responseId?: string;
   action?: MeetingHelpAction;
@@ -76,6 +80,12 @@ type ActiveResponse = {
   sourceText?: string;
   payload?: RealtimeActionPromptPayload;
   retryCount?: number;
+};
+
+type ActiveKeywordResponse = {
+  requestId: number;
+  generation: number;
+  responseId?: string;
 };
 
 const initialState: RealtimeTranscriptionState = {
@@ -107,11 +117,16 @@ export function useRealtimeTranscription(audio: AudioSource) {
   const secretRef = useRef<RealtimeClientSecret | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const reconnectTimerRef = useRef<number | null>(null);
-  const activeResponseRef = useRef<ActiveResponse | null>(null);
+  const activeHelpRealtimeResponseRef = useRef<ActiveHelpResponse | null>(null);
+  const activeKeywordResponseRef = useRef<ActiveKeywordResponse | null>(null);
   const ignoredResponseIdsRef = useRef(new Set<string>());
-  const responseBufferRef = useRef("");
-  const requestIdRef = useRef(0);
-  const activeHelpResponseRef = useRef<MeetingHelpResponse | null>(null);
+  const helpResponseBufferRef = useRef("");
+  const keywordResponseBufferRef = useRef("");
+  const helpRequestIdRef = useRef(0);
+  const keywordRequestIdRef = useRef(0);
+  const keywordGenerationRef = useRef(0);
+  const ignoredUnclaimedResponseCreatesRef = useRef(0);
+  const activeDisplayedHelpResponseRef = useRef<MeetingHelpResponse | null>(null);
   const activeHelpFinalRef = useRef(false);
   const pendingKeywordTranscriptRef = useRef("");
   const keywordTimerRef = useRef<number | null>(null);
@@ -128,7 +143,7 @@ export function useRealtimeTranscription(audio: AudioSource) {
   const updateHelpState = useCallback((updater: (current: MeetingHelpState) => MeetingHelpState) => {
     setHelpState((current) => {
       const next = updater(current);
-      activeHelpResponseRef.current = next.activeResponse;
+      activeDisplayedHelpResponseRef.current = next.activeResponse;
       return next;
     });
   }, []);
@@ -140,13 +155,25 @@ export function useRealtimeTranscription(audio: AudioSource) {
     return true;
   }, []);
 
-  const cancelActiveResponse = useCallback(() => {
-    const responseId = activeResponseRef.current?.responseId;
+  const cancelActiveHelpResponse = useCallback(() => {
+    const responseId = activeHelpRealtimeResponseRef.current?.responseId;
     if (responseId) ignoredResponseIdsRef.current.add(responseId);
     const cancelEvent = buildRealtimeCancelEvent(responseId);
     if (cancelEvent) sendClientEvent(cancelEvent);
-    activeResponseRef.current = null;
-    responseBufferRef.current = "";
+    activeHelpRealtimeResponseRef.current = null;
+    helpResponseBufferRef.current = "";
+  }, [sendClientEvent]);
+
+  const cancelActiveKeywordResponse = useCallback(() => {
+    keywordGenerationRef.current += 1;
+    const activeKeyword = activeKeywordResponseRef.current;
+    const responseId = activeKeyword?.responseId;
+    if (responseId) ignoredResponseIdsRef.current.add(responseId);
+    else if (activeKeyword) ignoredUnclaimedResponseCreatesRef.current += 1;
+    const cancelEvent = buildRealtimeCancelEvent(responseId);
+    if (cancelEvent) sendClientEvent(cancelEvent);
+    activeKeywordResponseRef.current = null;
+    keywordResponseBufferRef.current = "";
   }, [sendClientEvent]);
 
   const clearRuntimeTimers = useCallback(() => {
@@ -158,13 +185,14 @@ export function useRealtimeTranscription(audio: AudioSource) {
 
   const closeTransport = useCallback(() => {
     clearRuntimeTimers();
-    cancelActiveResponse();
+    cancelActiveHelpResponse();
+    cancelActiveKeywordResponse();
     unsubscribeAudioRef.current?.();
     unsubscribeAudioRef.current = null;
     const socket = socketRef.current;
     socketRef.current = null;
     if (socket && socket.readyState < WebSocket.CLOSING) socket.close();
-  }, [cancelActiveResponse, clearRuntimeTimers]);
+  }, [cancelActiveHelpResponse, cancelActiveKeywordResponse, clearRuntimeTimers]);
 
   const sendResponseRequest = useCallback((payload: RealtimeActionPromptPayload, maxOutputTokens: number) => {
     const itemSent = sendClientEvent({
@@ -183,13 +211,14 @@ export function useRealtimeTranscription(audio: AudioSource) {
   }, [sendClientEvent]);
 
   const flushPendingKeywords = useCallback(() => {
-    if (activeResponseRef.current || !pendingKeywordTranscriptRef.current) return;
+    if (activeHelpRealtimeResponseRef.current || activeKeywordResponseRef.current || !pendingKeywordTranscriptRef.current) return;
     const transcript = pendingKeywordTranscriptRef.current;
     pendingKeywordTranscriptRef.current = "";
-    const requestId = requestIdRef.current + 1;
-    requestIdRef.current = requestId;
-    activeResponseRef.current = { kind: "keywords", requestId };
-    responseBufferRef.current = "";
+    const requestId = keywordRequestIdRef.current + 1;
+    keywordRequestIdRef.current = requestId;
+    const generation = keywordGenerationRef.current;
+    activeKeywordResponseRef.current = { requestId, generation };
+    keywordResponseBufferRef.current = "";
     const sent = sendResponseRequest({
       action: "surface_keywords",
       latestQuestion: latestTranscriptRef.current,
@@ -197,7 +226,7 @@ export function useRealtimeTranscription(audio: AudioSource) {
       conversationMode: "unknown"
     }, 80);
     if (!sent) {
-      activeResponseRef.current = null;
+      activeKeywordResponseRef.current = null;
       pendingKeywordTranscriptRef.current = transcript;
     }
   }, [sendResponseRequest]);
@@ -212,28 +241,98 @@ export function useRealtimeTranscription(audio: AudioSource) {
     }, delay);
   }, [flushPendingKeywords]);
 
-  const finalizeActiveResponse = useCallback((event: Record<string, unknown>) => {
-    const active = activeResponseRef.current;
-    if (!active) return;
-    const responseId = getRealtimeResponseId(event);
-    if (responseId && ignoredResponseIdsRef.current.has(responseId)) {
-      ignoredResponseIdsRef.current.delete(responseId);
+  function isCurrentHelpRequest(requestId: number) {
+    return helpRequestIdRef.current === requestId;
+  }
+
+  function canKeywordUseMissingResponseIdFallback() {
+    return !activeHelpRealtimeResponseRef.current;
+  }
+
+  function isActiveHelpResponseEvent(responseId: string) {
+    const active = activeHelpRealtimeResponseRef.current;
+    if (!active) return false;
+    if (hasRealtimeResponseIdConflict(active, activeKeywordResponseRef.current, responseId)) return false;
+    if (canClaimRealtimeResponseId(active, activeKeywordResponseRef.current, responseId, true)) {
+      activeHelpRealtimeResponseRef.current = { ...active, responseId };
+    }
+    return isRealtimeResponseOwnedBy(
+      activeHelpRealtimeResponseRef.current,
+      responseId,
+      isCurrentHelpRequest,
+      true
+    );
+  }
+
+  function isActiveKeywordResponseEvent(responseId: string) {
+    const active = activeKeywordResponseRef.current;
+    if (!active || active.generation !== keywordGenerationRef.current) return false;
+    if (hasRealtimeResponseIdConflict(active, activeHelpRealtimeResponseRef.current, responseId)) return false;
+    if (canClaimRealtimeResponseId(active, activeHelpRealtimeResponseRef.current, responseId, canKeywordUseMissingResponseIdFallback())) {
+      activeKeywordResponseRef.current = { ...active, responseId };
+      return true;
+    }
+    return isRealtimeResponseOwnedBy(
+      activeKeywordResponseRef.current,
+      responseId,
+      () => true,
+      canKeywordUseMissingResponseIdFallback()
+    );
+  }
+
+  function claimCreatedResponse(responseId: string) {
+    if (!responseId) return;
+    if (ignoredUnclaimedResponseCreatesRef.current > 0) {
+      ignoredUnclaimedResponseCreatesRef.current -= 1;
+      ignoredResponseIdsRef.current.add(responseId);
       return;
     }
-    if (active.responseId && responseId && active.responseId !== responseId) return;
-    const finalText = extractRealtimeResponseText(event) || responseBufferRef.current.trim();
-    activeResponseRef.current = null;
-    responseBufferRef.current = "";
+    const help = activeHelpRealtimeResponseRef.current;
+    if (
+      help
+      && isCurrentHelpRequest(help.requestId)
+      && !hasRealtimeResponseIdConflict(help, activeKeywordResponseRef.current, responseId)
+      && canClaimRealtimeResponseId(help, activeKeywordResponseRef.current, responseId, true)
+    ) {
+      activeHelpRealtimeResponseRef.current = { ...help, responseId };
+      return;
+    }
 
-    if (active.kind === "keywords") {
+    const keyword = activeKeywordResponseRef.current;
+    if (
+      keyword
+      && keyword.generation === keywordGenerationRef.current
+      && canClaimRealtimeResponseId(keyword, activeHelpRealtimeResponseRef.current, responseId, canKeywordUseMissingResponseIdFallback())
+    ) {
+      activeKeywordResponseRef.current = { ...keyword, responseId };
+    }
+  }
+
+  const finalizeKeywordResponse = useCallback((event: Record<string, unknown>, responseId: string) => {
+    const active = activeKeywordResponseRef.current;
+    if (!active) return;
+    if (!isActiveKeywordResponseEvent(responseId)) return;
+    const finalText = extractRealtimeResponseText(event) || keywordResponseBufferRef.current.trim();
+    activeKeywordResponseRef.current = null;
+    keywordResponseBufferRef.current = "";
+    ignoredUnclaimedResponseCreatesRef.current = 0;
+    if (active.generation === keywordGenerationRef.current) {
       const keywords = parseRealtimeKeywords(finalText);
       updateHelpState((current) => ({ ...current, keywords }));
-      return;
     }
+    if (pendingKeywordTranscriptRef.current) scheduleKeywordRefresh(pendingKeywordTranscriptRef.current, 500);
+  }, [scheduleKeywordRefresh, updateHelpState]);
+
+  const finalizeHelpResponse = useCallback((event: Record<string, unknown>, responseId: string) => {
+    const active = activeHelpRealtimeResponseRef.current;
+    if (!active || !isActiveHelpResponseEvent(responseId)) return;
+    const finalText = extractRealtimeResponseText(event) || helpResponseBufferRef.current.trim();
+    activeHelpRealtimeResponseRef.current = null;
+    helpResponseBufferRef.current = "";
 
     if (!finalText.trim() && active.payload && (active.retryCount || 0) < 1) {
       const retry = { ...active, responseId: undefined, retryCount: (active.retryCount || 0) + 1 };
-      activeResponseRef.current = retry;
+      activeHelpRealtimeResponseRef.current = retry;
       updateHelpState((current) => ({
         ...current,
         mode: "loading",
@@ -242,7 +341,7 @@ export function useRealtimeTranscription(audio: AudioSource) {
           : current.activeResponse
       }));
       if (sendResponseRequest(active.payload, 500)) return;
-      activeResponseRef.current = null;
+      activeHelpRealtimeResponseRef.current = null;
     }
 
     const points = formatRealtimeResponsePoints(finalText, {
@@ -251,7 +350,7 @@ export function useRealtimeTranscription(audio: AudioSource) {
       sourceText: active.sourceText
     });
     const response: MeetingHelpResponse = {
-      title: activeHelpResponseRef.current?.title || "Meeting Help",
+      title: activeDisplayedHelpResponseRef.current?.title || "Meeting Help",
       kind: "help",
       points: points.length ? points : [
         "Bantuan realtime belum menghasilkan teks.",
@@ -279,9 +378,7 @@ export function useRealtimeTranscription(audio: AudioSource) {
       return;
     }
     if (type === "response.created") {
-      if (responseId && activeResponseRef.current && !activeResponseRef.current.responseId) {
-        activeResponseRef.current = { ...activeResponseRef.current, responseId };
-      }
+      claimCreatedResponse(responseId);
       return;
     }
     if (type === "input_audio_buffer.speech_started") {
@@ -352,47 +449,58 @@ export function useRealtimeTranscription(audio: AudioSource) {
       scheduleKeywordRefresh(result.update.stable.windowText);
       return;
     }
-    if (type === "response.output_text.delta" && typeof event.delta === "string" && activeResponseRef.current) {
-      if (activeResponseRef.current.responseId && responseId && activeResponseRef.current.responseId !== responseId) return;
-      responseBufferRef.current += event.delta;
-      const active = activeResponseRef.current;
-      if (active.kind === "help") {
-        const points = formatRealtimeResponsePoints(responseBufferRef.current, {
-          action: active.action,
-          conversationMode: active.conversationMode,
-          sourceText: active.sourceText
-        });
-        updateHelpState((current) => ({
-          ...current,
-          mode: "response",
-          activeResponse: current.activeResponse
-            ? { ...current.activeResponse, points: points.length ? points : ["Menyiapkan bantuan realtime..."] }
-            : current.activeResponse
-        }));
+    if (type === "response.output_text.delta" && typeof event.delta === "string") {
+      if (isActiveKeywordResponseEvent(responseId)) {
+        keywordResponseBufferRef.current += event.delta;
+        return;
       }
+      if (!isActiveHelpResponseEvent(responseId)) return;
+      helpResponseBufferRef.current += event.delta;
+      const active = activeHelpRealtimeResponseRef.current;
+      const points = formatRealtimeResponsePoints(helpResponseBufferRef.current, {
+        action: active?.action,
+        conversationMode: active?.conversationMode,
+        sourceText: active?.sourceText
+      });
+      updateHelpState((current) => ({
+        ...current,
+        mode: "response",
+        activeResponse: current.activeResponse
+          ? { ...current.activeResponse, points: points.length ? points : ["Menyiapkan bantuan realtime..."] }
+          : current.activeResponse
+      }));
       return;
     }
-    if (type === "response.output_text.done" && typeof event.text === "string" && !responseBufferRef.current.trim()) {
-      if (activeResponseRef.current?.responseId && responseId && activeResponseRef.current.responseId !== responseId) return;
-      responseBufferRef.current = event.text;
+    if (type === "response.output_text.done" && typeof event.text === "string") {
+      if (isActiveKeywordResponseEvent(responseId)) {
+        if (!keywordResponseBufferRef.current.trim()) keywordResponseBufferRef.current = event.text;
+        return;
+      }
+      if (!isActiveHelpResponseEvent(responseId)) return;
+      if (!helpResponseBufferRef.current.trim()) helpResponseBufferRef.current = event.text;
       return;
     }
     if (type === "response.done") {
-      finalizeActiveResponse(event);
+      if (isActiveKeywordResponseEvent(responseId)) {
+        finalizeKeywordResponse(event, responseId);
+        return;
+      }
+      finalizeHelpResponse(event, responseId);
       return;
     }
     if (type === "error") {
       const error = event.error && typeof event.error === "object" ? event.error as Record<string, unknown> : null;
       const message = typeof error?.message === "string" ? error.message : "OpenAI Realtime mengembalikan error.";
       if (isRecoverableRealtimeCancelError(message)) return;
-      const active = activeResponseRef.current;
-      activeResponseRef.current = null;
-      responseBufferRef.current = "";
-      if (active?.kind === "keywords") {
+      if (activeKeywordResponseRef.current && !activeHelpRealtimeResponseRef.current) {
+        activeKeywordResponseRef.current = null;
+        keywordResponseBufferRef.current = "";
         if (pendingKeywordTranscriptRef.current) scheduleKeywordRefresh(pendingKeywordTranscriptRef.current, 1_000);
         return;
       }
-      if (active?.kind === "help") {
+      if (activeHelpRealtimeResponseRef.current) {
+        activeHelpRealtimeResponseRef.current = null;
+        helpResponseBufferRef.current = "";
         activeHelpFinalRef.current = false;
         updateHelpState((current) => ({
           ...current,
@@ -441,7 +549,7 @@ export function useRealtimeTranscription(audio: AudioSource) {
       unsubscribeAudioRef.current = null;
       if (!shouldRunRef.current) return;
 
-      if (activeResponseRef.current?.kind === "help") {
+      if (activeHelpRealtimeResponseRef.current) {
         activeHelpFinalRef.current = false;
         updateHelpState((current) => ({
           ...current,
@@ -449,8 +557,11 @@ export function useRealtimeTranscription(audio: AudioSource) {
           activeResponse: buildNotice("Koneksi Terputus", "Bantuan dihentikan agar respons lama tidak tercampur setelah reconnect.")
         }));
       }
-      activeResponseRef.current = null;
-      responseBufferRef.current = "";
+      activeHelpRealtimeResponseRef.current = null;
+      activeKeywordResponseRef.current = null;
+      helpResponseBufferRef.current = "";
+      keywordResponseBufferRef.current = "";
+      ignoredUnclaimedResponseCreatesRef.current = 0;
 
       const attemptReconnect = async () => {
         reconnectTimerRef.current = null;
@@ -490,12 +601,12 @@ export function useRealtimeTranscription(audio: AudioSource) {
   connectRef.current = connect;
 
   const closeResponse = useCallback(() => {
-    requestIdRef.current += 1;
-    cancelActiveResponse();
+    helpRequestIdRef.current += 1;
+    cancelActiveHelpResponse();
     activeHelpFinalRef.current = false;
     updateHelpState((current) => ({ ...current, mode: "idle", activeResponse: null }));
     if (pendingKeywordTranscriptRef.current) scheduleKeywordRefresh(pendingKeywordTranscriptRef.current, 500);
-  }, [cancelActiveResponse, scheduleKeywordRefresh, updateHelpState]);
+  }, [cancelActiveHelpResponse, scheduleKeywordRefresh, updateHelpState]);
 
   const requestHelp = useCallback((action: MeetingHelpAction, triggerText = "") => {
     if (!shouldRunRef.current) {
@@ -511,11 +622,11 @@ export function useRealtimeTranscription(audio: AudioSource) {
     const requiresConversation = isConversationHelpActionName(action);
     const stableContext = conversationStateRef.current?.getStableConversationSnapshot({ blockPendingSpeech: requiresConversation });
     if (requiresConversation && speechPendingRef.current && !stableContext) {
-      const waitingRequestId = requestIdRef.current + 1;
-      requestIdRef.current = waitingRequestId;
+      const waitingRequestId = helpRequestIdRef.current + 1;
+      helpRequestIdRef.current = waitingRequestId;
       updateHelpState((current) => ({ ...current, mode: "loading", activeResponse: { title: "Menunggu Transkrip", kind: "notice", points: ["Ucapan sedang diproses..."] } }));
       window.setTimeout(() => {
-        if (requestIdRef.current !== waitingRequestId || !shouldRunRef.current) return;
+        if (helpRequestIdRef.current !== waitingRequestId || !shouldRunRef.current) return;
         const completedContext = conversationStateRef.current?.getStableConversationSnapshot({ blockPendingSpeech: true });
         if (completedContext) {
           requestHelp(action, triggerText);
@@ -530,11 +641,12 @@ export function useRealtimeTranscription(audio: AudioSource) {
       return;
     }
 
-    if (activeHelpFinalRef.current && activeHelpResponseRef.current?.kind === "help") {
-      const previous = activeHelpResponseRef.current;
+    if (activeHelpFinalRef.current && activeDisplayedHelpResponseRef.current?.kind === "help") {
+      const previous = activeDisplayedHelpResponseRef.current;
       updateHelpState((current) => ({ ...current, recentHelp: [previous, ...current.recentHelp].slice(0, 5) }));
     }
-    cancelActiveResponse();
+    cancelActiveKeywordResponse();
+    cancelActiveHelpResponse();
     activeHelpFinalRef.current = false;
     const title = getRealtimeActionTitle({ action, triggerText: normalizedTrigger });
     updateHelpState((current) => ({
@@ -549,8 +661,8 @@ export function useRealtimeTranscription(audio: AudioSource) {
       return;
     }
 
-    const requestId = requestIdRef.current + 1;
-    requestIdRef.current = requestId;
+    const requestId = helpRequestIdRef.current + 1;
+    helpRequestIdRef.current = requestId;
     const conversationMode = action === "explain_text"
       ? undefined
       : getExplicitActionConversationMode(action) || "unknown";
@@ -563,8 +675,7 @@ export function useRealtimeTranscription(audio: AudioSource) {
       triggerText: normalizedTrigger || undefined,
       conversationMode
     };
-    activeResponseRef.current = {
-      kind: "help",
+    activeHelpRealtimeResponseRef.current = {
       requestId,
       action,
       conversationMode,
@@ -572,13 +683,13 @@ export function useRealtimeTranscription(audio: AudioSource) {
       payload,
       retryCount: 0
     };
-    responseBufferRef.current = "";
+    helpResponseBufferRef.current = "";
     const sent = sendResponseRequest(payload, 500);
     if (!sent) {
-      activeResponseRef.current = null;
+      activeHelpRealtimeResponseRef.current = null;
       updateHelpState((current) => ({ ...current, mode: "response", activeResponse: buildNotice("Realtime Belum Aktif", "Bantuan tidak terkirim karena koneksi realtime tertutup.") }));
     }
-  }, [cancelActiveResponse, sendResponseRequest, updateHelpState]);
+  }, [cancelActiveHelpResponse, cancelActiveKeywordResponse, sendResponseRequest, updateHelpState]);
 
   const stop = useCallback(async () => {
     shouldRunRef.current = false;
@@ -601,7 +712,8 @@ export function useRealtimeTranscription(audio: AudioSource) {
     realtimeContextRef.current = undefined;
     pendingKeywordTranscriptRef.current = "";
     ignoredResponseIdsRef.current.clear();
-    activeHelpResponseRef.current = null;
+    ignoredUnclaimedResponseCreatesRef.current = 0;
+    activeDisplayedHelpResponseRef.current = null;
     activeHelpFinalRef.current = false;
     setState(endError ? { ...initialState, status: "error", message: `${endError} Akhiri sesi dari Riwayat Sesi Live.` } : initialState);
     setHelpState(initialHelpState);

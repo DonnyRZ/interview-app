@@ -2,6 +2,11 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { RealtimeConversationState } from "@interview-app/shared";
+import {
+  canClaimRealtimeResponseId,
+  hasRealtimeResponseIdConflict,
+  isRealtimeResponseOwnedBy
+} from "../src/features/realtime/realtime-response-ownership.js";
 
 const waitingFocusText = "Belum ada konteks percakapan tertangkap.";
 const state = new RealtimeConversationState({ waitingFocusText, getContext: () => ({}) });
@@ -24,15 +29,71 @@ state.registerCompletedTranscript({
 });
 assert.equal(state.getStableConversationSnapshot()?.focus, accepted.update?.stable?.focus, "rejected UI contamination cannot replace stable context");
 
+const focusState = new RealtimeConversationState({ waitingFocusText, getContext: () => ({}) });
+[
+  "Apa pengalaman kamu sebagai AI Engineer?",
+  "Bagaimana kamu membangun pipeline model?",
+  "Apa tantangan deployment model?",
+  "Apa itu overfitting?"
+].forEach((transcriptText, index) => {
+  focusState.registerCompletedTranscript({
+    itemId: `focus-turn-${index + 1}`,
+    previousItemId: index > 0 ? `focus-turn-${index}` : undefined,
+    transcriptText,
+    capturedAt: new Date(Date.now() + index).toISOString()
+  });
+});
+assert.equal(
+  focusState.getStableConversationSnapshot()?.focus,
+  "Apa itu overfitting?",
+  "latest conversation focus must show the latest accepted question, not previous question history"
+);
+
 const hookPath = fileURLToPath(new URL("../src/features/realtime/use-realtime-transcription.ts", import.meta.url));
 const hookSource = await readFile(hookPath, "utf8");
 assert.match(hookSource, /RealtimeConversationState/);
 assert.doesNotMatch(hookSource, /conversationFreshnessMs|hasRecentAudioSignal|audio\.hasSignal\(\)/);
 assert.doesNotMatch(hookSource, /scheduleMock|buildMock|extractMock|VITE_WEB_APP_REALTIME_MODE/);
+assert.match(hookSource, /activeHelpRealtimeResponseRef/, "help responses must have a separate realtime owner");
+assert.match(hookSource, /activeKeywordResponseRef/, "keyword responses must have a separate realtime owner");
+assert.doesNotMatch(hookSource, /activeResponseRef/, "web realtime must not share one active response owner for help and keywords");
 
 const audioPath = fileURLToPath(new URL("../src/features/audio/system-audio-capture.ts", import.meta.url));
 const audioSource = await readFile(audioPath, "utf8");
 assert.match(audioSource, /maxPrebufferChunks = 20/);
 assert.doesNotMatch(audioSource, /level\s*[>=]=?\s*0\.025/);
+
+assert.equal(hasRealtimeResponseIdConflict(
+  { requestId: 7, responseId: "resp_help" },
+  { requestId: 3, responseId: "resp_keyword" },
+  "resp_keyword"
+), true, "keyword response id must not be owned by help");
+assert.equal(hasRealtimeResponseIdConflict(
+  { requestId: 7, responseId: "resp_help" },
+  { requestId: 3, responseId: "resp_keyword" },
+  "resp_help"
+), false, "help response id remains owned by help");
+assert.equal(canClaimRealtimeResponseId(
+  { requestId: 7 },
+  { requestId: 3, responseId: "resp_keyword" },
+  "resp_keyword",
+  true
+), false, "help must not claim an active keyword response");
+assert.equal(canClaimRealtimeResponseId(
+  { requestId: 7 },
+  null,
+  "resp_help",
+  true
+), true, "help may claim an unowned help response");
+assert.equal(isRealtimeResponseOwnedBy(
+  { requestId: 7, responseId: "resp_help" },
+  "resp_help",
+  (requestId) => requestId === 7
+), true);
+assert.equal(isRealtimeResponseOwnedBy(
+  { requestId: 6, responseId: "resp_help" },
+  "resp_help",
+  (requestId) => requestId === 7
+), false, "stale help request must not receive realtime output");
 
 console.log("Web realtime parity tests passed.");
