@@ -12,12 +12,26 @@ const {
   profileDocuments,
   userProfiles,
   liveMeetingSessions,
+  authSessions,
+  oauthStates,
   users
 } = await import("../src/db/schema/index.js");
 const { DEV_USER_ID } = await import("../src/modules/dev/dev-user.js");
 const { ensureDevUser } = await import("../src/modules/dev/dev-user.repository.js");
-const { activateUserSubscription } = await import("../src/modules/auth/auth.service.js");
-const { createSessionToken, SESSION_COOKIE } = await import("../src/modules/auth/session.js");
+const {
+  activateUserSubscription,
+  GoogleAccountConflictError,
+  upsertGoogleUser
+} = await import("../src/modules/auth/auth.service.js");
+const {
+  consumeOAuthState,
+  createOAuthState,
+  createSessionForUser,
+  getSession,
+  OAUTH_BROWSER_COOKIE,
+  revokeAllSessionsForUser,
+  SESSION_COOKIE
+} = await import("../src/modules/auth/session.js");
 const {
   findLatestReadyProfileDocumentExcluding,
   setActiveProfileDocument
@@ -71,6 +85,8 @@ try {
     await simulateDevServiceGuards();
   }
   await simulateSubscriptionQuotaLimits();
+  await simulateAuthLifecycle();
+  await simulateGoogleAccountLinking();
   console.log(`Data integrity DB simulations passed (${simulationIterations} iterations).`);
 } finally {
   await cleanup();
@@ -102,7 +118,7 @@ async function simulateActiveProfileDocumentUniqueness() {
     db.update(profileDocuments)
       .set({ isActive: true })
       .where(eq(profileDocuments.id, firstProfileDocumentId)),
-    /profile_documents_one_active_per_user_idx|duplicate key/
+    (error) => errorChainContains(error, /profile_documents_one_active_per_user_idx|duplicate key/)
   );
 
   await assert.rejects(
@@ -412,7 +428,7 @@ async function simulateDbConstraints() {
       processingStatus: "unknown",
       isActive: false
     }),
-    /profile_documents_processing_status_check|violates check constraint/
+    (error) => errorChainContains(error, /profile_documents_processing_status_check|violates check constraint/)
   );
   await assert.rejects(
     db.insert(meetingContexts).values({
@@ -422,11 +438,11 @@ async function simulateDbConstraints() {
       meetingTopic: "Invalid status",
       status: "deleted"
     }),
-    /meeting_contexts_status_check|violates check constraint/
+    (error) => errorChainContains(error, /meeting_contexts_status_check|violates check constraint/)
   );
   await assert.rejects(
     startLiveMeetingSession(userId, meetingContextId, "BROKEN" as never),
-    /live_meeting_sessions_session_type_check|violates check constraint/
+    (error) => errorChainContains(error, /live_meeting_sessions_session_type_check|violates check constraint/)
   );
 }
 
@@ -473,7 +489,7 @@ async function simulateLynkWebhookReusesPendingPayment() {
       customerName: "Sim lynk duplicate",
       status: "pending"
     }),
-    /payments_external_transaction_id_unique_idx|duplicate key/
+    (error) => errorChainContains(error, /payments_external_transaction_id_unique_idx|duplicate key/)
   );
 
   const userPayments = await db.query.payments.findMany({
@@ -827,10 +843,7 @@ async function simulateApiRouteMisses() {
       "Shopee - Interview",
       "Uji akses live meeting tanpa subscription aktif."
     );
-    const freeUserCookie = issueSessionCookie({
-      userId: freeUserId,
-      email: buildTempUserEmail("route-free", freeUserId)
-    });
+    const freeUserCookie = await issueSessionCookie(freeUserId);
 
     const startWithoutSubscriptionResponse = await app.inject({
       method: "POST",
@@ -888,10 +901,7 @@ async function simulateApiRouteMisses() {
       sessionType: "OTHER"
     });
 
-    const paidOwnerCookie = issueSessionCookie({
-      userId: paidOwnerUserId,
-      email: buildTempUserEmail("route-paid-owner", paidOwnerUserId)
-    });
+    const paidOwnerCookie = await issueSessionCookie(paidOwnerUserId);
 
     const realtimeSecretWrongOwnerResponse = await app.inject({
       method: "POST",
@@ -920,7 +930,46 @@ async function simulateApiRouteMisses() {
       }
     });
     assert.equal(realtimeSecretEndedSessionResponse.statusCode, 400);
+
+    const revokeAllResponse = await app.inject({
+      method: "POST",
+      url: "/auth/sessions/revoke-all",
+      headers: {
+        cookie: paidOwnerCookie
+      }
+    });
+    assert.equal(revokeAllResponse.statusCode, 200);
+    assert.ok(revokeAllResponse.json().revokedSessions >= 1);
+
+    const revokedSessionResponse = await app.inject({
+      method: "GET",
+      url: "/auth/me",
+      headers: {
+        cookie: paidOwnerCookie
+      }
+    });
+    assert.equal(revokedSessionResponse.statusCode, 401);
+
+    const logoutCookie = await issueSessionCookie(paidOtherUserId);
+    const logoutResponse = await app.inject({
+      method: "POST",
+      url: "/auth/logout",
+      headers: {
+        cookie: logoutCookie
+      }
+    });
+    assert.equal(logoutResponse.statusCode, 200);
+
+    const loggedOutSessionResponse = await app.inject({
+      method: "GET",
+      url: "/auth/me",
+      headers: {
+        cookie: logoutCookie
+      }
+    });
+    assert.equal(loggedOutSessionResponse.statusCode, 401);
   } finally {
+    await cleanup();
     await app.close();
   }
 }
@@ -931,6 +980,18 @@ function buildTempUserEmail(label: string, userId: string) {
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function errorChainContains(error: unknown, pattern: RegExp) {
+  let current = error;
+  while (current && typeof current === "object") {
+    const message = "message" in current ? String(current.message) : String(current);
+    if (pattern.test(message)) {
+      return true;
+    }
+    current = "cause" in current ? current.cause : null;
+  }
+  return false;
 }
 
 async function createTempUser(label: string) {
@@ -944,8 +1005,113 @@ async function createTempUser(label: string) {
   return userId;
 }
 
-function issueSessionCookie(input: { userId: string; email: string }) {
-  return `${SESSION_COOKIE}=${createSessionToken(input)}`;
+async function issueSessionCookie(userId: string) {
+  const session = await createSessionForUser(userId);
+  return `${SESSION_COOKIE}=${session.token}`;
+}
+
+async function simulateAuthLifecycle() {
+  const existingStateIds = new Set(
+    (await db.select({ id: oauthStates.id }).from(oauthStates)).map((state) => state.id)
+  );
+  const userId = await createTempUser("auth-session");
+  const firstSession = await createSessionForUser(userId);
+  const secondSession = await createSessionForUser(userId);
+  const firstRequest = {
+    headers: { cookie: `${SESSION_COOKIE}=${firstSession.token}` }
+  } as Parameters<typeof getSession>[0];
+  assert.equal((await getSession(firstRequest))?.userId, userId);
+
+  const revokedCount = await revokeAllSessionsForUser(userId);
+  assert.equal(revokedCount, 2);
+  assert.equal(await getSession(firstRequest), null);
+
+  const responseHeaders = new Map<string, string | string[]>();
+  const reply = {
+    getHeader(name: string) {
+      return responseHeaders.get(name);
+    },
+    header(name: string, value: string | string[]) {
+      responseHeaders.set(name, value);
+      return this;
+    }
+  } as Parameters<typeof createOAuthState>[0];
+
+  const state = await createOAuthState(reply, "starter", "web-app");
+  const setCookie = responseHeaders.get("Set-Cookie");
+  const cookies = (Array.isArray(setCookie) ? setCookie : [setCookie || ""])
+    .map((cookie) => cookie.split(";")[0])
+    .filter(Boolean);
+  const browserCookie = cookies.find((cookie) => cookie.startsWith(`${OAUTH_BROWSER_COOKIE}=`));
+  assert.ok(browserCookie);
+
+  const callbackRequest = {
+    headers: { cookie: browserCookie }
+  } as Parameters<typeof consumeOAuthState>[0];
+  const callbackReply = {
+    getHeader() {
+      return undefined;
+    },
+    header() {
+      return this;
+    }
+  } as Parameters<typeof consumeOAuthState>[1];
+
+  const consumed = await consumeOAuthState(callbackRequest, callbackReply, state);
+  assert.deepEqual(consumed, { plan: "starter", flow: "web-app" });
+  assert.equal(await consumeOAuthState(callbackRequest, callbackReply, state), null);
+
+  const storedSessionCount = await db.select().from(authSessions).where(eq(authSessions.userId, userId));
+  assert.equal(storedSessionCount.length, 2);
+  assert.ok(storedSessionCount.every((storedSession) => storedSession.tokenHash !== firstSession.token));
+  const consumedStates = await db.select().from(oauthStates).where(eq(oauthStates.plan, "starter"));
+  assert.ok(consumedStates.some((storedState) => storedState.consumedAt !== null));
+  const createdStateIds = consumedStates
+    .filter((storedState) => !existingStateIds.has(storedState.id))
+    .map((storedState) => storedState.id);
+  if (createdStateIds.length > 0) {
+    await db.delete(oauthStates).where(inArray(oauthStates.id, createdStateIds));
+  }
+}
+
+async function simulateGoogleAccountLinking() {
+  const email = `sim-google-${randomUUID()}@orviko.local`;
+  const created = await upsertGoogleUser({
+    sub: `google-${randomUUID()}`,
+    email,
+    emailVerified: true,
+    name: "Verified Google User"
+  });
+  tempUserIds.push(created.id);
+
+  const refreshed = await upsertGoogleUser({
+    sub: created.googleSub || "",
+    email,
+    emailVerified: true,
+    name: "Updated Google User"
+  });
+  assert.equal(refreshed.id, created.id);
+  assert.equal(refreshed.name, "Updated Google User");
+
+  await assert.rejects(
+    upsertGoogleUser({
+      sub: `different-google-${randomUUID()}`,
+      email,
+      emailVerified: true,
+      name: "Conflicting Google User"
+    }),
+    GoogleAccountConflictError
+  );
+
+  await assert.rejects(
+    upsertGoogleUser({
+      sub: `unverified-${randomUUID()}`,
+      email: `unverified-${randomUUID()}@orviko.local`,
+      emailVerified: false,
+      name: "Unverified Google User"
+    }),
+    /belum terverifikasi/
+  );
 }
 
 async function createProfileDocument(userId: string, processingStatus: string, isActive: boolean, offsetMs: number, readyContext?: string) {

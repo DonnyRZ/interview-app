@@ -10,7 +10,7 @@ const envCandidates = [
 ];
 
 const envPath = envCandidates.find((candidate) => existsSync(candidate));
-config(envPath ? { path: envPath, override: true } : { override: true });
+config(envPath ? { path: envPath, override: false } : { override: false });
 
 export function parseBooleanEnv(value: unknown) {
   if (typeof value === "boolean") {

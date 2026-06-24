@@ -6,6 +6,7 @@ export type RequestSession = {
   email: string;
 };
 
-export function getRequestSession(request: FastifyRequest): RequestSession | null {
-  return getSession(request);
+export async function getRequestSession(request: FastifyRequest): Promise<RequestSession | null> {
+  const session = await getSession(request);
+  return session ? { userId: session.userId, email: session.email } : null;
 }

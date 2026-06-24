@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { buildApp } from "../src/app.js";
 import { env, parseBooleanEnv } from "../src/env.js";
-import { createOAuthState, parseOAuthState } from "../src/modules/auth/session.js";
 import { parseLynkWebhook } from "../src/modules/payments/lynk.client.js";
 import { planCatalog } from "../src/modules/payments/plan-catalog.js";
 
@@ -14,12 +13,6 @@ async function run() {
   assert.equal(parseBooleanEnv(undefined), false);
   assert.equal(parseBooleanEnv("true"), true);
   assert.equal(parseBooleanEnv(true), true);
-
-  const state = createOAuthState("starter");
-  assert.equal(parseOAuthState(state)?.plan, "starter");
-  assert.equal(parseOAuthState(`${state.slice(0, -1)}x`), null);
-  const webAppState = createOAuthState("starter", "web-app");
-  assert.equal(parseOAuthState(webAppState)?.flow, "web-app");
 
   const lynkPayload = parseLynkWebhook({
     event_name: "Product Sold",

@@ -91,7 +91,7 @@ function mapLynkWebhookLog(result: Awaited<ReturnType<typeof handleLynkWebhook>>
 
 export async function registerPaymentRoutes(app: FastifyInstance) {
   app.post("/lynk/create", async (request, reply) => {
-    const session = getSession(request);
+    const session = await getSession(request);
     if (!session) {
       return reply.code(401).send({ message: "Login diperlukan." });
     }
@@ -133,7 +133,7 @@ export async function registerPaymentRoutes(app: FastifyInstance) {
   });
 
   app.get("/:paymentId", async (request, reply) => {
-    const session = getSession(request);
+    const session = await getSession(request);
     if (!session) {
       return reply.code(401).send({ message: "Login diperlukan." });
     }

@@ -1,4 +1,4 @@
-import { eq, or } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "../../db/client.js";
 import { users } from "../../db/schema/index.js";
 import type { GoogleUserInfo } from "./google-oauth.js";
@@ -17,30 +17,69 @@ export class SubscriptionQuotaExceededError extends SubscriptionRequiredError {
   }
 }
 
+export class GoogleAccountConflictError extends Error {
+  constructor() {
+    super("Email ini sudah terhubung ke akun Google lain.");
+    this.name = "GoogleAccountConflictError";
+  }
+}
+
 export async function upsertGoogleUser(userInfo: GoogleUserInfo) {
-  const existing = await db.query.users.findFirst({
-    where: or(eq(users.googleSub, userInfo.sub), eq(users.email, userInfo.email))
+  if (!userInfo.emailVerified) {
+    throw new Error("Email Google belum terverifikasi.");
+  }
+
+  const normalizedEmail = userInfo.email.trim().toLowerCase();
+  const existingByGoogleSub = await db.query.users.findFirst({
+    where: eq(users.googleSub, userInfo.sub)
   });
 
-  if (existing) {
+  if (existingByGoogleSub) {
+    const emailOwner = await db.query.users.findFirst({
+      where: eq(users.email, normalizedEmail)
+    });
+    if (emailOwner && emailOwner.id !== existingByGoogleSub.id) {
+      throw new GoogleAccountConflictError();
+    }
+
     const [updatedUser] = await db.update(users)
       .set({
-        googleSub: userInfo.sub,
-        email: userInfo.email,
+        email: normalizedEmail,
         name: userInfo.name,
         picture: userInfo.picture,
         authProvider: "google",
         updatedAt: new Date()
       })
-      .where(eq(users.id, existing.id))
+      .where(eq(users.id, existingByGoogleSub.id))
       .returning();
 
-    return updatedUser || existing;
+    return updatedUser || existingByGoogleSub;
+  }
+
+  const existingByEmail = await db.query.users.findFirst({
+    where: eq(users.email, normalizedEmail)
+  });
+  if (existingByEmail?.googleSub && existingByEmail.googleSub !== userInfo.sub) {
+    throw new GoogleAccountConflictError();
+  }
+
+  if (existingByEmail) {
+    const [linkedUser] = await db.update(users)
+      .set({
+        googleSub: userInfo.sub,
+        name: userInfo.name,
+        picture: userInfo.picture,
+        authProvider: "google",
+        updatedAt: new Date()
+      })
+      .where(eq(users.id, existingByEmail.id))
+      .returning();
+    return linkedUser || existingByEmail;
   }
 
   const [createdUser] = await db.insert(users).values({
     googleSub: userInfo.sub,
-    email: userInfo.email,
+    email: normalizedEmail,
     name: userInfo.name,
     picture: userInfo.picture,
     authProvider: "google"

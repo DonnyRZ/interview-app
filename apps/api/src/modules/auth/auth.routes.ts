@@ -3,12 +3,14 @@ import { z } from "zod";
 import { env } from "../../env.js";
 import { planSlugSchema } from "../payments/plan-catalog.js";
 import { buildGoogleLoginUrl, exchangeGoogleCode, fetchGoogleUserInfo } from "./google-oauth.js";
-import { findUserById, upsertGoogleUser } from "./auth.service.js";
+import { findUserById, GoogleAccountConflictError, upsertGoogleUser } from "./auth.service.js";
 import {
   clearSessionCookie,
+  consumeOAuthState,
   createOAuthState,
   getSession,
-  parseOAuthState,
+  revokeAllSessionsForUser,
+  revokeCurrentSession,
   setSessionCookie
 } from "./session.js";
 
@@ -46,7 +48,7 @@ export async function registerAuthRoutes(app: FastifyInstance) {
     }
 
     try {
-      const state = createOAuthState(query.data.plan, query.data.flow);
+      const state = await createOAuthState(reply, query.data.plan, query.data.flow);
       return reply.redirect(buildGoogleLoginUrl(state));
     } catch (error) {
       const message = error instanceof Error ? error.message : "Gagal memulai login Google.";
@@ -60,7 +62,7 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       return reply.code(400).send({ message: "Code dari Google tidak ditemukan." });
     }
 
-    const state = parseOAuthState(query.data.state);
+    const state = await consumeOAuthState(request, reply, query.data.state);
     const plan = planSlugSchema.safeParse(state?.plan);
     if (!state || !plan.success) {
       return reply.code(400).send({ message: "State login Google tidak valid atau sudah kedaluwarsa." });
@@ -70,19 +72,23 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       const accessToken = await exchangeGoogleCode(query.data.code);
       const userInfo = await fetchGoogleUserInfo(accessToken);
       const user = await upsertGoogleUser(userInfo);
-      setSessionCookie(reply, { userId: user.id, email: user.email });
+      await revokeCurrentSession(request);
+      await setSessionCookie(reply, { userId: user.id });
       if (state.flow === "web-app") {
         return reply.redirect(`${env.FRONTEND_BASE_URL.replace(/\/$/, "")}/app/`);
       }
       return reply.redirect(`${env.FRONTEND_BASE_URL.replace(/\/$/, "")}/checkout.html?plan=${encodeURIComponent(plan.data)}`);
     } catch (error) {
+      if (error instanceof GoogleAccountConflictError) {
+        return reply.code(409).send({ message: error.message });
+      }
       const message = error instanceof Error ? error.message : "Gagal menyelesaikan login Google.";
       return reply.code(400).send({ message });
     }
   });
 
   app.get("/me", async (request, reply) => {
-    const session = getSession(request);
+    const session = await getSession(request);
     if (!session) {
       return reply.code(401).send({ message: "Login diperlukan." });
     }
@@ -96,8 +102,20 @@ export async function registerAuthRoutes(app: FastifyInstance) {
     return { user: mapAuthUser(user) };
   });
 
-  app.post("/logout", async (_request, reply) => {
+  app.post("/logout", async (request, reply) => {
+    await revokeCurrentSession(request);
     clearSessionCookie(reply);
     return { ok: true };
+  });
+
+  app.post("/sessions/revoke-all", async (request, reply) => {
+    const session = await getSession(request);
+    if (!session) {
+      return reply.code(401).send({ message: "Login diperlukan." });
+    }
+
+    const revokedSessions = await revokeAllSessionsForUser(session.userId);
+    clearSessionCookie(reply);
+    return { ok: true, revokedSessions };
   });
 }

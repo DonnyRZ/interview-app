@@ -1,4 +1,6 @@
 export * from "./users.js";
+export * from "./auth-sessions.js";
+export * from "./oauth-states.js";
 export * from "./user-profiles.js";
 export * from "./profile-documents.js";
 export * from "./meeting-contexts.js";
