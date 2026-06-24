@@ -66,7 +66,7 @@ export function FloatingAudioOverlay({
   function submitAsk(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const value = askText.trim();
-    if (!value) return;
+    if (!value || !help.enabled) return;
     help.requestHelp("explain_text", value);
     setAskText("");
   }
@@ -106,7 +106,7 @@ export function FloatingAudioOverlay({
 
         <div className="overlay-actions">
           {actionButtons.map(({ action, label }) => (
-            <button key={action} type="button" onClick={() => help.requestHelp(action)}>
+            <button key={action} type="button" disabled={!help.enabled} onClick={() => help.requestHelp(action)}>
               {label}
             </button>
           ))}
@@ -115,7 +115,7 @@ export function FloatingAudioOverlay({
         {help.keywords.length ? (
           <div className="overlay-keywords">
             {help.keywords.map((keyword) => (
-              <button key={keyword} type="button" onClick={() => help.requestHelp("keyword", keyword)}>{keyword}</button>
+              <button key={keyword} type="button" disabled={!help.enabled} onClick={() => help.requestHelp("keyword", keyword)}>{keyword}</button>
             ))}
           </div>
         ) : (
@@ -132,7 +132,7 @@ export function FloatingAudioOverlay({
             placeholder="Tulis bantuan spesifik..."
             aria-label="Tulis bantuan spesifik"
           />
-          <button type="submit" disabled={!askText.trim()}>Ask</button>
+          <button type="submit" disabled={!askText.trim() || !help.enabled}>Ask</button>
         </form>
 
         {help.recentHelp.length ? (

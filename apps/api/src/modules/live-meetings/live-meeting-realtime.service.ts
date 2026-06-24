@@ -1,6 +1,9 @@
 import type { RealtimeContext } from "@interview-app/shared";
 import { env } from "../../env.js";
-import { buildRealtimeMeetingSessionInstructions } from "../ai/actions/realtime/realtime-meeting-session.js";
+import {
+  buildRealtimeMeetingSessionInstructions,
+  buildRealtimeResponseInstructions
+} from "../ai/actions/realtime/realtime-meeting-session.js";
 import { buildRealtimeMeetingTranscriptionPrompt } from "../ai/actions/realtime/realtime-meeting-transcription.js";
 import { createOpenAiRealtimeClientSecret } from "../ai/openai.client.js";
 
@@ -9,8 +12,12 @@ export async function createLiveMeetingRealtimeClientSecret(realtimeContext: Rea
     throw new Error("Live meeting runtime only supports gpt-realtime-mini.");
   }
 
-  return createOpenAiRealtimeClientSecret({
-    instructions: buildRealtimeMeetingSessionInstructions(realtimeContext),
+  const secret = await createOpenAiRealtimeClientSecret({
+    instructions: buildRealtimeMeetingSessionInstructions(),
     transcriptionPrompt: buildRealtimeMeetingTranscriptionPrompt()
   });
+  return {
+    ...secret,
+    responseInstructions: buildRealtimeResponseInstructions(realtimeContext)
+  };
 }

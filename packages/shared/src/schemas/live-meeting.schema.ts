@@ -97,7 +97,6 @@ export const endLiveMeetingRequestSchema = z.object({
 
 export const generateMeetingAnswerRequestSchema = z.object({
   meetingPrompt: z.string(),
-  recentTranscript: z.string().optional(),
   realtimeContext: realtimeContextSchema
 });
 
@@ -121,7 +120,6 @@ export const generateMeetingAnswerResponseSchema = z.object({
 
 export const generateMeetingFollowupRequestSchema = z.object({
   meetingPrompt: z.string(),
-  recentTranscript: z.string().optional(),
   realtimeContext: realtimeContextSchema
 });
 
@@ -144,7 +142,6 @@ export const generateMeetingFollowupResponseSchema = z.object({
 
 export const generateMeetingExplanationRequestSchema = z.object({
   meetingPrompt: z.string(),
-  recentTranscript: z.string().optional(),
   realtimeContext: realtimeContextSchema
 });
 
@@ -168,7 +165,6 @@ export const generateMeetingExplanationResponseSchema = z.object({
 export const generateMeetingKeywordHelpRequestSchema = z.object({
   keyword: z.string(),
   meetingPrompt: z.string().optional(),
-  recentTranscript: z.string().optional(),
   realtimeContext: realtimeContextSchema
 });
 
@@ -222,6 +218,16 @@ export const createRealtimeClientSecretResponseSchema = z.object({
   model: z.literal("gpt-realtime-mini"),
   clientSecret: z.string(),
   expiresAt: z.number().int().positive(),
+  responseInstructions: z.object({
+    answer_qna: z.string().min(1),
+    answer_convo: z.string().min(1),
+    answer: z.string().min(1),
+    followup: z.string().min(1),
+    explain: z.string().min(1),
+    explain_text: z.string().min(1),
+    keyword: z.string().min(1),
+    surface_keywords: z.string().min(1)
+  }),
   session: z.unknown().optional()
 });
 

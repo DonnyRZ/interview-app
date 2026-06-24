@@ -1,7 +1,6 @@
 import type { RealtimeContext } from "./schemas/live-meeting.schema.js";
 import {
   areSameTranscript,
-  buildConversationWindow,
   chooseMostCompleteTranscript,
   classifyMeetingConversationMode,
   classifyTranscriptQuality,
@@ -29,7 +28,6 @@ export type RealtimeConversationTurn = {
 
 export type StableConversationSnapshot = {
   focus: string;
-  windowText: string;
   capturedAt: string;
   sourceVersion: number;
   conversationMode: ConversationMode;
@@ -45,7 +43,6 @@ export type RejectedTranscriptMetadata = {
 
 export type ConversationStateUpdate = {
   focus: string;
-  windowText: string;
   stableVersion: number;
   keywordVersion: number;
   stable: StableConversationSnapshot | null;
@@ -58,7 +55,7 @@ type ConversationStateOptions = {
 };
 
 export class RealtimeConversationState {
-  private recentTranscript: string[] = [];
+  private transcriptHistory: string[] = [];
   private conversationTurns: RealtimeConversationTurn[] = [];
   private transcriptItems = new Map<string, RealtimeConversationTurn>();
   private transcriptOrder: string[] = [];
@@ -69,7 +66,6 @@ export class RealtimeConversationState {
   private pendingSpeech = false;
   private currentSpeechStartedAt = 0;
   private latestFocus: string;
-  private conversationWindow = "";
   private lastStableConversation: StableConversationSnapshot | null = null;
   private lastRejectedTranscript: RejectedTranscriptMetadata | null = null;
   private stableConversationSourceVersion = 0;
@@ -80,7 +76,7 @@ export class RealtimeConversationState {
   }
 
   reset() {
-    this.recentTranscript = [];
+    this.transcriptHistory = [];
     this.conversationTurns = [];
     this.transcriptItems = new Map();
     this.transcriptOrder = [];
@@ -91,7 +87,6 @@ export class RealtimeConversationState {
     this.pendingSpeech = false;
     this.currentSpeechStartedAt = 0;
     this.latestFocus = this.options.waitingFocusText;
-    this.conversationWindow = "";
     this.lastStableConversation = null;
     this.lastRejectedTranscript = null;
     this.stableConversationSourceVersion = 0;
@@ -247,13 +242,8 @@ export class RealtimeConversationState {
     return turn;
   }
 
-  getRecentTranscriptText() {
-    const joined = this.conversationWindow || this.recentTranscript.join("\n").trim();
-    return joined.length <= 1400 ? joined : joined.slice(joined.length - 1400).trim();
-  }
-
   getTranscriptHistory() {
-    return [...this.recentTranscript];
+    return [...this.transcriptHistory];
   }
 
   getFullTranscriptText() {
@@ -270,19 +260,15 @@ export class RealtimeConversationState {
     if (!Number.isFinite(capturedTime)) return null;
     if (typeof options.maxAgeMs === "number" && Date.now() - capturedTime > options.maxAgeMs) return null;
     if (options.blockPendingSpeech && this.pendingSpeech && this.currentSpeechStartedAt && capturedTime < this.currentSpeechStartedAt) return null;
-    if (this.options.getContext().realtimeStatus === "error" || !snapshot.windowText.trim()) return null;
+    if (this.options.getContext().realtimeStatus === "error") return null;
     return snapshot;
   }
 
   getKeywordConversationSnapshot(options: { maxAgeMs?: number } = {}) {
     const latestInterimTurn = this.interimTranscript;
     if (latestInterimTurn) {
-      const interimWindow = buildConversationWindow([
-        ...this.conversationTurns.filter((turn) => turn.itemId !== latestInterimTurn.itemId).slice(-9),
-        latestInterimTurn
-      ]);
-      const interimFocus = deriveLatestConversationFocus(interimWindow, latestInterimTurn.text, this.options.getContext());
-      const interimSnapshot = this.buildSnapshot(interimFocus, interimWindow, latestInterimTurn, options.maxAgeMs);
+      const interimFocus = deriveLatestConversationFocus(latestInterimTurn.text, this.options.getContext());
+      const interimSnapshot = this.buildSnapshot(interimFocus, latestInterimTurn, options.maxAgeMs);
       if (interimSnapshot) return interimSnapshot;
     }
     return this.getStableConversationSnapshot(options);
@@ -297,15 +283,13 @@ export class RealtimeConversationState {
       ? [...orderedTurns, interimTurn]
       : orderedTurns;
     this.conversationTurns = orderedTurns;
-    this.recentTranscript = orderedTurns.map((turn) => turn.text).slice(-8);
-    const nextWindow = buildConversationWindow(visibleTurns);
+    this.transcriptHistory = orderedTurns.map((turn) => turn.text).slice(-8);
     const latestTurn = visibleTurns.at(-1);
-    const nextFocus = deriveLatestConversationFocus(nextWindow, latestTurn?.text || "", this.options.getContext()) || this.options.waitingFocusText;
-    this.conversationWindow = nextWindow;
+    const nextFocus = deriveLatestConversationFocus(latestTurn?.text || "", this.options.getContext()) || this.options.waitingFocusText;
     this.latestFocus = nextFocus;
-    if (latestTurn && nextWindow.trim() && nextFocus !== this.options.waitingFocusText) this.keywordTranscriptVersion += 1;
+    if (latestTurn && nextFocus !== this.options.waitingFocusText) this.keywordTranscriptVersion += 1;
     if (!interimTurn && latestTurn) {
-      const snapshot = this.buildSnapshot(nextFocus, nextWindow, latestTurn);
+      const snapshot = this.buildSnapshot(nextFocus, latestTurn);
       if (snapshot) {
         this.stableConversationSourceVersion += 1;
         this.lastStableConversation = { ...snapshot, sourceVersion: this.stableConversationSourceVersion };
@@ -316,26 +300,23 @@ export class RealtimeConversationState {
     return update;
   }
 
-  private buildSnapshot(focus: string, windowText: string, turn: RealtimeConversationTurn, maxAgeMs?: number): StableConversationSnapshot | null {
+  private buildSnapshot(focus: string, turn: RealtimeConversationTurn, maxAgeMs?: number): StableConversationSnapshot | null {
     const normalizedFocus = focus.trim();
-    const normalizedWindow = windowText.trim();
-    if (!normalizedFocus || normalizedFocus === this.options.waitingFocusText || !normalizedWindow) return null;
+    if (!normalizedFocus || normalizedFocus === this.options.waitingFocusText) return null;
     const capturedTime = new Date(turn.capturedAt).getTime();
     if (!Number.isFinite(capturedTime)) return null;
     if (typeof maxAgeMs === "number" && Date.now() - capturedTime > maxAgeMs) return null;
     return {
       focus: normalizedFocus,
-      windowText: normalizedWindow,
       capturedAt: turn.capturedAt,
       sourceVersion: this.stableConversationSourceVersion,
-      conversationMode: classifyMeetingConversationMode(`${normalizedWindow}\n${normalizedFocus}`)
+      conversationMode: classifyMeetingConversationMode(normalizedFocus)
     };
   }
 
   private currentUpdate(): ConversationStateUpdate {
     return {
       focus: this.latestFocus,
-      windowText: this.conversationWindow,
       stableVersion: this.stableConversationSourceVersion,
       keywordVersion: this.keywordTranscriptVersion,
       stable: this.lastStableConversation

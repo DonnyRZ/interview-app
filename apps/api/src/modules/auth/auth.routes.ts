@@ -6,26 +6,20 @@ import { buildGoogleLoginUrl, exchangeGoogleCode, fetchGoogleUserInfo } from "./
 import { findUserById, upsertGoogleUser } from "./auth.service.js";
 import {
   clearSessionCookie,
-  createDesktopAuthToken,
   createOAuthState,
   getSession,
-  parseDesktopAuthToken,
   parseOAuthState,
   setSessionCookie
 } from "./session.js";
 
 const loginQuerySchema = z.object({
   plan: planSlugSchema,
-  flow: z.enum(["web", "web-app", "desktop"]).default("web")
+  flow: z.enum(["web", "web-app"]).default("web")
 });
 
 const callbackQuerySchema = z.object({
   code: z.string().min(1).optional(),
   state: z.string().min(1).optional()
-});
-
-const desktopExchangeBodySchema = z.object({
-  token: z.string().min(1)
 });
 
 function mapAuthUser(user: Awaited<ReturnType<typeof findUserById>>) {
@@ -77,10 +71,6 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       const userInfo = await fetchGoogleUserInfo(accessToken);
       const user = await upsertGoogleUser(userInfo);
       setSessionCookie(reply, { userId: user.id, email: user.email });
-      if (state.flow === "desktop") {
-        const token = createDesktopAuthToken({ userId: user.id, email: user.email });
-        return reply.redirect(`${env.FRONTEND_BASE_URL.replace(/\/$/, "")}/desktop-sign-in.html?token=${encodeURIComponent(token)}`);
-      }
       if (state.flow === "web-app") {
         return reply.redirect(`${env.FRONTEND_BASE_URL.replace(/\/$/, "")}/app/`);
       }
@@ -103,26 +93,6 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       return reply.code(401).send({ message: "Session tidak valid." });
     }
 
-    return { user: mapAuthUser(user) };
-  });
-
-  app.post("/desktop/exchange", async (request, reply) => {
-    const body = desktopExchangeBodySchema.safeParse(request.body);
-    if (!body.success) {
-      return reply.code(400).send({ message: "Desktop auth token diperlukan." });
-    }
-
-    const token = parseDesktopAuthToken(body.data.token);
-    if (!token) {
-      return reply.code(401).send({ message: "Desktop auth token tidak valid atau sudah kedaluwarsa." });
-    }
-
-    const user = await findUserById(token.userId);
-    if (!user || user.email !== token.email) {
-      return reply.code(401).send({ message: "Desktop auth token tidak valid." });
-    }
-
-    setSessionCookie(reply, { userId: user.id, email: user.email });
     return { user: mapAuthUser(user) };
   });
 

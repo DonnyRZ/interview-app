@@ -18,8 +18,6 @@ async function run() {
   const state = createOAuthState("starter");
   assert.equal(parseOAuthState(state)?.plan, "starter");
   assert.equal(parseOAuthState(`${state.slice(0, -1)}x`), null);
-  const desktopState = createOAuthState("starter", "desktop");
-  assert.equal(parseOAuthState(desktopState)?.flow, "desktop");
   const webAppState = createOAuthState("starter", "web-app");
   assert.equal(parseOAuthState(webAppState)?.flow, "web-app");
 
@@ -269,13 +267,6 @@ async function run() {
       url: "/auth/google/login?plan=enterprise"
     });
     assert.equal(invalidPlanResponse.statusCode, 400);
-
-    const invalidDesktopExchangeResponse = await app.inject({
-      method: "POST",
-      url: "/auth/desktop/exchange",
-      payload: { token: "invalid" }
-    });
-    assert.equal(invalidDesktopExchangeResponse.statusCode, 401);
 
     const lynkWebhookNoSecretResponse = await app.inject({
       method: "POST",

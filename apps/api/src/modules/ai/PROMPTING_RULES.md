@@ -4,12 +4,12 @@ Dokumen ini adalah aturan ringkas untuk semua prompt di modul AI backend.
 
 ## Prinsip Utama
 
-- Default: prompt harus dikelola di backend, bukan di desktop UI, route, controller, overlay, atau helper runtime biasa.
+- Default: prompt harus dikelola di backend, bukan di React UI, route, controller, overlay, atau helper runtime biasa.
 - Setiap use case AI harus dimodelkan sebagai `ActionSpec` dengan kontrak input, task, policy, output, dan context builder yang jelas.
 - Stable instruction harus dipisah dari runtime payload. Prompt berisi aturan yang relatif stabil; payload berisi data request seperti profil user, konteks meeting, transcript, domain profile, dan metadata.
 - Prompt harus dirakit lewat `prompt-builder.ts`. File lain boleh memilih spec dan menjalankan action, tapi jangan merakit prompt sendiri.
 - Validasi tidak boleh hanya mengandalkan prompt. Output tetap harus dicek lewat schema, policy, dan guardrail kode.
-- Catatan current build: live Realtime action text dirakit di `packages/shared/src/realtime-overlay.ts` agar desktop dan web memakai kontrak trigger `gpt-realtime-mini` yang identik. Ini adalah pengecualian sementara untuk jalur Realtime live, bukan pola ideal untuk prompt backend baru.
+- Catatan current build: live Realtime action text dirakit di `packages/shared/src/realtime-overlay.ts` agar Web App memakai kontrak trigger `gpt-realtime-mini` yang konsisten. Ini adalah pengecualian sementara untuk jalur Realtime live, bukan pola ideal untuk prompt backend baru.
 
 ## Struktur File
 
@@ -70,7 +70,6 @@ Saat menambah kebutuhan AI baru:
 Jangan menaruh prompt/instruksi model di:
 
 - React component
-- Electron preload/main process
 - API route
 - service bisnis non-AI
 - realtime context builder
@@ -80,11 +79,11 @@ Pengecualian sementara:
 
 - `apps/api/src/modules/ai/actions/realtime/realtime-meeting-session.ts` dan `apps/api/src/modules/ai/actions/realtime/realtime-meeting-transcription.ts` boleh berupa builder instruksi Realtime, bukan `ActionSpec`, karena konfigurasi Realtime session/client secret tidak berjalan lewat `action-runner.ts`.
 - Prompt Realtime backend tetap harus berada di `ai/actions/`, bukan di `openai.client.ts`, route, atau service meeting legacy.
-- `packages/shared/src/realtime-overlay.ts` boleh memiliki action instruction pendek untuk live Realtime trigger selama desktop dan web masih langsung berbicara dengan OpenAI Realtime.
+- `packages/shared/src/realtime-overlay.ts` boleh memiliki action instruction pendek untuk live Realtime trigger selama Web App masih langsung berbicara dengan OpenAI Realtime.
 - React component seperti `InterviewOverlay.tsx` tidak boleh menampung prompt/instruksi model; component hanya boleh memanggil builder prompt yang sudah dipisahkan.
 - Instruksi di `realtime-overlay.ts` harus terbatas pada action live seperti `JAWAB_PERTANYAAN`, `TANGGAPI`, `BANTU_FOLLOWUP`, `JELASKAN_MAKSUDNYA`, dan `EXPLAIN_KEYWORD`.
 - Free-text harus dirutekan ke `JELASKAN_MAKSUDNYA` dengan sumber `USER_TEXT`; teks user menjadi subjek utama dan bukan pengganti transcript atau `latestQuestion`.
-- Jangan menambahkan prompt preprocessing profil user/konteks meeting, summary, scoring, atau business logic AI baru ke overlay/desktop.
+- Jangan menambahkan prompt preprocessing profil user/konteks meeting, summary, scoring, atau business logic AI baru ke overlay Web App.
 - Jika realtime action prompt makin besar atau kompleks, pindahkan seluruh perakitannya ke backend agar governance prompt kembali terpusat.
 
 ## Runtime Context
@@ -123,6 +122,8 @@ Untuk meeting near real-time:
 - Jangan hardcode contoh spesifik dari dokumen, mockup, seed, test case, brand, platform, metric, domain, company, atau role ke prompt/heuristic produksi. Contoh hanya boleh menjadi test fixture atau acceptance scenario.
 - Prompt dan heuristic produksi boleh menyebut kategori umum seperti platform, metric, acronym, product term, atau problem phrase, tetapi jangan menjadikan contoh spesifik sebagai whitelist, regex khusus, vocabulary prior, atau pattern produksi.
 - Overlay live saat ini boleh mengirim trigger/action text pendek ke Realtime session melalui builder shared `realtime-overlay.ts`, tetapi tidak boleh menjadi tempat prompt besar atau preprocessing logic.
+- Semua response bantuan dan keyword Web App wajib out-of-band (`conversation: "none"`). Input percakapan hanya latest accepted focus dan explicit user text untuk request saat ini.
+- Riwayat audio, transcript lama, keyword lama, trigger lama, dan output bantuan sebelumnya tidak boleh menjadi input response bantuan MVP.
 - Default arah jangka panjang tetap: stable AI rules dikelola di backend/module AI, runtime payload tetap data.
 
 Target desainnya: prompt tetap terkontrol, sementara data meeting bisa mengalir cepat.

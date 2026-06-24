@@ -17,7 +17,7 @@ const {
 const { DEV_USER_ID } = await import("../src/modules/dev/dev-user.js");
 const { ensureDevUser } = await import("../src/modules/dev/dev-user.repository.js");
 const { activateUserSubscription } = await import("../src/modules/auth/auth.service.js");
-const { createDesktopAuthToken } = await import("../src/modules/auth/session.js");
+const { createSessionToken, SESSION_COOKIE } = await import("../src/modules/auth/session.js");
 const {
   findLatestReadyProfileDocumentExcluding,
   setActiveProfileDocument
@@ -827,7 +827,7 @@ async function simulateApiRouteMisses() {
       "Shopee - Interview",
       "Uji akses live meeting tanpa subscription aktif."
     );
-    const freeUserCookie = await issueDesktopSessionCookie(app, {
+    const freeUserCookie = issueSessionCookie({
       userId: freeUserId,
       email: buildTempUserEmail("route-free", freeUserId)
     });
@@ -888,7 +888,7 @@ async function simulateApiRouteMisses() {
       sessionType: "OTHER"
     });
 
-    const paidOwnerCookie = await issueDesktopSessionCookie(app, {
+    const paidOwnerCookie = issueSessionCookie({
       userId: paidOwnerUserId,
       email: buildTempUserEmail("route-paid-owner", paidOwnerUserId)
     });
@@ -944,20 +944,8 @@ async function createTempUser(label: string) {
   return userId;
 }
 
-async function issueDesktopSessionCookie(app: ReturnType<typeof buildApp>, input: { userId: string; email: string }) {
-  const response = await app.inject({
-    method: "POST",
-    url: "/auth/desktop/exchange",
-    payload: {
-      token: createDesktopAuthToken(input)
-    }
-  });
-
-  assert.equal(response.statusCode, 200);
-  const rawSetCookie = response.headers["set-cookie"];
-  const firstCookie = Array.isArray(rawSetCookie) ? rawSetCookie[0] : rawSetCookie;
-  assert.ok(firstCookie);
-  return String(firstCookie).split(";")[0];
+function issueSessionCookie(input: { userId: string; email: string }) {
+  return `${SESSION_COOKIE}=${createSessionToken(input)}`;
 }
 
 async function createProfileDocument(userId: string, processingStatus: string, isActive: boolean, offsetMs: number, readyContext?: string) {

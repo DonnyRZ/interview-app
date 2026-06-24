@@ -14,7 +14,7 @@ const demoCanvas = document.getElementById("demoCanvas");
     const interviewVideoWindow = document.querySelector(".interview-video-window");
     const howListeningTimer = document.getElementById("howListeningTimer");
     const floatingCta = document.getElementById("floatingCta");
-    const primaryDownloadButtons = document.querySelectorAll(".cta-row .btn-primary, .hero-actions .btn-primary, .final-cta-inner .btn-primary");
+    const primaryAppButtons = document.querySelectorAll(".cta-row .btn-primary, .hero-actions .btn-primary, .final-cta-inner .btn-primary");
     const baseDemoWidth = 1280;
     const baseDemoHeight = 760;
     const maxDemoScale = 0.78;
@@ -281,29 +281,28 @@ const demoCanvas = document.getElementById("demoCanvas");
       howListeningTimer.textContent = `00:${String(howListeningSecond).padStart(2, "0")}`;
     }, 1000);
 
-    if (floatingCta && primaryDownloadButtons.length) {
-      const visibleDownloadButtons = new Set();
+    if (floatingCta && primaryAppButtons.length) {
+      const visibleAppButtons = new Set();
 
       function syncFloatingCta() {
-        const shouldShow = visibleDownloadButtons.size === 0;
+        const shouldShow = visibleAppButtons.size === 0;
         floatingCta.classList.toggle("visible", shouldShow);
         floatingCta.setAttribute("aria-hidden", String(!shouldShow));
       }
 
-      const downloadObserver = new IntersectionObserver((entries) => {
+      const appButtonObserver = new IntersectionObserver((entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            visibleDownloadButtons.add(entry.target);
+            visibleAppButtons.add(entry.target);
           } else {
-            visibleDownloadButtons.delete(entry.target);
+            visibleAppButtons.delete(entry.target);
           }
         });
 
         syncFloatingCta();
       }, { threshold: 0.08 });
 
-      primaryDownloadButtons.forEach((button) => downloadObserver.observe(button));
+      primaryAppButtons.forEach((button) => appButtonObserver.observe(button));
       syncFloatingCta();
     }
 
-  

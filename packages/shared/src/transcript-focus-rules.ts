@@ -113,42 +113,15 @@ const conversationalStatementSignals = [
   "sudah", "belum", "agak", "cukup", "terlalu", "makin", "semakin"
 ];
 
-export function buildConversationWindow(turns: Array<{ text: string }>) {
-  const maxLength = 1800;
-  const joined = turns
-    .slice(-10)
-    .map((turn) => turn.text)
-    .filter(Boolean)
-    .join("\n")
-    .trim();
-
-  if (joined.length <= maxLength) {
-    return joined;
-  }
-
-  return joined.slice(joined.length - maxLength).trim();
-}
-
-export function buildKeywordSourceText(latestQuestion: string, recentTranscript: string) {
-  const normalizedQuestion = latestQuestion.trim();
-  const transcriptSegments = recentTranscript
-    .split(/\n+/)
-    .map((segment) => segment.trim())
-    .filter(Boolean)
-    .slice(-4);
-  const parts = [...transcriptSegments, normalizedQuestion].filter(Boolean);
-  return Array.from(new Set(parts)).join("\n").trim();
-}
-
-export function deriveLatestConversationFocus(windowText: string, latestSegment: string, context: TranscriptFocusContext) {
-  const questionLikeFocus = deriveContextFromTranscriptWindow(windowText, latestSegment, context);
-  if (questionLikeFocus) {
-    return questionLikeFocus;
-  }
-
-  const source = latestSegment.trim() || windowText.trim();
+export function deriveLatestConversationFocus(latestSegment: string, context: TranscriptFocusContext) {
+  const source = latestSegment.trim();
   if (!source || classifyTranscriptQuality(source).status !== "accept") {
     return "";
+  }
+
+  const directQuestion = deriveQuestionFromTranscriptText(source, context);
+  if (directQuestion) {
+    return compactFocusText(directQuestion);
   }
 
   const segments = source
@@ -364,34 +337,6 @@ function deriveQuestionFromTranscriptText(transcriptText: string, context: Trans
   }
 
   return undefined;
-}
-
-function deriveContextFromTranscriptWindow(recentTranscript: string, latestSegment: string, context: TranscriptFocusContext) {
-  const directQuestion = deriveQuestionFromTranscriptText(latestSegment, context);
-  if (directQuestion && isConfirmedMeetingQuestion(directQuestion, context)) {
-    return directQuestion;
-  }
-
-  const windowText = recentTranscript.trim();
-  if (!windowText) {
-    return directQuestion && isConfirmedMeetingQuestion(directQuestion, context) ? directQuestion : "";
-  }
-
-  const segments = windowText
-    .split(/[\n\r]+|(?<=[?.!])\s+/)
-    .map((segment) => segment.trim())
-    .filter((segment) => segment && isRelevantTranscriptText(segment, context));
-  const focusedWindow = segments.slice(-4).join(" ").trim();
-
-  const combinedQuestion = directQuestion && focusedWindow && !focusedWindow.includes(directQuestion)
-    ? `${focusedWindow} ${directQuestion}`.trim()
-    : focusedWindow || directQuestion || "";
-
-  if (combinedQuestion && isConfirmedMeetingQuestion(combinedQuestion, context)) {
-    return combinedQuestion;
-  }
-
-  return directQuestion && isConfirmedMeetingQuestion(directQuestion, context) ? directQuestion : "";
 }
 
 function isRelevantTranscriptText(text: string, context: TranscriptFocusContext) {

@@ -5,7 +5,6 @@ import { buildMeetingResponsePolicyRules } from "./meeting-response-router.js";
 
 export type GenerateMeetingAnswerInput = {
   meetingPrompt: string;
-  recentTranscript?: string;
   realtimeContext: RealtimeContext;
 };
 
@@ -15,7 +14,7 @@ export const generateMeetingAnswerSpec: ActionSpec<GenerateMeetingAnswerInput> =
   goal: "Membuat respons meeting online yang singkat, natural, aman, dan siap diucapkan user.",
   role: "Kamu adalah assistant respons meeting untuk user saat online meeting.",
   task: [
-    "Baca latest meeting focus dan recentTranscript.",
+    "Baca latest meeting focus.",
     "Tentukan apakah konteks terbaru lebih cocok QnA mode atau Convo mode.",
     "Buat respons singkat yang bisa langsung diucapkan user.",
     "Pilih sumber konteks yang paling tepat: latest conversation, general knowledge, user profile, meeting context, atau gabungan yang aman.",
@@ -46,9 +45,6 @@ export const generateMeetingAnswerSpec: ActionSpec<GenerateMeetingAnswerInput> =
   buildContext: (input) => `Runtime payload:
 - latestMeetingFocus:
 ${input.meetingPrompt.trim() || "unknown"}
-
-- recentTranscript:
-${input.recentTranscript?.trim() || "unknown"}
 
 ${formatMeetingContextForPrompt(input.realtimeContext)}`
 };

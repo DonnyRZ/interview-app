@@ -12,7 +12,6 @@ export type RealtimeConversationMode = "qna" | "convo" | "unknown";
 export type RealtimeActionPromptPayload = {
   action: RealtimeActionName | "surface_keywords";
   latestQuestion?: string;
-  recentTranscript?: string;
   triggerText?: string;
   conversationMode?: RealtimeConversationMode;
 };
@@ -59,7 +58,6 @@ export function buildRealtimeActionPrompt(payload: RealtimeActionPromptPayload) 
     explanationSource ? `EXPLANATION_SOURCE: ${explanationSource}` : "",
     "BEGIN_RUNTIME_DATA",
     payload.conversationMode ? `Conversation mode hint:\n${payload.conversationMode}` : "",
-    payload.recentTranscript ? `Conversation window terbaru:\n${payload.recentTranscript}` : "",
     payload.latestQuestion ? `Latest conversation focus:\n${payload.latestQuestion}` : "",
     payload.action === "explain_text" && payload.triggerText
       ? `Explanation subject from user:\n${payload.triggerText}`

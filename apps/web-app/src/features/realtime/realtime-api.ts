@@ -18,6 +18,10 @@ export type RealtimeClientSecret = {
   model: "gpt-realtime-mini";
   clientSecret: string;
   expiresAt: number;
+  responseInstructions: Record<
+    "answer_qna" | "answer_convo" | "answer" | "followup" | "explain" | "explain_text" | "keyword" | "surface_keywords",
+    string
+  >;
 };
 
 export async function startLiveMeeting(meetingContextId: string) {

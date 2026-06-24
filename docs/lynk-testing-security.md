@@ -68,7 +68,7 @@ Jangan lakukan hal-hal ini hanya agar testing lebih cepat:
 Flow yang dianggap valid:
 
 1. User login Orviko.
-2. User memilih paket dari desktop/web Orviko.
+2. User memilih paket dari Web App Orviko.
 3. Orviko membuat pending payment.
 4. User diarahkan ke checkout Lynk.id.
 5. User menyelesaikan pembayaran di Lynk.id.

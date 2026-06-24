@@ -135,8 +135,8 @@ Jika belum ada kebutuhan seperti itu, static Vite dengan HTML/CSS/JS terpisah su
 ## Aturan Responsive
 
 - Perubahan mobile harus dicek terhadap desain/sketsa mobile, bukan hanya dibuat "lebih kecil".
-- Jangan mengubah desktop ketika memperbaiki mobile, kecuali memang diminta.
-- Jika desktop sudah punya sistem visual yang baik, mobile harus menurunkan sistem itu secara konsisten.
+- Jangan mengubah layout viewport lebar ketika memperbaiki mobile, kecuali memang diminta.
+- Jika layout viewport lebar sudah punya sistem visual yang baik, mobile harus menurunkan sistem itu secara konsisten.
 - Untuk elemen badge/logo, jaga relasi posisi dengan frame, bukan hanya ukuran elemennya.
 
 ## Checklist Sebelum Selesai
@@ -144,5 +144,5 @@ Jika belum ada kebutuhan seperti itu, static Vite dengan HTML/CSS/JS terpisah su
 - Build web berhasil dengan `npm --workspace @interview-app/web run build`.
 - Tidak ada CSS besar atau JS besar yang baru ditambahkan inline ke `index.html`.
 - Perubahan mobile dicek di viewport mobile.
-- Perubahan desktop dicek jika CSS default atau breakpoint desktop ikut tersentuh.
+- Layout viewport lebar dicek jika CSS default atau breakpoint terkait ikut tersentuh.
 - Asset baru disimpan di `public/assets` dan diberi nama yang jelas.

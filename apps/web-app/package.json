@@ -4,10 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "npm --workspace @interview-app/shared run build",
     "dev": "vite --host 127.0.0.1 --port 5175",
+    "prebuild": "npm --workspace @interview-app/shared run build",
     "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "pretest:workspace": "npm --workspace @interview-app/shared run build",
     "test:workspace": "tsx scripts/test-workspace-model.ts",
+    "pretest:realtime": "npm --workspace @interview-app/shared run build",
     "test:realtime": "tsx scripts/test-realtime-context.ts",
+    "pretypecheck": "npm --workspace @interview-app/shared run build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "preview": "vite preview --host 127.0.0.1 --port 4175"
   },

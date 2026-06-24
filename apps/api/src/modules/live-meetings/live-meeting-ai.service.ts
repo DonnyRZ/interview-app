@@ -22,7 +22,6 @@ import {
 
 export type GenerateMeetingAnswerServiceInput = {
   meetingPrompt: string;
-  recentTranscript?: string;
   realtimeContext: RealtimeContext;
 };
 
@@ -31,7 +30,6 @@ export type GenerateMeetingExplanationServiceInput = GenerateMeetingAnswerServic
 export type GenerateMeetingKeywordHelpServiceInput = {
   keyword: string;
   meetingPrompt?: string;
-  recentTranscript?: string;
   realtimeContext: RealtimeContext;
 };
 export type SurfaceRealtimeKeywordsServiceInput = {

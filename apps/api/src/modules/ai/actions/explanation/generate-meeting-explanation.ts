@@ -8,7 +8,6 @@ import { formatMeetingContextForPrompt, meetingContextUsagePolicy } from "../sha
 
 export type GenerateMeetingExplanationInput = {
   meetingPrompt: string;
-  recentTranscript?: string;
   realtimeContext: RealtimeContext;
 };
 
@@ -18,7 +17,7 @@ export const generateMeetingExplanationSpec: ActionSpec<GenerateMeetingExplanati
   goal: "Menjelaskan maksud lawan bicara secara singkat agar user paham konteks dan bisa merespons dengan tepat.",
   role: "Kamu adalah assistant penjelas meeting untuk user saat online meeting.",
   task: [
-    "Baca latest meeting focus dan recentTranscript.",
+    "Baca latest meeting focus.",
     "Jelaskan secara singkat maksud, sinyal, atau implikasi dari ucapan lawan bicara.",
     "Sebutkan 1-3 hal yang kemungkinan perlu diperhatikan user.",
     "Pilih sumber konteks yang paling tepat: latest conversation, general knowledge, user profile, meeting context, atau gabungan yang aman.",
@@ -50,9 +49,6 @@ export const generateMeetingExplanationSpec: ActionSpec<GenerateMeetingExplanati
   buildContext: (input) => `Runtime payload:
 - latestMeetingFocus:
 ${input.meetingPrompt.trim() || "unknown"}
-
-- recentTranscript:
-${input.recentTranscript?.trim() || "unknown"}
 
 ${formatMeetingContextForPrompt(input.realtimeContext)}`
 };

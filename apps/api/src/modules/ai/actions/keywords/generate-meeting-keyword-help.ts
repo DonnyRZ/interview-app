@@ -5,7 +5,6 @@ import { formatMeetingContextForPrompt, meetingContextUsagePolicy } from "../sha
 export type GenerateMeetingKeywordHelpInput = {
   keyword: string;
   meetingPrompt?: string;
-  recentTranscript?: string;
   realtimeContext: RealtimeContext;
 };
 
@@ -52,9 +51,6 @@ ${input.keyword.trim() || "unknown"}
 
 - latestMeetingFocus:
 ${input.meetingPrompt?.trim() || "unknown"}
-
-- recentTranscript:
-${input.recentTranscript?.trim() || "unknown"}
 
 ${formatMeetingContextForPrompt(input.realtimeContext)}`
 };

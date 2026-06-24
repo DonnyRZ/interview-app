@@ -6,7 +6,7 @@ import {
 import { preprocessMeetingContextSpec } from "../src/modules/ai/actions/preprocessing/preprocess-meeting-context.js";
 import { preprocessProfileDocumentSpec } from "../src/modules/ai/actions/preprocessing/preprocess-user-profile.js";
 import { generateMeetingAnswerSpec } from "../src/modules/ai/actions/response/generate-meeting-response.js";
-import { buildRealtimeMeetingSessionInstructions } from "../src/modules/ai/actions/realtime/realtime-meeting-session.js";
+import { buildRealtimeResponseInstructions } from "../src/modules/ai/actions/realtime/realtime-meeting-session.js";
 import { buildPrompt } from "../src/modules/ai/prompt-builder.js";
 import type { RealtimeContext } from "@interview-app/shared";
 
@@ -55,7 +55,8 @@ const realtimeContext: RealtimeContext = {
   }
 };
 
-const realtimeInstructions = buildRealtimeMeetingSessionInstructions(realtimeContext);
+const realtimeResponseInstructions = buildRealtimeResponseInstructions(realtimeContext);
+const realtimeInstructions = Object.values(realtimeResponseInstructions).join("\n");
 const actionPolicy = generateMeetingAnswerSpec.policyRules.join("\n");
 const userProfilePrompt = buildPrompt(preprocessProfileDocumentSpec, {
   fileName: "profile.pdf",
@@ -68,49 +69,40 @@ const meetingContextPrompt = buildPrompt(preprocessMeetingContextSpec, {
   profileDocumentReadyContext: "Profil aktif tersedia."
 });
 
-assert.match(realtimeInstructions, /JAWAB_PERTANYAAN must use QnA mode rules/);
-assert.match(realtimeInstructions, /TANGGAPI must use Convo mode rules/);
-assert.match(realtimeInstructions, /JELASKAN_MAKSUDNYA: follow EXPLANATION_SOURCE/);
-assert.match(realtimeInstructions, /For USER_TEXT, do not apply QnA or Convo routing/);
-assert.match(realtimeInstructions, /explain the user-provided explanation subject as the primary subject/);
-assert.match(realtimeInstructions, /For LATEST_TRANSCRIPT, explain the other speaker's likely meaning/);
+assert.match(realtimeResponseInstructions.answer_qna, /Action: JAWAB_PERTANYAAN/);
+assert.match(realtimeResponseInstructions.answer_qna, /produce a direct ready-to-say answer/i);
+assert.match(realtimeResponseInstructions.answer_qna, /Forbidden live openers include Tentu, Baik, Oke, Berikut/);
+assert.match(realtimeResponseInstructions.answer_convo, /Action: TANGGAPI/);
+assert.match(realtimeResponseInstructions.answer_convo, /produce a natural response/i);
+assert.match(realtimeResponseInstructions.answer_convo, /do not include question marks/i);
+assert.match(realtimeResponseInstructions.answer_convo, /do not ask the other speaker or the user anything/i);
+assert.match(realtimeResponseInstructions.answer_convo, /do not use the word 'apakah'/i);
+assert.match(realtimeResponseInstructions.answer_convo, /self-check before final output/i);
+assert.match(realtimeResponseInstructions.explain, /EXPLANATION_SOURCE LATEST_TRANSCRIPT/);
+assert.match(realtimeResponseInstructions.explain_text, /EXPLANATION_SOURCE USER_TEXT/);
+assert.match(realtimeResponseInstructions.explain_text, /current user-provided explanation subject as the primary subject/);
+assert.match(realtimeResponseInstructions.followup, /Return 1-3 natural follow-up questions/);
+assert.match(realtimeResponseInstructions.keyword, /Explain only the selected keyword/);
+assert.match(realtimeResponseInstructions.surface_keywords, /Return exactly one line and nothing else: KEYWORDS:/);
+assert.match(realtimeInstructions, /This response is stateless/);
+assert.match(realtimeInstructions, /profile: User adalah peserta meeting/);
+assert.match(realtimeInstructions, /meeting: General Meeting/);
 assert.doesNotMatch(realtimeInstructions, /\bASK\b/);
-assert.match(realtimeInstructions, /Do not override JAWAB_PERTANYAAN or TANGGAPI/);
-assert.match(realtimeInstructions, /For JAWAB_PERTANYAAN and legacy answer action in QnA mode, produce a direct ready-to-say answer/);
-assert.match(realtimeInstructions, /Do not use meta-intro openers such as Berikut/);
-assert.match(realtimeInstructions, /For TANGGAPI and legacy answer action in Convo mode, produce a natural response/);
-assert.match(realtimeInstructions, /TANGGAPI and legacy answer action \+ Convo mode: do not output follow-up questions by default/);
-assert.match(realtimeInstructions, /TANGGAPI and legacy answer action \+ Convo mode: do not include question marks/);
-assert.match(realtimeInstructions, /do not ask the other speaker or the user anything/);
-assert.match(realtimeInstructions, /TANGGAPI and legacy answer action \+ Convo mode: return bullets only/);
-assert.match(realtimeInstructions, /every output line must start with '- '/);
-assert.match(realtimeInstructions, /bagaimana jika/);
-assert.match(realtimeInstructions, /Mungkin kita bisa/);
-assert.match(realtimeInstructions, /melihat apakah/);
-assert.match(realtimeInstructions, /starts a bullet with 'Mungkin', 'Ada baiknya', 'Langkah'/);
-assert.match(realtimeInstructions, /self-check every bullet/);
-assert.match(realtimeInstructions, /external trends, popularity, market movement, or industry adoption/);
-assert.match(realtimeInstructions, /many people doing X in place Y/);
 assert.match(actionPolicy, /Do not explain causes, popularity, adoption/);
 assert.match(actionPolicy, /The response is social meeting help, not factual analysis/);
 assert.match(actionPolicy, /do not use a fixed example sentence/);
-assert.match(realtimeInstructions, /casual observations should stay conversational and grounded/);
-assert.match(realtimeInstructions, /Critical Convo guard/);
-assert.match(realtimeInstructions, /must never contain the word 'apakah'/);
-assert.match(realtimeInstructions, /Critical non-bias guard/);
 assert.match(actionPolicy, /do not propose research, checking collaborations, market validation/);
 assert.match(actionPolicy, /do not use general knowledge to explain/);
 assert.match(actionPolicy, /Do not transform a neutral artifact/);
 assert.match(actionPolicy, /memeriksa apakah/);
 assert.doesNotMatch(realtimeInstructions, /BANTU_JAWAB: produce a ready-to-say first-person response in 3-5 bullets/);
-assert.match(realtimeInstructions, /headline, update, report, observation, or concern/);
 assert.match(realtimeInstructions, /headlines, reports, topic phrases, news-like narration/);
 assert.match(realtimeInstructions, /Do not classify headlines, reports, news-like narration/);
 
 assert.match(actionPolicy, /Default Convo response structure: acknowledge what the speaker said/);
 assert.match(actionPolicy, /do not output follow-up questions by default/);
 assert.match(actionPolicy, /For JAWAB_PERTANYAAN and legacy answer action in QnA mode, produce a direct ready-to-say answer/);
-assert.match(actionPolicy, /Do not use meta-intro openers such as Berikut/);
+assert.match(actionPolicy, /Forbidden live openers include Tentu, Baik, Oke, Berikut/);
 assert.doesNotMatch(realtimeInstructions, /interview|candidate|kandidat|interviewer|CV|JD|BANTU_JAWAB|sales|client|vendor|hiring/i);
 assert.doesNotMatch(actionPolicy, /interview|candidate|kandidat|interviewer|CV|JD|BANTU_JAWAB|sales|client|vendor|hiring/i);
 assert.doesNotMatch(`${userProfilePrompt.systemInstructions}\n${userProfilePrompt.assembledPrompt}`, /candidate|kandidat|CV|interview|BANTU_JAWAB/i);

@@ -2,10 +2,9 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { env } from "../../env.js";
 
-const SESSION_COOKIE = "orviko_session";
+export const SESSION_COOKIE = "orviko_session";
 const STATE_MAX_AGE_SECONDS = 10 * 60;
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 14;
-const DESKTOP_AUTH_TOKEN_MAX_AGE_SECONDS = 5 * 60;
 
 type SessionPayload = {
   userId: string;
@@ -15,14 +14,8 @@ type SessionPayload = {
 
 type OAuthStatePayload = {
   plan: string;
-  flow?: "web" | "web-app" | "desktop";
+  flow?: "web" | "web-app";
   nonce: string;
-  exp: number;
-};
-
-type DesktopAuthTokenPayload = {
-  userId: string;
-  email: string;
   exp: number;
 };
 
@@ -79,7 +72,7 @@ function readCookie(request: FastifyRequest, name: string) {
     ?.slice(name.length + 1);
 }
 
-export function createOAuthState(plan: string, flow: "web" | "web-app" | "desktop" = "web") {
+export function createOAuthState(plan: string, flow: "web" | "web-app" = "web") {
   return encodeSignedPayload({
     plan,
     flow,
@@ -96,34 +89,21 @@ export function parseOAuthState(state: string | undefined) {
   return payload;
 }
 
-export function setSessionCookie(reply: FastifyReply, input: { userId: string; email: string }) {
-  const token = encodeSignedPayload({
+export function createSessionToken(input: { userId: string; email: string }) {
+  return encodeSignedPayload({
     userId: input.userId,
     email: input.email,
     exp: Math.floor(Date.now() / 1000) + SESSION_MAX_AGE_SECONDS
   } satisfies SessionPayload);
+}
 
+export function setSessionCookie(reply: FastifyReply, input: { userId: string; email: string }) {
+  const token = createSessionToken(input);
   reply.header("Set-Cookie", `${SESSION_COOKIE}=${token}; ${cookieOptions(SESSION_MAX_AGE_SECONDS)}`);
 }
 
 export function clearSessionCookie(reply: FastifyReply) {
   reply.header("Set-Cookie", `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
-}
-
-export function createDesktopAuthToken(input: { userId: string; email: string }) {
-  return encodeSignedPayload({
-    userId: input.userId,
-    email: input.email,
-    exp: Math.floor(Date.now() / 1000) + DESKTOP_AUTH_TOKEN_MAX_AGE_SECONDS
-  } satisfies DesktopAuthTokenPayload);
-}
-
-export function parseDesktopAuthToken(token: string | undefined) {
-  const payload = decodeSignedPayload<DesktopAuthTokenPayload>(token);
-  if (!payload || payload.exp < Math.floor(Date.now() / 1000)) {
-    return null;
-  }
-  return payload;
 }
 
 export function getSession(request: FastifyRequest) {
