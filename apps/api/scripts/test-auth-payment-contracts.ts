@@ -262,6 +262,37 @@ async function run() {
     });
     assert.equal(meResponse.statusCode, 401);
 
+    const removedDevelopmentBypassResponse = await app.inject({
+      method: "GET",
+      url: "/profile-documents/list",
+      headers: {
+        origin: "http://127.0.0.1:5175",
+        "x-orviko-local-testing": "web-app"
+      }
+    });
+    assert.equal(removedDevelopmentBypassResponse.statusCode, 401);
+
+    const allowedCorsResponse = await app.inject({
+      method: "OPTIONS",
+      url: "/auth/me",
+      headers: {
+        origin: "http://127.0.0.1:5175",
+        "access-control-request-method": "GET"
+      }
+    });
+    assert.equal(allowedCorsResponse.headers["access-control-allow-origin"], "http://127.0.0.1:5175");
+    assert.equal(allowedCorsResponse.headers["access-control-allow-credentials"], "true");
+
+    const rejectedCorsResponse = await app.inject({
+      method: "OPTIONS",
+      url: "/auth/me",
+      headers: {
+        origin: "https://attacker.example",
+        "access-control-request-method": "GET"
+      }
+    });
+    assert.equal(rejectedCorsResponse.headers["access-control-allow-origin"], undefined);
+
     const invalidPlanResponse = await app.inject({
       method: "GET",
       url: "/auth/google/login?plan=enterprise"

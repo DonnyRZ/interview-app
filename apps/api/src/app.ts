@@ -2,6 +2,7 @@ import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import Fastify from "fastify";
 import { sql } from "./db/client.js";
+import { corsAllowedOrigins } from "./env.js";
 import { registerAuthRoutes } from "./modules/auth/auth.routes.js";
 import { registerMeetingContextRoutes } from "./modules/meeting-contexts/meeting-context.routes.js";
 import { registerPaymentRoutes } from "./modules/payments/payment.routes.js";
@@ -17,7 +18,22 @@ export function buildApp() {
   });
 
   app.register(cors, {
-    origin: true,
+    origin(origin, callback) {
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      let normalizedOrigin: string;
+      try {
+        normalizedOrigin = new URL(origin).origin;
+      } catch {
+        callback(null, false);
+        return;
+      }
+
+      callback(null, corsAllowedOrigins.has(normalizedOrigin));
+    },
     credentials: true
   });
 

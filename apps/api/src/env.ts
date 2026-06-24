@@ -34,6 +34,7 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url().default("postgres://postgres:postgres@127.0.0.1:5432/orviko_dev"),
   PROFILE_DOCUMENT_STORAGE_DIR: z.string().default("storage/profile-documents"),
   FRONTEND_BASE_URL: z.string().url().default("http://127.0.0.1:5174"),
+  CORS_ALLOWED_ORIGINS: z.string().default("http://127.0.0.1:5174,http://localhost:5174,http://127.0.0.1:5175,http://localhost:5175"),
   SESSION_SECRET: z.string().min(16).default("orviko-dev-session-secret-change-me"),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
@@ -56,6 +57,7 @@ const parsedEnv = envSchema.parse(process.env);
 const requiredProductionKeys = [
   "DATABASE_URL",
   "FRONTEND_BASE_URL",
+  "CORS_ALLOWED_ORIGINS",
   "SESSION_SECRET",
   "GOOGLE_CLIENT_ID",
   "GOOGLE_CLIENT_SECRET",
@@ -85,3 +87,10 @@ if (parsedEnv.NODE_ENV === "production") {
 }
 
 export const env = parsedEnv;
+
+export const corsAllowedOrigins = new Set(
+  parsedEnv.CORS_ALLOWED_ORIGINS
+    .split(",")
+    .map((origin) => origin.trim().replace(/\/$/, ""))
+    .filter(Boolean)
+);

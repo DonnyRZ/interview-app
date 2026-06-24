@@ -21,7 +21,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { env } from "../../env.js";
 import { ensureUserHasActiveSubscription, SubscriptionRequiredError } from "../auth/auth.service.js";
-import { getRequestSession } from "../dev/local-web-testing.js";
+import { getRequestSession } from "../auth/request-session.js";
 import { mapLiveMeetingSession } from "./live-meeting.mapper.js";
 import {
   deleteLiveMeetingSessionForUser,
@@ -55,10 +55,6 @@ async function requireLiveMeetingAccess(
   if (!session) {
     await reply.code(401).send({ message: "Login diperlukan." });
     return null;
-  }
-
-  if (session.localWebTesting) {
-    return session;
   }
 
   try {
@@ -110,8 +106,7 @@ export async function registerLiveMeetingRoutes(app: FastifyInstance) {
     try {
       const { session: liveMeetingSession, realtimeContext } = await startLiveMeetingForUser(
         session.userId,
-        body.data,
-        { bypassSubscription: session.localWebTesting }
+        body.data
       );
       return reply.code(201).send(liveMeetingSessionResponseSchema.parse({
         liveMeetingSession: mapLiveMeetingSession(liveMeetingSession),

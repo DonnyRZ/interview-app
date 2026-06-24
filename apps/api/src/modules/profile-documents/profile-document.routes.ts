@@ -8,7 +8,7 @@ import {
 } from "@interview-app/shared";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { getRequestSession } from "../dev/local-web-testing.js";
+import { getRequestSession } from "../auth/request-session.js";
 import { mapProfileDocument } from "./profile-document.mapper.js";
 import {
   getActiveProfileDocumentForUser,
