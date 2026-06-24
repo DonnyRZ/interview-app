@@ -1,4 +1,6 @@
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
+import { buildApiUrl, resolveApiBaseUrl } from "./api-base.js";
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 const planCatalog = {
   mini: {
@@ -19,7 +21,7 @@ const planCatalog = {
 };
 
 function apiUrl(path) {
-  return `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
+  return buildApiUrl(path);
 }
 
 function selectedPlanSlug() {
@@ -90,7 +92,7 @@ function renderPlan(planSlug) {
 
   const loginButton = document.getElementById("loginButton");
   if (loginButton) {
-    loginButton.setAttribute("href", `/auth/google/login?plan=${encodeURIComponent(planSlug)}`);
+    loginButton.setAttribute("href", buildApiUrl(`/auth/google/login?plan=${encodeURIComponent(planSlug)}`));
   }
 }
 
