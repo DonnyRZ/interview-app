@@ -1,6 +1,6 @@
 # Web System Audio Capture
 
-MVP Orviko menangkap system audio melalui browser, bukan native desktop runtime.
+MVP Orviko menangkap system audio melalui browser pada Web App.
 
 ## Jalur Runtime
 
@@ -18,7 +18,7 @@ Chrome getDisplayMedia
 
 - Gunakan Chrome terbaru di Windows.
 - User wajib membagikan sumber yang menyertakan system audio.
-- Browser tidak mempunyai akses native ke loopback output sistem operasi.
+- Web App hanya menerima audio dari sumber screen sharing yang dipilih user.
 - Label track dan level lokal hanya indikator UX, bukan bukti transcript sudah benar.
 - Capture berhenti jika user menghentikan screen sharing.
 
