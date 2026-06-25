@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from "node:crypto";
 import { env } from "../../env.js";
 import type { PlanSlug } from "./plan-catalog.js";
 
@@ -172,14 +173,18 @@ export function getLynkCheckoutUrl(plan: PlanSlug) {
   return planUrls[plan] || env.LYNK_PROFILE_URL;
 }
 
-export function verifyLynkWebhookSecret(headerSecret: unknown, querySecret?: unknown) {
+export function verifyLynkWebhookSecret(headerSecret: unknown) {
   if (!env.LYNK_WEBHOOK_SECRET) {
-    return env.NODE_ENV !== "production";
+    return false;
   }
 
-  const secret = normalizeText(Array.isArray(headerSecret) ? headerSecret[0] : headerSecret)
-    || normalizeText(querySecret);
-  return secret === env.LYNK_WEBHOOK_SECRET;
+  const secret = normalizeText(Array.isArray(headerSecret) ? headerSecret[0] : headerSecret);
+  if (!secret) {
+    return false;
+  }
+  const expected = Buffer.from(env.LYNK_WEBHOOK_SECRET);
+  const actual = Buffer.from(secret);
+  return expected.length === actual.length && timingSafeEqual(expected, actual);
 }
 
 export function parseLynkWebhook(payload: LynkWebhookPayload) {
@@ -203,6 +208,32 @@ export function parseLynkWebhook(payload: LynkWebhookPayload) {
     "message_data.customer.name"
   ]));
   const productName = firstString(payload, withWebhookContainers(["product_name", "product.name", "product_title", "product.title", "item_name", "item.name", "title"]));
+  const productId = firstString(payload, withWebhookContainers([
+    "product_id",
+    "product.id",
+    "item_id",
+    "item.id",
+    "message_data.items.0.id",
+    "message_data.items.0.productId"
+  ]));
+  const providerOrderId = firstString(payload, withWebhookContainers([
+    "merchant_order_id",
+    "merchant.order_id",
+    "order_id",
+    "order.id",
+    "invoice_number",
+    "invoice.number",
+    "metadata.order_id",
+    "metadata.orderId"
+  ]));
+  const currency = firstString(payload, withWebhookContainers([
+    "currency",
+    "currency_code",
+    "payment.currency",
+    "transaction.currency",
+    "order.currency",
+    "message_data.totals.currency"
+  ])).toUpperCase();
   const transactionId = firstString(payload, withWebhookContainers([
     "trx_id",
     "transaction_id",
@@ -242,13 +273,37 @@ export function parseLynkWebhook(payload: LynkWebhookPayload) {
     "message_data.totals.customerPay"
   ]));
   const isSuccess = isSuccessfulWebhookStatus(eventName, status);
+  const statusTokens = tokenizeStatusText(eventName, status);
+  const eventType = statusTokens.includes("chargeback")
+    ? "chargeback"
+    : statusTokens.some((token) => token === "refund" || token === "refunded")
+      ? "refunded"
+      : statusTokens.some((token) => token === "expire" || token === "expired")
+        ? "expired"
+        : statusTokens.some((token) => ["fail", "failed", "failure", "deny", "denied", "cancel", "canceled", "cancelled"].includes(token))
+          ? "failed"
+          : isSuccess
+            ? "paid"
+            : "unknown";
+  const providerEventId = firstString(payload, withWebhookContainers([
+    "event_id",
+    "event.id",
+    "message_id",
+    "message.id",
+    "data.message_id"
+  ])) || createHash("sha256").update(JSON.stringify(payload)).digest("hex");
 
   return {
+    providerEventId,
+    eventType,
     eventName,
     status,
     customerEmail,
     customerName,
     productName,
+    productId,
+    providerOrderId,
+    currency,
     transactionId,
     amount: parsedAmount.amount,
     hasAmount: parsedAmount.hasAmount,

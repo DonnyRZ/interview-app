@@ -9,6 +9,7 @@
   ],
   "scripts": {
     "dev:api": "npm --workspace @interview-app/api run dev",
+    "dev:worker": "npm --workspace @interview-app/api run jobs:work",
     "dev:web": "npm --workspace @interview-app/web run dev",
     "dev:web-app": "npm --workspace @interview-app/web-app run dev",
     "build:web": "npm --workspace @interview-app/web run build",

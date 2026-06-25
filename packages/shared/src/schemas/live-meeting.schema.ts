@@ -92,11 +92,11 @@ export const startLiveMeetingRequestSchema = z.object({
 });
 
 export const endLiveMeetingRequestSchema = z.object({
-  transcriptText: z.string().optional()
+  transcriptText: z.string().max(100_000).optional()
 });
 
 export const generateMeetingAnswerRequestSchema = z.object({
-  meetingPrompt: z.string(),
+  meetingPrompt: z.string().trim().min(1).max(4_000),
   realtimeContext: realtimeContextSchema
 });
 
@@ -119,7 +119,7 @@ export const generateMeetingAnswerResponseSchema = z.object({
 });
 
 export const generateMeetingFollowupRequestSchema = z.object({
-  meetingPrompt: z.string(),
+  meetingPrompt: z.string().trim().min(1).max(4_000),
   realtimeContext: realtimeContextSchema
 });
 
@@ -141,7 +141,7 @@ export const generateMeetingFollowupResponseSchema = z.object({
 });
 
 export const generateMeetingExplanationRequestSchema = z.object({
-  meetingPrompt: z.string(),
+  meetingPrompt: z.string().trim().min(1).max(4_000),
   realtimeContext: realtimeContextSchema
 });
 
@@ -163,8 +163,8 @@ export const generateMeetingExplanationResponseSchema = z.object({
 });
 
 export const generateMeetingKeywordHelpRequestSchema = z.object({
-  keyword: z.string(),
-  meetingPrompt: z.string().optional(),
+  keyword: z.string().trim().min(1).max(120),
+  meetingPrompt: z.string().trim().max(4_000).optional(),
   realtimeContext: realtimeContextSchema
 });
 
@@ -186,7 +186,7 @@ export const generateMeetingKeywordHelpResponseSchema = z.object({
 });
 
 export const surfaceRealtimeKeywordsRequestSchema = z.object({
-  transcriptSegment: z.string(),
+  transcriptSegment: z.string().trim().min(1).max(4_000),
   realtimeContext: realtimeContextSchema
 });
 

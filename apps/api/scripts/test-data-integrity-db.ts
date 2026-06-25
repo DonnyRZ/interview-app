@@ -3,13 +3,19 @@ import { randomUUID } from "node:crypto";
 import { and, eq, inArray, like } from "drizzle-orm";
 
 process.env.OPENAI_API_KEY = "";
+process.env.RATE_LIMIT_MAX_REQUESTS = "10000";
+process.env.AI_RATE_LIMIT_MAX_REQUESTS = "1000";
+process.env.PAYMENT_RATE_LIMIT_MAX_REQUESTS = "1000";
 
 const { buildApp } = await import("../src/app.js");
 const { db } = await import("../src/db/client.js");
 const {
   meetingContexts,
-  payments,
+  paymentEvents,
+  paymentIntents,
+  subscriptions,
   profileDocuments,
+  usageEvents,
   userProfiles,
   liveMeetingSessions,
   authSessions,
@@ -47,7 +53,10 @@ const {
   endLiveMeetingSession,
   startLiveMeetingSession
 } = await import("../src/modules/live-meetings/live-meeting.repository.js");
-const { createPayment } = await import("../src/modules/payments/payment.repository.js");
+const { createPaymentIntent, createPayment } = await import("../src/modules/payments/payment.repository.js") as {
+  createPaymentIntent: typeof import("../src/modules/payments/payment.repository.js").createPaymentIntent;
+  createPayment?: (...args: never[]) => Promise<never>;
+};
 const { handleLynkWebhook } = await import("../src/modules/payments/payment.service.js");
 const {
   createMeetingContextForUser,
@@ -299,10 +308,14 @@ async function simulateSubscriptionQuotaLimits() {
 
   const miniSessions = [];
   for (let index = 0; index < 3; index++) {
-    miniSessions.push(await startLiveMeetingForUser(miniUserId, {
+    const started = await startLiveMeetingForUser(miniUserId, {
       meetingContextId: miniMeetingContextId,
       sessionType: "OTHER"
-    }));
+    });
+    miniSessions.push(started);
+    await endLiveMeetingForUser(miniUserId, started.session.id, {
+      transcriptText: `Mini quota session ${index + 1}.`
+    });
   }
 
   await assert.rejects(
@@ -313,9 +326,6 @@ async function simulateSubscriptionQuotaLimits() {
     /Kuota sesi live paket Mini/
   );
 
-  await endLiveMeetingForUser(miniUserId, miniSessions[0]!.session.id, {
-    transcriptText: "Mini quota session ended before delete."
-  });
   await deleteLiveMeetingSessionForUser(miniUserId, miniSessions[0]!.session.id);
 
   await assert.rejects(
@@ -339,9 +349,12 @@ async function simulateSubscriptionQuotaLimits() {
   const starterMeetingContextId = await createMeetingContext(starterUserId, starterProfileDocumentId, "Starter quota", "Bukalapak - Interview", "Starter limit test");
   await activateUserSubscription({ userId: starterUserId, plan: "starter" });
   for (let index = 0; index < 12; index++) {
-    await startLiveMeetingForUser(starterUserId, {
+    const started = await startLiveMeetingForUser(starterUserId, {
       meetingContextId: starterMeetingContextId,
       sessionType: "OTHER"
+    });
+    await endLiveMeetingForUser(starterUserId, started.session.id, {
+      transcriptText: `Starter quota session ${index + 1}.`
     });
   }
   await assert.rejects(
@@ -354,7 +367,7 @@ async function simulateSubscriptionQuotaLimits() {
 
   const proUserId = await createTempUser("quota-pro");
   const proProfileDocumentId = await createProfileDocument(proUserId, "ready", true, -1000, "Pro quota ready context");
-  const proMeetingContextId = await createMeetingContext(proUserId, proProfileDocumentId, "Pro quota", "Gojek - Interview", "Pro unlimited test");
+  const proMeetingContextId = await createMeetingContext(proUserId, proProfileDocumentId, "Pro quota", "Gojek - Interview", "Pro fair-use test");
   await activateUserSubscription({ userId: proUserId, plan: "pro" });
   for (let index = 0; index < 13; index++) {
     const session = await startLiveMeetingForUser(proUserId, {
@@ -362,6 +375,9 @@ async function simulateSubscriptionQuotaLimits() {
       sessionType: "OTHER"
     });
     assert.equal(session.session.userId, proUserId);
+    await endLiveMeetingForUser(proUserId, session.session.id, {
+      transcriptText: `Pro fair-use session ${index + 1}.`
+    });
   }
 
   const expiredUserId = await createTempUser("quota-expired");
@@ -371,6 +387,14 @@ async function simulateSubscriptionQuotaLimits() {
   await db.update(users)
     .set({ subscriptionExpiresAt: new Date(Date.now() - 1000), updatedAt: new Date() })
     .where(eq(users.id, expiredUserId));
+  await db.update(subscriptions)
+    .set({
+      currentPeriodStartedAt: new Date(Date.now() - 2000),
+      currentPeriodEndsAt: new Date(Date.now() - 1000),
+      status: "expired",
+      updatedAt: new Date()
+    })
+    .where(eq(subscriptions.userId, expiredUserId));
   await assert.rejects(
     startLiveMeetingForUser(expiredUserId, {
       meetingContextId: expiredMeetingContextId,
@@ -447,6 +471,102 @@ async function simulateDbConstraints() {
 }
 
 async function simulateLynkWebhookReusesPendingPayment() {
+  const userId = await createTempUser("lynk-v2");
+  const userEmail = buildTempUserEmail("lynk-v2", userId);
+  const orderId = `ORVIKO-STARTER-${randomUUID()}`;
+  const productId = "lynk-starter-production";
+  const intent = await createPaymentIntent({
+    publicId: `pay_${randomUUID().replaceAll("-", "")}`,
+    userId,
+    providerOrderId: orderId,
+    providerProductId: productId,
+    plan: "starter",
+    amount: 98_000,
+    currency: "IDR",
+    customerEmail: userEmail,
+    checkoutUrl: "https://lynk.id/test-starter",
+    expiresAt: new Date(Date.now() + 60_000)
+  });
+  const paidPayload = {
+    event_id: `EVENT-${randomUUID()}`,
+    event_name: "payment.paid",
+    status: "paid",
+    trx_id: `LYNK-${randomUUID()}`,
+    merchant_order_id: orderId,
+    customer: { email: userEmail, name: "Payment Test" },
+    product: { id: productId, name: "Orviko Starter" },
+    total_amount: 98_000,
+    currency: "IDR"
+  };
+
+  const paid = await handleLynkWebhook(paidPayload);
+  assert.equal(paid.processed, true);
+  assert.equal((await db.query.paymentIntents.findFirst({
+    where: eq(paymentIntents.id, intent.id)
+  }))?.status, "paid");
+  assert.equal((await db.query.users.findFirst({
+    where: eq(users.id, userId)
+  }))?.subscriptionPlan, "starter");
+
+  const replay = await handleLynkWebhook(paidPayload);
+  assert.equal(replay.processed, true);
+  assert.equal("duplicate" in replay && replay.duplicate, true);
+
+  const tampered = await handleLynkWebhook({
+    ...paidPayload,
+    event_id: `EVENT-${randomUUID()}`,
+    total_amount: 1
+  });
+  assert.equal(tampered.processed, false);
+  assert.equal((await handleLynkWebhook({
+    ...paidPayload,
+    event_id: `EVENT-${randomUUID()}`,
+    currency: "USD"
+  })).processed, false);
+  assert.equal((await handleLynkWebhook({
+    ...paidPayload,
+    event_id: `EVENT-${randomUUID()}`,
+    product: { id: "lynk-pro", name: "Orviko Pro" }
+  })).processed, false);
+  assert.equal((await handleLynkWebhook({
+    ...paidPayload,
+    event_id: `EVENT-${randomUUID()}`,
+    customer: { email: "attacker@example.com", name: "Attacker" }
+  })).processed, false);
+
+  const refund = await handleLynkWebhook({
+    ...paidPayload,
+    event_id: `EVENT-${randomUUID()}`,
+    event_name: "payment.refunded",
+    status: "refunded"
+  });
+  assert.equal(refund.processed, true);
+  assert.equal((await db.query.users.findFirst({
+    where: eq(users.id, userId)
+  }))?.subscriptionPlan, "free");
+  assert.equal((await db.query.subscriptions.findMany({
+    where: and(eq(subscriptions.userId, userId), eq(subscriptions.status, "active"))
+  })).length, 0);
+
+  const chargeback = await handleLynkWebhook({
+    ...paidPayload,
+    event_id: `EVENT-${randomUUID()}`,
+    event_name: "payment.chargeback",
+    status: "chargeback"
+  });
+  assert.equal(chargeback.processed, true);
+  assert.equal((await db.query.paymentIntents.findFirst({
+    where: eq(paymentIntents.id, intent.id)
+  }))?.status, "chargeback");
+
+  const events = await db.query.paymentEvents.findMany({
+    where: eq(paymentEvents.paymentIntentId, intent.id)
+  });
+  assert.equal(events.length, 7);
+  assert.ok(events.every((event) => !JSON.stringify(event.sanitizedPayload).includes(userEmail)));
+}
+
+async function legacySimulateLynkWebhookReusesPendingPayment() {
   const userId = await createTempUser("lynk");
   const userEmail = `sim-lynk-${userId}@orviko.local`;
   const pendingPayment = await createPayment({
@@ -787,6 +907,9 @@ async function simulateDevServiceGuards() {
     sessionType: "OTHER"
   });
   assert.equal(started.realtimeContext.userProfileContext.readyContext, newerProfileDocumentReadyContext);
+  await endLiveMeetingForUser(DEV_USER_ID, started.session.id, {
+    transcriptText: "Dev service guard session ended."
+  });
 }
 
 function switchedContextFingerprint(meetingContext: Awaited<ReturnType<typeof updateMeetingContextForUser>>) {
@@ -844,6 +967,29 @@ async function simulateApiRouteMisses() {
       "Uji akses live meeting tanpa subscription aktif."
     );
     const freeUserCookie = await issueSessionCookie(freeUserId);
+
+    const retryProfileWithoutSubscriptionResponse = await app.inject({
+      method: "POST",
+      url: `/profile-documents/${freeUserProfileDocumentId}/retry-processing`,
+      headers: {
+        cookie: freeUserCookie
+      }
+    });
+    assert.equal(retryProfileWithoutSubscriptionResponse.statusCode, 403);
+
+    const createMeetingContextWithoutSubscriptionResponse = await app.inject({
+      method: "POST",
+      url: "/meeting-contexts/",
+      headers: {
+        cookie: freeUserCookie
+      },
+      payload: {
+        contextName: "Blocked paid preprocessing",
+        meetingTopic: "Paid AI preprocessing",
+        meetingBrief: "This should not run without active entitlement."
+      }
+    });
+    assert.equal(createMeetingContextWithoutSubscriptionResponse.statusCode, 403);
 
     const startWithoutSubscriptionResponse = await app.inject({
       method: "POST",
@@ -930,6 +1076,37 @@ async function simulateApiRouteMisses() {
       }
     });
     assert.equal(realtimeSecretEndedSessionResponse.statusCode, 400);
+
+    const paidOwnerFreshSession = await startLiveMeetingForUser(paidOwnerUserId, {
+      meetingContextId: paidOwnerMeetingContextId,
+      sessionType: "OTHER"
+    });
+    for (let index = 0; index < 3; index++) {
+      await db.insert(usageEvents).values({
+        userId: paidOwnerUserId,
+        liveMeetingSessionId: paidOwnerFreshSession.session.id,
+        capability: "realtime_client_secret",
+        provider: "openai",
+        model: "gpt-realtime-mini",
+        requestStatus: "success",
+        metadata: { test: "client-secret-limit" }
+      });
+    }
+    const realtimeSecretLimitResponse = await app.inject({
+      method: "POST",
+      url: "/live-meetings/realtime/client-secret",
+      headers: {
+        cookie: paidOwnerCookie
+      },
+      payload: {
+        liveMeetingSessionId: paidOwnerFreshSession.session.id
+      }
+    });
+    assert.equal(realtimeSecretLimitResponse.statusCode, 400);
+    assert.match(realtimeSecretLimitResponse.json().message, /Batas penerbitan realtime client secret/);
+    await endLiveMeetingForUser(paidOwnerUserId, paidOwnerFreshSession.session.id, {
+      transcriptText: "Client secret limit session ended."
+    });
 
     const revokeAllResponse = await app.inject({
       method: "POST",

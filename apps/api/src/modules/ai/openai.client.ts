@@ -1,6 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { env } from "../../env.js";
 import type { PromptBuildResult } from "./action-types.js";
+import {
+  buildSafetyIdentifier,
+  recordUsageEvent,
+  type UsageCapability
+} from "../usage/usage.service.js";
 
 type InlineFilePart = {
   filePath: string;
@@ -20,6 +25,11 @@ type OpenAiResponseOutput = {
 type OpenAiResponse = {
   output_text?: string;
   output?: OpenAiResponseOutput[];
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    total_tokens?: number;
+  };
   error?: {
     message?: string;
   };
@@ -42,11 +52,38 @@ type OpenAiRealtimeClientSecretResponse = {
 type RealtimeClientSecretConfig = {
   instructions: string;
   transcriptionPrompt: string;
+  userId: string;
+  liveMeetingSessionId: string;
 };
 
-export async function generateOpenAiJson(prompt: PromptBuildResult, inlineFile?: InlineFilePart) {
+type OpenAiUsageContext = {
+  userId?: string;
+  capability?: UsageCapability;
+};
+
+export async function generateOpenAiJson(
+  prompt: PromptBuildResult,
+  inlineFile?: InlineFilePart,
+  usageContext: OpenAiUsageContext = {}
+) {
   if (!env.OPENAI_API_KEY) {
     throw new Error("OPENAI_API_KEY is not configured");
+  }
+  if (env.OPENAI_KILL_SWITCH) {
+    if (usageContext.userId && usageContext.capability) {
+      await recordUsageEvent({
+        userId: usageContext.userId,
+        capability: usageContext.capability,
+        provider: "openai",
+        model: env.OPENAI_TEXT_MODEL,
+        requestStatus: "blocked",
+        metadata: {
+          actionId: prompt.actionId,
+          reason: "OPENAI_KILL_SWITCH"
+        }
+      });
+    }
+    throw new Error("OpenAI requests are temporarily disabled.");
   }
 
   const content: unknown[] = [];
@@ -72,107 +109,167 @@ export async function generateOpenAiJson(prompt: PromptBuildResult, inlineFile?:
     ].join("\n")
   });
 
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${env.OPENAI_API_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: env.OPENAI_TEXT_MODEL,
-      instructions: prompt.systemInstructions,
-      input: [
-        {
-          role: "user",
-          content
+  const startedAt = Date.now();
+  let payload: OpenAiResponse | undefined;
+  let responseOk = false;
+  try {
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: env.OPENAI_TEXT_MODEL,
+        store: false,
+        safety_identifier: usageContext.userId ? buildSafetyIdentifier(usageContext.userId) : undefined,
+        instructions: prompt.systemInstructions,
+        input: [
+          {
+            role: "user",
+            content
+          }
+        ]
+      })
+    });
+
+    payload = await response.json() as OpenAiResponse;
+    responseOk = response.ok;
+    if (!response.ok) {
+      throw new Error(payload.error?.message || `OpenAI request failed with ${response.status}`);
+    }
+
+    const text = extractResponseText(payload);
+    if (!text) {
+      throw new Error("OpenAI returned an empty response");
+    }
+
+    return parseJsonText(text);
+  } finally {
+    if (usageContext.userId && usageContext.capability) {
+      await recordUsageEvent({
+        userId: usageContext.userId,
+        capability: usageContext.capability,
+        provider: "openai",
+        model: env.OPENAI_TEXT_MODEL,
+        inputTokens: payload?.usage?.input_tokens,
+        outputTokens: payload?.usage?.output_tokens,
+        totalTokens: payload?.usage?.total_tokens,
+        durationMs: Date.now() - startedAt,
+        requestStatus: responseOk ? "success" : "failed",
+        metadata: {
+          actionId: prompt.actionId,
+          promptVersion: prompt.promptVersion
         }
-      ]
-    })
-  });
-
-  const payload = await response.json() as OpenAiResponse;
-  if (!response.ok) {
-    throw new Error(payload.error?.message || `OpenAI request failed with ${response.status}`);
+      });
+    }
   }
-
-  const text = extractResponseText(payload);
-  if (!text) {
-    throw new Error("OpenAI returned an empty response");
-  }
-
-  return parseJsonText(text);
 }
 
 export async function createOpenAiRealtimeClientSecret(config: RealtimeClientSecretConfig) {
   if (!env.OPENAI_API_KEY) {
     throw new Error("OPENAI_API_KEY is not configured");
   }
+  if (env.OPENAI_KILL_SWITCH) {
+    await recordUsageEvent({
+      userId: config.userId,
+      liveMeetingSessionId: config.liveMeetingSessionId,
+      capability: "realtime_client_secret",
+      provider: "openai",
+      model: env.OPENAI_REALTIME_MODEL,
+      requestStatus: "blocked",
+      metadata: {
+        reason: "OPENAI_KILL_SWITCH"
+      }
+    });
+    throw new Error("OpenAI requests are temporarily disabled.");
+  }
 
   if (env.OPENAI_REALTIME_MODEL !== "gpt-realtime-mini") {
     throw new Error("Live meeting runtime only supports gpt-realtime-mini.");
   }
 
-  const response = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${env.OPENAI_API_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      expires_after: {
-        anchor: "created_at",
-        seconds: 600
+  const startedAt = Date.now();
+  let payload: OpenAiRealtimeClientSecretResponse | undefined;
+  let responseOk = false;
+  try {
+    const response = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
       },
-      session: {
-        type: "realtime",
-        model: env.OPENAI_REALTIME_MODEL,
-        instructions: config.instructions,
-        output_modalities: ["text"],
-        audio: {
-          input: {
-            format: {
-              type: "audio/pcm",
-              rate: 24000
-            },
-            noise_reduction: {
-              type: "near_field"
-            },
-            transcription: {
-              model: "gpt-4o-mini-transcribe",
-              language: "id",
-              prompt: config.transcriptionPrompt
-            },
-            turn_detection: {
-              type: "server_vad",
-              threshold: 0.5,
-              prefix_padding_ms: 300,
-              silence_duration_ms: 500,
-              create_response: false,
-              interrupt_response: false
-            }
-          }
+      body: JSON.stringify({
+        safety_identifier: buildSafetyIdentifier(config.userId),
+        expires_after: {
+          anchor: "created_at",
+          seconds: 600
         },
-        max_output_tokens: 500
+        session: {
+          type: "realtime",
+          model: env.OPENAI_REALTIME_MODEL,
+          instructions: config.instructions,
+          output_modalities: ["text"],
+          audio: {
+            input: {
+              format: {
+                type: "audio/pcm",
+                rate: 24000
+              },
+              noise_reduction: {
+                type: "near_field"
+              },
+              transcription: {
+                model: "gpt-4o-mini-transcribe",
+                language: "id",
+                prompt: config.transcriptionPrompt
+              },
+              turn_detection: {
+                type: "server_vad",
+                threshold: 0.5,
+                prefix_padding_ms: 300,
+                silence_duration_ms: 500,
+                create_response: false,
+                interrupt_response: false
+              }
+            }
+          },
+          max_output_tokens: 500
+        }
+      })
+    });
+
+    payload = await response.json() as OpenAiRealtimeClientSecretResponse;
+    responseOk = response.ok;
+    if (!response.ok) {
+      throw new Error(payload.error?.message || `OpenAI realtime client secret request failed with ${response.status}`);
+    }
+
+    const clientSecret = payload.value || payload.session?.client_secret?.value;
+    const expiresAt = payload.expires_at || payload.session?.client_secret?.expires_at;
+    if (!clientSecret || !expiresAt) {
+      throw new Error("OpenAI realtime client secret response is incomplete");
+    }
+
+    return {
+      model: env.OPENAI_REALTIME_MODEL,
+      clientSecret,
+      expiresAt
+    };
+  } finally {
+    await recordUsageEvent({
+      userId: config.userId,
+      liveMeetingSessionId: config.liveMeetingSessionId,
+      capability: "realtime_client_secret",
+      provider: "openai",
+      model: env.OPENAI_REALTIME_MODEL,
+      durationMs: Date.now() - startedAt,
+      requestStatus: responseOk ? "success" : "failed",
+      metadata: {
+        expiresAt: payload?.expires_at || payload?.session?.client_secret?.expires_at || null
       }
-    })
-  });
-
-  const payload = await response.json() as OpenAiRealtimeClientSecretResponse;
-  if (!response.ok) {
-    throw new Error(payload.error?.message || `OpenAI realtime client secret request failed with ${response.status}`);
+    });
   }
-
-  const clientSecret = payload.value || payload.session?.client_secret?.value;
-  const expiresAt = payload.expires_at || payload.session?.client_secret?.expires_at;
-  if (!clientSecret || !expiresAt) {
-    throw new Error("OpenAI realtime client secret response is incomplete");
-  }
-
-  return {
-    model: env.OPENAI_REALTIME_MODEL,
-    clientSecret,
-    expiresAt
-  };
 }
 
 function extractResponseText(payload: OpenAiResponse) {

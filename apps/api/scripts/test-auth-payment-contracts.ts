@@ -5,9 +5,9 @@ import { parseLynkWebhook } from "../src/modules/payments/lynk.client.js";
 import { planCatalog } from "../src/modules/payments/plan-catalog.js";
 
 async function run() {
-  assert.equal(planCatalog.mini.grossAmount, env.ORVIKO_MINI_PRICE ?? 29_000);
-  assert.equal(planCatalog.starter.grossAmount, env.ORVIKO_STARTER_PRICE ?? 98_000);
-  assert.equal(planCatalog.pro.grossAmount, env.ORVIKO_PRO_PRICE ?? 359_000);
+  assert.equal(planCatalog.mini.grossAmount, 29_000);
+  assert.equal(planCatalog.starter.grossAmount, 98_000);
+  assert.equal(planCatalog.pro.grossAmount, 359_000);
   assert.equal(parseBooleanEnv("false"), false);
   assert.equal(parseBooleanEnv(""), false);
   assert.equal(parseBooleanEnv(undefined), false);
@@ -15,16 +15,20 @@ async function run() {
   assert.equal(parseBooleanEnv(true), true);
 
   const lynkPayload = parseLynkWebhook({
+    event_id: "EVENT-TEST-1",
     event_name: "Product Sold",
     trx_id: "LYNK-TEST-1",
+    merchant_order_id: "ORVIKO-STARTER-TEST",
     customer: {
       email: "Buyer@Example.com",
       name: "Buyer Test"
     },
     product: {
+      id: "lynk-starter",
       name: "Orviko Starter"
     },
-    total_amount: 98_000
+    total_amount: 98_000,
+    currency: "idr"
   });
   assert.equal(lynkPayload.isSuccess, true);
   assert.equal(lynkPayload.customerEmail, "buyer@example.com");
@@ -32,6 +36,10 @@ async function run() {
   assert.equal(lynkPayload.transactionId, "LYNK-TEST-1");
   assert.equal(lynkPayload.amount, 98_000);
   assert.equal(lynkPayload.hasAmount, true);
+  assert.equal(lynkPayload.currency, "IDR");
+  assert.equal(lynkPayload.providerOrderId, "ORVIKO-STARTER-TEST");
+  assert.equal(lynkPayload.productId, "lynk-starter");
+  assert.equal(lynkPayload.eventType, "paid");
   assert.equal("plan" in lynkPayload, false);
 
   const lynkPayloadWithGenericIds = parseLynkWebhook({
@@ -62,9 +70,11 @@ async function run() {
       name: "Buyer Test"
     },
     product: {
+      id: "lynk-starter",
       name: "Orviko Starter"
     },
-    total_amount: 98_000
+    total_amount: 98_000,
+    currency: "idr"
   });
   assert.equal(lynkPayloadWithPaymentId.transactionId, "LYNK-PAYMENT-1");
 
@@ -78,9 +88,11 @@ async function run() {
       name: "Buyer Test"
     },
     product: {
+      id: "lynk-starter",
       name: "Orviko Starter"
     },
-    total_amount: 98_000
+    total_amount: 98_000,
+    currency: "idr"
   });
   assert.equal(lynkPayloadWithNestedTransactionId.transactionId, "LYNK-TRANSACTION-1");
 
@@ -325,8 +337,7 @@ async function run() {
       url: "/payments/lynk/webhook?secret=test-lynk-secret",
       payload: { event_name: "Test URL" }
     });
-    assert.equal(lynkWebhookQueryFallbackResponse.statusCode, 200);
-    assert.equal(lynkWebhookQueryFallbackResponse.json().ok, true);
+    assert.equal(lynkWebhookQueryFallbackResponse.statusCode, 401);
   } finally {
     env.LYNK_WEBHOOK_SECRET = originalLynkWebhookSecret;
     await app.close();

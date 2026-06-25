@@ -8,39 +8,35 @@ import {
   handleLynkWebhook
 } from "./payment.service.js";
 import { planSlugSchema } from "./plan-catalog.js";
+import { safeClientError } from "../security/safe-error.js";
 
 const createPaymentBodySchema = z.object({
   plan: planSlugSchema
 });
 
 const paymentParamsSchema = z.object({
-  paymentId: z.string().uuid()
-});
-
-const lynkWebhookQuerySchema = z.object({
-  secret: z.string().optional()
+  paymentId: z.string().regex(/^pay_[A-Za-z0-9_-]{20,}$/)
 });
 
 function mapPayment(payment: {
   id: string;
-  orderId: string;
+  publicId: string;
   plan: string;
-  grossAmount: number;
+  amount: number;
   currency: string;
   status: string;
-  userId: string;
-  lynkRedirectUrl?: string;
+  checkoutUrl?: string;
+  expiresAt: Date;
   updatedAt: Date;
 }) {
   return {
-    paymentId: payment.id,
-    orderId: payment.orderId,
+    paymentId: payment.publicId,
     plan: payment.plan,
-    grossAmount: payment.grossAmount,
+    grossAmount: payment.amount,
     currency: payment.currency,
     status: payment.status,
-    userId: payment.userId,
-    redirectUrl: payment.lynkRedirectUrl,
+    redirectUrl: payment.checkoutUrl,
+    expiresAt: payment.expiresAt.toISOString(),
     updatedAt: payment.updatedAt.toISOString()
   };
 }
@@ -68,24 +64,12 @@ function summarizePayloadShape(value: unknown, prefix = "", output: string[] = [
 }
 
 function mapLynkWebhookLog(result: Awaited<ReturnType<typeof handleLynkWebhook>>, payload: unknown) {
-  const payment = "payment" in result ? result.payment : undefined;
-  const subscription = "subscription" in result ? result.subscription : undefined;
-
   return {
     processed: result.processed,
     reason: result.reason,
-    parsed: result.parsed,
     payloadShape: summarizePayloadShape(payload),
-    payment: payment
-      ? {
-        id: payment.id,
-        plan: payment.plan,
-        grossAmount: payment.grossAmount,
-        status: payment.status,
-        externalTransactionIdPresent: Boolean(payment.externalTransactionId)
-      }
-      : null,
-    subscription
+    duplicate: "duplicate" in result ? result.duplicate : false,
+    eventType: "eventType" in result ? result.eventType : null
   };
 }
 
@@ -108,27 +92,23 @@ export async function registerPaymentRoutes(app: FastifyInstance) {
       });
       return reply.code(201).send(mapPayment(payment));
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Gagal membuat checkout Lynk.";
+      const message = safeClientError(error, "Gagal membuat checkout Lynk.");
       return reply.code(400).send({ message });
     }
   });
 
   app.post("/lynk/webhook", async (request, reply) => {
-    const query = lynkWebhookQuerySchema.safeParse(request.query);
-    if (!query.success || !verifyLynkWebhookSecret(request.headers["x-orviko-lynk-webhook-secret"], query.data.secret)) {
+    if (!verifyLynkWebhookSecret(request.headers["x-orviko-lynk-webhook-secret"])) {
       return reply.code(401).send({ message: "Webhook Lynk tidak valid." });
     }
 
     try {
       const result = await handleLynkWebhook(request.body as Record<string, unknown>);
       request.log.info(mapLynkWebhookLog(result, request.body), "Lynk webhook result");
-      return {
-        ok: true,
-        ...result
-      };
+      return { ok: true, processed: result.processed };
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Gagal memproses webhook Lynk.";
-      return reply.code(400).send({ message });
+      request.log.error({ error }, "Lynk webhook processing failed");
+      return reply.code(400).send({ message: "Webhook tidak dapat diproses." });
     }
   });
 

@@ -76,6 +76,11 @@ Frontend web build env:
 - Prod: `/srv/orviko/prod/app/apps/web/.env.production`
 - Dev: `/srv/orviko/dev/app/apps/web/.env.production`
 
+Web App build env:
+
+- Prod: `/srv/orviko/prod/app/apps/web-app/.env.production`
+- Dev: `/srv/orviko/dev/app/apps/web-app/.env.production`
+
 Catatan penting:
 
 - Secret tidak boleh dicommit ke Git.
@@ -118,13 +123,20 @@ LYNK_PRO_URL=https://lynk.id/rizki-09/...
 
 Jika URL paket belum diisi, checkout Orviko akan fallback ke `LYNK_PROFILE_URL`.
 
-Untuk testing harga `Rp0` di dev/staging, gunakan price override backend agar nominal pending payment Orviko tetap cocok dengan webhook Lynk.id:
+Zero-price override tidak didukung. Environment development wajib memakai nominal
+catalog yang sama dengan production.
+
+Web App harus memakai API origin environment yang sama:
 
 ```env
-ORVIKO_MINI_PRICE=0
+# /srv/orviko/prod/app/apps/web-app/.env.production
+VITE_WEB_APP_API_BASE_URL=https://orviko.net
 ```
 
-Jangan pasang override harga `0` di prod. API production akan menolak start jika ada override harga `0`.
+```env
+# /srv/orviko/dev/app/apps/web-app/.env.production
+VITE_WEB_APP_API_BASE_URL=https://dev.orviko.net
+```
 
 ## Services
 
@@ -132,15 +144,21 @@ Systemd services:
 
 - Prod: `orviko-api-prod`
 - Dev: `orviko-api-dev`
+- Prod durable AI worker: `orviko-worker-prod`
+- Dev durable AI worker: `orviko-worker-dev`
 
 Useful commands:
 
 ```bash
 systemctl status orviko-api-prod --no-pager
 systemctl status orviko-api-dev --no-pager
+systemctl status orviko-worker-prod --no-pager
+systemctl status orviko-worker-dev --no-pager
 
 systemctl restart orviko-api-prod
 systemctl restart orviko-api-dev
+systemctl restart orviko-worker-prod
+systemctl restart orviko-worker-dev
 
 tail -80 /srv/orviko/prod/logs/api-error.log
 tail -80 /srv/orviko/dev/logs/api-error.log
@@ -173,8 +191,10 @@ systemctl status nginx --no-pager
 
 Nginx serves static web from:
 
-- Prod: `/srv/orviko/prod/app/apps/web/dist`
-- Dev: `/srv/orviko/dev/app/apps/web/dist`
+- Prod landing: `/srv/orviko/prod/app/apps/web/dist`
+- Prod Web App: `/srv/orviko/prod/app/apps/web-app/dist`
+- Dev landing: `/srv/orviko/dev/app/apps/web/dist`
+- Dev Web App: `/srv/orviko/dev/app/apps/web-app/dist`
 
 API routes proxied by Nginx:
 
@@ -185,10 +205,54 @@ API routes proxied by Nginx:
 - `/live-meetings/`
 - `/health`
 
+Web App route:
+
+- `/app/` must serve `apps/web-app/dist/index.html`.
+- `/app/assets/` and `/app/audio/` must serve files from `apps/web-app/dist`.
+- Browser refresh on `/app/...` must fall back to the Web App `index.html`, not landing page.
+
+Nginx location pattern for each environment:
+
+```nginx
+root /srv/orviko/prod/app/apps/web/dist;
+index index.html;
+
+location ^~ /app/assets/ {
+  alias /srv/orviko/prod/app/apps/web-app/dist/assets/;
+  access_log off;
+  add_header Cache-Control "public, max-age=31536000, immutable";
+  try_files $uri =404;
+}
+
+location ^~ /app/audio/ {
+  alias /srv/orviko/prod/app/apps/web-app/dist/audio/;
+  access_log off;
+  add_header Cache-Control "public, max-age=86400";
+  try_files $uri =404;
+}
+
+location ^~ /app/ {
+  alias /srv/orviko/prod/app/apps/web-app/dist/;
+  add_header Cache-Control "no-store";
+  try_files $uri $uri/ /app/index.html;
+}
+
+location / {
+  try_files $uri $uri/ /index.html;
+}
+```
+
+For dev, replace `/srv/orviko/prod/` with `/srv/orviko/dev/`.
+
 Webhook Lynk.id:
 
-- Dev: `https://dev.orviko.net/payments/lynk/webhook?secret=isi_secret_webhook_dev`
-- Prod: `https://orviko.net/payments/lynk/webhook?secret=isi_secret_webhook_production`
+- Dev: `https://dev.orviko.net/payments/lynk/webhook`
+- Prod: `https://orviko.net/payments/lynk/webhook`
+
+Secret tidak boleh berada di query string. Lynk harus mengirimkannya melalui header
+`x-orviko-lynk-webhook-secret`. Production juga memerlukan
+`LYNK_WEBHOOK_PROVIDER_AUTH_CONFIRMED=true` setelah mekanisme autentikasi tersebut
+dikonfirmasi oleh provider.
 
 Gunakan URL dev lebih dulu untuk `Test URL` di dashboard Lynk.id. Setelah webhook transaksi sukses terbukti mengaktifkan subscription di dev, baru pindahkan URL dashboard Lynk.id ke prod.
 
@@ -266,7 +330,9 @@ git pull origin dev
 npm run build
 npm run db:migrate
 systemctl restart orviko-api-dev
+systemctl restart orviko-worker-dev
 curl -i https://dev.orviko.net/health
+curl -i https://dev.orviko.net/ready
 ```
 
 Run `npm ci` only if `package-lock.json` changed:
@@ -283,7 +349,9 @@ git pull origin main
 npm run build
 npm run db:migrate
 systemctl restart orviko-api-prod
+systemctl restart orviko-worker-prod
 curl -i https://orviko.net/health
+curl -i https://orviko.net/ready
 ```
 
 Run `npm ci` only if `package-lock.json` changed:
@@ -299,6 +367,7 @@ Prod:
 ```bash
 curl -I https://orviko.net
 curl -i https://orviko.net/health
+curl -i https://orviko.net/ready
 systemctl status orviko-api-prod --no-pager
 ```
 
@@ -307,6 +376,7 @@ Dev:
 ```bash
 curl -I https://dev.orviko.net
 curl -i https://dev.orviko.net/health
+curl -i https://dev.orviko.net/ready
 systemctl status orviko-api-dev --no-pager
 ```
 

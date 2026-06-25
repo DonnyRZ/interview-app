@@ -14,7 +14,7 @@ const envCandidates = [
 ];
 
 const envPath = envCandidates.find((candidate) => existsSync(candidate));
-config(envPath ? { path: envPath, override: true } : { override: true });
+config(envPath ? { path: envPath, override: false } : { override: false });
 
 export default defineConfig({
   schema: "./dist/db/schema/index.js",

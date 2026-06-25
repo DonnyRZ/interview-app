@@ -1,13 +1,15 @@
-import { createWriteStream } from "node:fs";
-import { unlink } from "node:fs/promises";
+import { unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { pipeline } from "node:stream/promises";
 import type { MultipartFile } from "@fastify/multipart";
 import { randomUUID } from "node:crypto";
 import { ensureProfileDocumentStorageDir, sanitizeFileName, profileDocumentStorageDir } from "../../lib/storage.js";
 import { preprocessProfileDocumentResultSchema, type PreprocessProfileDocumentResult } from "../ai/action-schemas.js";
 import { preprocessProfileDocumentSpec } from "../ai/action-specs.js";
 import { runOpenAiJsonAction } from "../ai/action-runner.js";
+import {
+  cancelAiProcessingJobsForEntity,
+  enqueueProfileDocumentProcessingJob
+} from "../jobs/ai-processing-job.service.js";
 import {
   createProfileDocument,
   deleteProfileDocument,
@@ -24,8 +26,8 @@ const allowedMimeTypes = new Set([
   "application/pdf"
 ]);
 
-export async function getProfileDocumentListForUser(userId: string) {
-  return listProfileDocuments(userId);
+export async function getProfileDocumentListForUser(userId: string, pagination?: { limit: number; offset: number }) {
+  return listProfileDocuments(userId, pagination);
 }
 
 export async function getActiveProfileDocumentForUser(userId: string) {
@@ -43,7 +45,9 @@ export async function uploadProfileDocumentForUser(userId: string, file: Multipa
   const storedFileName = `${Date.now()}-${randomUUID()}-${safeName}`;
   const filePath = path.join(profileDocumentStorageDir, storedFileName);
 
-  await pipeline(file.file, createWriteStream(filePath));
+  const bytes = await file.toBuffer();
+  assertSupportedProfileDocumentBytes(bytes, file.mimetype);
+  await writeFile(filePath, bytes);
 
   let createdProfileDocument;
   try {
@@ -63,7 +67,7 @@ export async function uploadProfileDocumentForUser(userId: string, file: Multipa
     throw error;
   }
 
-  queueProfileDocumentProcessing({
+  await enqueueProfileDocumentProcessingJob({
     userId,
     profileDocumentId: createdProfileDocument.id,
     fileName: createdProfileDocument.fileName,
@@ -72,6 +76,16 @@ export async function uploadProfileDocumentForUser(userId: string, file: Multipa
   });
 
   return createdProfileDocument;
+}
+
+function assertSupportedProfileDocumentBytes(bytes: Buffer, mimeType?: string) {
+  if (!mimeType || !allowedMimeTypes.has(mimeType)) {
+    throw new Error("Unsupported profile document file type. Upload profil saat ini hanya mendukung PDF.");
+  }
+  const pdfHeader = bytes.subarray(0, 5).toString("ascii");
+  if (pdfHeader !== "%PDF-") {
+    throw new Error("File PDF tidak valid. Upload ditolak karena signature file tidak cocok.");
+  }
 }
 
 export async function setActiveProfileDocumentForUser(userId: string, profileDocumentId: string) {
@@ -96,7 +110,7 @@ export async function retryProfileDocumentProcessingForUser(userId: string, prof
     processingError: null
   });
 
-  queueProfileDocumentProcessing({
+  await enqueueProfileDocumentProcessingJob({
     userId,
     profileDocumentId: existingProfileDocument.id,
     fileName: existingProfileDocument.fileName,
@@ -129,6 +143,7 @@ export async function deleteProfileDocumentForUser(userId: string, profileDocume
     await setActiveProfileDocument(userId, replacementProfileDocument.id);
   }
 
+  await cancelAiProcessingJobsForEntity("profile_document_preprocessing", profileDocumentId);
   await unlink(deletedProfileDocument.filePath).catch((error) => {
     const message = error instanceof Error ? error.message : "Unknown profile document file cleanup error";
     console.warn(`[profile:cleanup] failed to delete uploaded profile document file: ${message}`);
@@ -137,20 +152,7 @@ export async function deleteProfileDocumentForUser(userId: string, profileDocume
   return deletedProfileDocument;
 }
 
-function queueProfileDocumentProcessing(input: {
-  userId: string;
-  profileDocumentId: string;
-  fileName: string;
-  filePath: string;
-  fileMimeType?: string | null;
-}) {
-  void processProfileDocumentInBackground(input).catch((error) => {
-    const message = error instanceof Error ? error.message : "Unknown background profile document processing error";
-    console.warn(`[ai:fallback] background preprocess_user_profile failed: ${message}`);
-  });
-}
-
-async function processProfileDocumentInBackground(input: {
+export async function processProfileDocumentJob(input: {
   userId: string;
   profileDocumentId: string;
   fileName: string;
@@ -164,9 +166,18 @@ async function processProfileDocumentInBackground(input: {
     processingStatus: processedProfileDocument.status === "success" || processedProfileDocument.status === "partial" ? "ready" : "failed",
     processingError: processedProfileDocument.status === "success" || processedProfileDocument.status === "partial" ? null : processedProfileDocument.warnings.join(" ")
   });
+
+  if (processedProfileDocument.status !== "success" && processedProfileDocument.status !== "partial") {
+    throw new Error(processedProfileDocument.warnings.join(" ") || "Profile document preprocessing failed");
+  }
 }
 
-async function preprocessProfileDocument(input: { fileName: string; filePath: string; fileMimeType?: string | null }): Promise<PreprocessProfileDocumentResult> {
+async function preprocessProfileDocument(input: {
+  userId: string;
+  fileName: string;
+  filePath: string;
+  fileMimeType?: string | null;
+}): Promise<PreprocessProfileDocumentResult> {
   try {
     const result = await runOpenAiJsonAction({
       spec: preprocessProfileDocumentSpec,
@@ -175,6 +186,8 @@ async function preprocessProfileDocument(input: { fileName: string; filePath: st
         fileMimeType: input.fileMimeType
       },
       outputSchema: preprocessProfileDocumentResultSchema,
+      userId: input.userId,
+      usageCapability: "profile_preprocessing",
       inlineFile: input.fileMimeType
         ? {
           filePath: input.filePath,

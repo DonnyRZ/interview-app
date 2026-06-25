@@ -7,17 +7,23 @@ import {
 import { buildRealtimeMeetingTranscriptionPrompt } from "../ai/actions/realtime/realtime-meeting-transcription.js";
 import { createOpenAiRealtimeClientSecret } from "../ai/openai.client.js";
 
-export async function createLiveMeetingRealtimeClientSecret(realtimeContext: RealtimeContext) {
+export async function createLiveMeetingRealtimeClientSecret(input: {
+  userId: string;
+  liveMeetingSessionId: string;
+  realtimeContext: RealtimeContext;
+}) {
   if (env.OPENAI_REALTIME_MODEL !== "gpt-realtime-mini") {
     throw new Error("Live meeting runtime only supports gpt-realtime-mini.");
   }
 
   const secret = await createOpenAiRealtimeClientSecret({
+    userId: input.userId,
+    liveMeetingSessionId: input.liveMeetingSessionId,
     instructions: buildRealtimeMeetingSessionInstructions(),
     transcriptionPrompt: buildRealtimeMeetingTranscriptionPrompt()
   });
   return {
     ...secret,
-    responseInstructions: buildRealtimeResponseInstructions(realtimeContext)
+    responseInstructions: buildRealtimeResponseInstructions(input.realtimeContext)
   };
 }

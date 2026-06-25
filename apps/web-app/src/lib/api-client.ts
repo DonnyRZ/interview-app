@@ -1,7 +1,9 @@
 export const API_BASE_URL = (
   import.meta.env.VITE_WEB_APP_API_BASE_URL
-  || (import.meta.env.DEV ? "https://dev.orviko.net" : window.location.origin)
+  || window.location.origin
 ).replace(/\/$/, "");
+
+export const WEB_ORIGIN = window.location.origin.replace(/\/$/, "");
 
 export class ApiRequestError extends Error {
   constructor(message: string, readonly status: number) {

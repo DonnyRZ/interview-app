@@ -26,6 +26,7 @@ import { mapLiveMeetingSession } from "./live-meeting.mapper.js";
 import {
   deleteLiveMeetingSessionForUser,
   endLiveMeetingForUser,
+  assertRealtimeClientSecretAllowed,
   getLiveMeetingSessionsForUser,
   getRealtimeContextForLiveMeetingSessionForUser,
   startLiveMeetingForUser
@@ -38,6 +39,7 @@ import {
   surfaceRealtimeKeywords
 } from "./live-meeting-ai.service.js";
 import { createLiveMeetingRealtimeClientSecret } from "./live-meeting-realtime.service.js";
+import { safeClientError } from "../security/safe-error.js";
 
 const meetingContextParamsSchema = z.object({
   meetingContextId: z.string().uuid()
@@ -45,6 +47,10 @@ const meetingContextParamsSchema = z.object({
 
 const liveMeetingParamsSchema = z.object({
   id: z.string().uuid()
+});
+const listQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).max(10_000).default(0)
 });
 
 async function requireLiveMeetingAccess(
@@ -82,7 +88,16 @@ export async function registerLiveMeetingRoutes(app: FastifyInstance) {
       return reply.code(400).send({ message: "Invalid meeting context id" });
     }
 
-    const rounds = await getLiveMeetingSessionsForUser(session.userId, params.data.meetingContextId);
+    const query = listQuerySchema.safeParse(request.query);
+    if (!query.success) {
+      return reply.code(400).send({ message: "Invalid pagination parameters" });
+    }
+
+    const rounds = await getLiveMeetingSessionsForUser(
+      session.userId,
+      params.data.meetingContextId,
+      query.data
+    );
     if (!rounds) {
       return reply.code(404).send({ message: "Meeting context not found" });
     }
@@ -117,7 +132,7 @@ export async function registerLiveMeetingRoutes(app: FastifyInstance) {
         return reply.code(403).send({ message: error.message });
       }
 
-      const message = error instanceof Error ? error.message : "Failed to start live meeting";
+      const message = safeClientError(error, "Live meeting tidak dapat dimulai.");
       return reply.code(400).send({ message });
     }
   });
@@ -134,6 +149,14 @@ export async function registerLiveMeetingRoutes(app: FastifyInstance) {
     }
 
     try {
+      const liveMeetingSession = await assertRealtimeClientSecretAllowed(
+        session.userId,
+        body.data.liveMeetingSessionId
+      );
+      if (!liveMeetingSession) {
+        return reply.code(404).send({ message: "Live meeting session not found" });
+      }
+
       const realtimeContext = await getRealtimeContextForLiveMeetingSessionForUser(
         session.userId,
         body.data.liveMeetingSessionId
@@ -142,10 +165,14 @@ export async function registerLiveMeetingRoutes(app: FastifyInstance) {
         return reply.code(404).send({ message: "Live meeting session not found" });
       }
 
-      const realtimeSession = await createLiveMeetingRealtimeClientSecret(realtimeContext);
+      const realtimeSession = await createLiveMeetingRealtimeClientSecret({
+        userId: session.userId,
+        liveMeetingSessionId: body.data.liveMeetingSessionId,
+        realtimeContext
+      });
       return createRealtimeClientSecretResponseSchema.parse(realtimeSession);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to create realtime client secret";
+      const message = safeClientError(error, "Realtime session tidak dapat dibuat.");
       return reply.code(400).send({ message });
     }
   });
@@ -163,7 +190,7 @@ export async function registerLiveMeetingRoutes(app: FastifyInstance) {
         return reply.code(400).send({ message: "Invalid meeting answer payload" });
       }
 
-      const answer = await generateMeetingAnswer(body.data);
+      const answer = await generateMeetingAnswer({ ...body.data, userId: session.userId });
       return generateMeetingAnswerResponseSchema.parse(answer);
     });
 
@@ -178,7 +205,7 @@ export async function registerLiveMeetingRoutes(app: FastifyInstance) {
         return reply.code(400).send({ message: "Invalid meeting follow-up payload" });
       }
 
-      const followup = await generateMeetingFollowup(body.data);
+      const followup = await generateMeetingFollowup({ ...body.data, userId: session.userId });
       return generateMeetingFollowupResponseSchema.parse(followup);
     });
 
@@ -193,7 +220,7 @@ export async function registerLiveMeetingRoutes(app: FastifyInstance) {
         return reply.code(400).send({ message: "Invalid meeting explanation payload" });
       }
 
-      const explanation = await generateMeetingExplanation(body.data);
+      const explanation = await generateMeetingExplanation({ ...body.data, userId: session.userId });
       return generateMeetingExplanationResponseSchema.parse(explanation);
     });
 
@@ -208,7 +235,7 @@ export async function registerLiveMeetingRoutes(app: FastifyInstance) {
         return reply.code(400).send({ message: "Invalid meeting keyword help payload" });
       }
 
-      const keywordHelp = await generateMeetingKeywordHelp(body.data);
+      const keywordHelp = await generateMeetingKeywordHelp({ ...body.data, userId: session.userId });
       return generateMeetingKeywordHelpResponseSchema.parse(keywordHelp);
     });
 
@@ -223,7 +250,7 @@ export async function registerLiveMeetingRoutes(app: FastifyInstance) {
         return reply.code(400).send({ message: "Invalid runtime keyword payload" });
       }
 
-      const keywordResult = await surfaceRealtimeKeywords(body.data);
+      const keywordResult = await surfaceRealtimeKeywords({ ...body.data, userId: session.userId });
       return surfaceRealtimeKeywordsResponseSchema.parse(keywordResult);
     });
 
@@ -277,7 +304,7 @@ export async function registerLiveMeetingRoutes(app: FastifyInstance) {
         deletedLiveMeetingSessionId: deletedRound.id
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to delete live meeting session";
+      const message = safeClientError(error, "Live meeting tidak dapat dihapus.");
       return reply.code(400).send({ message });
     }
   });

@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { env } from "../../env.js";
 import { planSlugSchema } from "../payments/plan-catalog.js";
+import { getActiveSubscriptionForUser } from "../payments/subscription.service.js";
 import { buildGoogleLoginUrl, exchangeGoogleCode, fetchGoogleUserInfo } from "./google-oauth.js";
 import { findUserById, GoogleAccountConflictError, upsertGoogleUser } from "./auth.service.js";
 import {
@@ -24,7 +25,10 @@ const callbackQuerySchema = z.object({
   state: z.string().min(1).optional()
 });
 
-function mapAuthUser(user: Awaited<ReturnType<typeof findUserById>>) {
+function mapAuthUser(
+  user: Awaited<ReturnType<typeof findUserById>>,
+  activeSubscription?: Awaited<ReturnType<typeof getActiveSubscriptionForUser>>
+) {
   if (!user) {
     return null;
   }
@@ -34,9 +38,9 @@ function mapAuthUser(user: Awaited<ReturnType<typeof findUserById>>) {
     email: user.email,
     name: user.name,
     picture: user.picture,
-    subscriptionPlan: user.subscriptionPlan,
-    subscriptionExpiresAt: user.subscriptionExpiresAt?.toISOString() || null,
-    subscriptionPeriodStartedAt: user.subscriptionPeriodStartedAt?.toISOString() || null
+    subscriptionPlan: activeSubscription?.plan || "free",
+    subscriptionExpiresAt: activeSubscription?.currentPeriodEndsAt.toISOString() || null,
+    subscriptionPeriodStartedAt: activeSubscription?.currentPeriodStartedAt.toISOString() || null
   };
 }
 
@@ -99,7 +103,8 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       return reply.code(401).send({ message: "Session tidak valid." });
     }
 
-    return { user: mapAuthUser(user) };
+    const activeSubscription = await getActiveSubscriptionForUser(user.id);
+    return { user: mapAuthUser(user, activeSubscription) };
   });
 
   app.post("/logout", async (request, reply) => {

@@ -80,6 +80,7 @@ Setup:
 npm install
 npm run db:migrate
 npm run dev:api
+npm run dev:worker
 npm run dev:web-app
 ```
 
@@ -94,10 +95,13 @@ npm run dev:web
 ```bash
 npm run typecheck
 npm.cmd --workspace @interview-app/api run test:auth-payment
+npm.cmd --workspace @interview-app/api run test:privacy
+npm.cmd --workspace @interview-app/api run test:phase7
 npm.cmd --workspace @interview-app/api run test:data-integrity
 npm.cmd --workspace @interview-app/api run test:realtime-mvp
 npm.cmd --workspace @interview-app/web-app run test:realtime
 npm.cmd --workspace @interview-app/web-app run test:workspace
+npm.cmd --workspace @interview-app/web-app run test:app-base
 npm run build
 ```
 
@@ -106,3 +110,4 @@ npm run build
 - [Web App runtime rules](./apps/web-app/RUNTIME_RULES.md)
 - [AI prompting rules](./apps/api/src/modules/ai/PROMPTING_RULES.md)
 - [Model responsibilities](./models.md)
+- [Phase 7 operational hardening](./docs/operational-hardening-phase-7.md)

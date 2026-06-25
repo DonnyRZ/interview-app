@@ -1,11 +1,12 @@
 import { sql } from "drizzle-orm";
 import { check, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { liveMeetingSessions } from "./live-meeting-sessions.js";
 import { users } from "./users.js";
 
 export const liveMeetingUsageEvents = pgTable("live_meeting_usage_events", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  liveMeetingSessionId: uuid("live_meeting_session_id").notNull(),
+  liveMeetingSessionId: uuid("live_meeting_session_id").references(() => liveMeetingSessions.id, { onDelete: "set null" }),
   plan: text("plan").notNull(),
   periodStartedAt: timestamp("period_started_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()

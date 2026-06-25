@@ -3,6 +3,7 @@ import { env } from "../../env.js";
 import { buildPrompt } from "./prompt-builder.js";
 import { generateOpenAiJson } from "./openai.client.js";
 import type { ActionExecutionResult, ActionSpec } from "./action-types.js";
+import type { UsageCapability } from "../usage/usage.service.js";
 
 type RunJsonActionInput<TInput, TSchema extends z.ZodTypeAny> = {
   spec: ActionSpec<TInput>;
@@ -12,16 +13,23 @@ type RunJsonActionInput<TInput, TSchema extends z.ZodTypeAny> = {
     filePath: string;
     mimeType: string;
   };
+  userId?: string;
+  usageCapability?: UsageCapability;
 };
 
 export async function runOpenAiJsonAction<TInput, TSchema extends z.ZodTypeAny>({
   spec,
   input,
   outputSchema,
-  inlineFile
+  inlineFile,
+  userId,
+  usageCapability
 }: RunJsonActionInput<TInput, TSchema>): Promise<ActionExecutionResult<z.infer<TSchema>>> {
   const prompt = buildPrompt(spec, input);
-  const rawOutput = await generateOpenAiJson(prompt, inlineFile);
+  const rawOutput = await generateOpenAiJson(prompt, inlineFile, {
+    userId,
+    capability: usageCapability
+  });
   const output = outputSchema.parse(rawOutput);
 
   return {

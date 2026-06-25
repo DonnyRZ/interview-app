@@ -12,6 +12,7 @@
     "test:workspace": "tsx scripts/test-workspace-model.ts",
     "pretest:realtime": "npm --workspace @interview-app/shared run build",
     "test:realtime": "tsx scripts/test-realtime-context.ts",
+    "test:app-base": "tsx scripts/test-app-base-build.ts",
     "pretypecheck": "npm --workspace @interview-app/shared run build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "preview": "vite preview --host 127.0.0.1 --port 4175"

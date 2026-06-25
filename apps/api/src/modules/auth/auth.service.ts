@@ -1,7 +1,9 @@
 import { eq } from "drizzle-orm";
 import { db } from "../../db/client.js";
-import { users } from "../../db/schema/index.js";
+import { subscriptionPeriods, subscriptions, users } from "../../db/schema/index.js";
 import type { GoogleUserInfo } from "./google-oauth.js";
+import { getActiveSubscriptionForUser } from "../payments/subscription.service.js";
+import { planCatalog } from "../payments/plan-catalog.js";
 
 export class SubscriptionRequiredError extends Error {
   constructor(message = "Subscription Orviko belum aktif. Pilih paket terlebih dulu.") {
@@ -120,11 +122,17 @@ export async function ensureUserHasActiveSubscription(userId: string) {
     throw new Error("User tidak ditemukan.");
   }
 
-  if (!hasActiveSubscription(user)) {
+  const subscription = await getActiveSubscriptionForUser(userId);
+  if (!subscription) {
     throw new SubscriptionRequiredError();
   }
 
-  return user;
+  return {
+    ...user,
+    subscriptionPlan: subscription.plan,
+    subscriptionExpiresAt: subscription.currentPeriodEndsAt,
+    subscriptionPeriodStartedAt: subscription.currentPeriodStartedAt
+  };
 }
 
 export async function activateUserSubscription(input: {
@@ -133,24 +141,54 @@ export async function activateUserSubscription(input: {
   durationDays?: number;
 }) {
   const now = new Date();
-  const currentUser = await findUserById(input.userId);
-  const expiresAt = calculateSubscriptionExpiresAt(currentUser, now, input.durationDays || 30);
+  return db.transaction(async (tx) => {
+    const [currentUser] = await tx.select().from(users)
+      .where(eq(users.id, input.userId)).limit(1).for("update");
+    if (!currentUser) {
+      throw new Error("User tidak ditemukan.");
+    }
+    const expiresAt = calculateSubscriptionExpiresAt(currentUser, now, input.durationDays || 30);
+    const [existing] = await tx.select().from(subscriptions)
+      .where(eq(subscriptions.userId, input.userId)).limit(1).for("update");
 
-  const [updatedUser] = await db.update(users)
-    .set({
+    const [subscription] = existing
+      ? await tx.update(subscriptions).set({
+        plan: input.plan,
+        status: "active",
+        currentPeriodStartedAt: now,
+        currentPeriodEndsAt: expiresAt,
+        revokedAt: null,
+        revokeReason: "",
+        updatedAt: now
+      }).where(eq(subscriptions.id, existing.id)).returning()
+      : await tx.insert(subscriptions).values({
+        userId: input.userId,
+        plan: input.plan,
+        status: "active",
+        currentPeriodStartedAt: now,
+        currentPeriodEndsAt: expiresAt
+      }).returning();
+
+    await tx.update(subscriptionPeriods).set({ status: "completed" })
+      .where(eq(subscriptionPeriods.userId, input.userId));
+    await tx.insert(subscriptionPeriods).values({
+      subscriptionId: subscription!.id,
+      userId: input.userId,
+      plan: input.plan,
+      periodStartedAt: now,
+      periodEndsAt: expiresAt,
+      liveSessionLimit: planCatalog[input.plan].liveSessionLimit,
+      status: "active"
+    });
+
+    const [updatedUser] = await tx.update(users).set({
       subscriptionPlan: input.plan,
       subscriptionExpiresAt: expiresAt,
       subscriptionPeriodStartedAt: now,
       updatedAt: now
-    })
-    .where(eq(users.id, input.userId))
-    .returning();
-
-  if (!updatedUser) {
-    throw new Error("Gagal mengaktifkan subscription user.");
-  }
-
-  return updatedUser;
+    }).where(eq(users.id, input.userId)).returning();
+    return updatedUser!;
+  });
 }
 
 export function calculateSubscriptionExpiresAt(

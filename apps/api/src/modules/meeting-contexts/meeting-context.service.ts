@@ -11,8 +11,8 @@ import {
   updateMeetingContext
 } from "./meeting-context.repository.js";
 
-export async function getMeetingContextsForUser(userId: string) {
-  return listMeetingContexts(userId);
+export async function getMeetingContextsForUser(userId: string, pagination?: { limit: number; offset: number }) {
+  return listMeetingContexts(userId, pagination);
 }
 
 export async function getMeetingContextForUser(userId: string, meetingContextId: string) {
@@ -29,6 +29,7 @@ export async function createMeetingContextForUser(userId: string, input: CreateM
   }
 
   const processedMeetingContext = await preprocessMeetingContext({
+    userId,
     ...input,
     profileDocumentReadyContext: activeProfileDocument.readyContext
   });
@@ -77,6 +78,7 @@ export async function updateMeetingContextForUser(userId: string, meetingContext
     meetingBrief: input.meetingBrief ?? existingMeetingContext.meetingBrief ?? undefined
   };
   const processedMeetingContext = await preprocessMeetingContext({
+    userId,
     ...nextMeetingContextInput,
     profileDocumentReadyContext: linkedProfileDocument.readyContext
   });
@@ -94,13 +96,15 @@ export async function deleteMeetingContextForUser(userId: string, meetingContext
 }
 
 async function preprocessMeetingContext(
-  input: CreateMeetingContextRequest & { profileDocumentReadyContext?: string | null }
+  input: CreateMeetingContextRequest & { userId: string; profileDocumentReadyContext?: string | null }
 ): Promise<PreprocessMeetingContextResult> {
   try {
     const result = await runOpenAiJsonAction({
       spec: preprocessMeetingContextSpec,
       input,
-      outputSchema: preprocessMeetingContextResultSchema
+      outputSchema: preprocessMeetingContextResultSchema,
+      userId: input.userId,
+      usageCapability: "meeting_context_preprocessing"
     });
 
     return normalizeMeetingContextResult({

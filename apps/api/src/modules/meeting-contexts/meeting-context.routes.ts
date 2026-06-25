@@ -7,8 +7,10 @@ import {
 } from "@interview-app/shared";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { ensureUserHasActiveSubscription, SubscriptionRequiredError } from "../auth/auth.service.js";
 import { getRequestSession } from "../auth/request-session.js";
 import { mapMeetingContext } from "./meeting-context.mapper.js";
+import { safeClientError } from "../security/safe-error.js";
 import {
   createMeetingContextForUser,
   deleteMeetingContextForUser,
@@ -20,6 +22,10 @@ import {
 const meetingContextParamsSchema = z.object({
   id: z.string().uuid()
 });
+const listQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).max(10_000).default(0)
+});
 
 export async function registerMeetingContextRoutes(app: FastifyInstance) {
   app.get("/", async (request, reply) => {
@@ -28,7 +34,12 @@ export async function registerMeetingContextRoutes(app: FastifyInstance) {
       return reply.code(401).send({ message: "Login diperlukan." });
     }
 
-    const meetingContexts = await getMeetingContextsForUser(session.userId);
+    const query = listQuerySchema.safeParse(request.query);
+    if (!query.success) {
+      return reply.code(400).send({ message: "Invalid pagination parameters" });
+    }
+
+    const meetingContexts = await getMeetingContextsForUser(session.userId, query.data);
     return meetingContextListResponseSchema.parse({
       meetingContexts: meetingContexts.map(mapMeetingContext)
     });
@@ -46,12 +57,16 @@ export async function registerMeetingContextRoutes(app: FastifyInstance) {
     }
 
     try {
+      await ensureUserHasActiveSubscription(session.userId);
       const meetingContext = await createMeetingContextForUser(session.userId, body.data);
       return reply.code(201).send(meetingContextResponseSchema.parse({
         meetingContext: mapMeetingContext(meetingContext)
       }));
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to create meetingContext";
+      if (error instanceof SubscriptionRequiredError) {
+        return reply.code(403).send({ message: error.message });
+      }
+      const message = safeClientError(error, "Meeting context tidak dapat dibuat.");
       return reply.code(400).send({ message });
     }
   });
@@ -94,6 +109,7 @@ export async function registerMeetingContextRoutes(app: FastifyInstance) {
     }
 
     try {
+      await ensureUserHasActiveSubscription(session.userId);
       const meetingContext = await updateMeetingContextForUser(session.userId, params.data.id, body.data);
       if (!meetingContext) {
         return reply.code(404).send({ message: "MeetingContext not found" });
@@ -103,7 +119,10 @@ export async function registerMeetingContextRoutes(app: FastifyInstance) {
         meetingContext: mapMeetingContext(meetingContext)
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to update meetingContext";
+      if (error instanceof SubscriptionRequiredError) {
+        return reply.code(403).send({ message: error.message });
+      }
+      const message = safeClientError(error, "Meeting context tidak dapat diperbarui.");
       return reply.code(400).send({ message });
     }
   });

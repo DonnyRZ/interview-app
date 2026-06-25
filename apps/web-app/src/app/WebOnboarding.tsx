@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { API_BASE_URL, apiRequest } from "../lib/api-client.js";
+import { API_BASE_URL, WEB_ORIGIN, apiRequest } from "../lib/api-client.js";
 
 type AuthUser = {
   email: string;
@@ -54,7 +54,7 @@ export function WebOnboarding({ children }: { children: ReactNode }) {
     <GateShell title="Pilih paket Orviko" body="Subscription aktif diperlukan untuk memulai sesi live.">
       <div className="web-pricing-actions">
         {(["mini", "starter", "pro"] as const).map((plan) => (
-          <a className={plan === "starter" ? "primary-btn" : "secondary-btn"} href={`${API_BASE_URL}/checkout.html?plan=${plan}`} target="_blank" rel="noreferrer" key={plan}>
+          <a className={plan === "starter" ? "primary-btn" : "secondary-btn"} href={`${WEB_ORIGIN}/checkout.html?plan=${plan}`} target="_blank" rel="noreferrer" key={plan}>
             {plan.charAt(0).toUpperCase() + plan.slice(1)}
           </a>
         ))}
