@@ -17,15 +17,19 @@ import {
   liveMeetingSessionResponseSchema,
   startLiveMeetingRequestSchema
 } from "@interview-app/shared";
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { env } from "../../env.js";
+import { ensureUserHasActiveSubscription, SubscriptionRequiredError } from "../auth/auth.service.js";
+import { getRequestSession } from "../auth/request-session.js";
 import { mapLiveMeetingSession } from "./live-meeting.mapper.js";
 import {
-  deleteLiveMeetingSessionForDevUser,
-  endLiveMeetingForDevUser,
-  getLiveMeetingSessionsForDevUser,
-  startLiveMeetingForDevUser
+  deleteLiveMeetingSessionForUser,
+  endLiveMeetingForUser,
+  assertRealtimeClientSecretAllowed,
+  getLiveMeetingSessionsForUser,
+  getRealtimeContextForLiveMeetingSessionForUser,
+  startLiveMeetingForUser
 } from "./live-meeting.service.js";
 import {
   generateMeetingAnswer,
@@ -35,6 +39,7 @@ import {
   surfaceRealtimeKeywords
 } from "./live-meeting-ai.service.js";
 import { createLiveMeetingRealtimeClientSecret } from "./live-meeting-realtime.service.js";
+import { safeClientError } from "../security/safe-error.js";
 
 const meetingContextParamsSchema = z.object({
   meetingContextId: z.string().uuid()
@@ -43,15 +48,56 @@ const meetingContextParamsSchema = z.object({
 const liveMeetingParamsSchema = z.object({
   id: z.string().uuid()
 });
+const listQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).max(10_000).default(0)
+});
+
+async function requireLiveMeetingAccess(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  const session = await getRequestSession(request);
+  if (!session) {
+    await reply.code(401).send({ message: "Login diperlukan." });
+    return null;
+  }
+
+  try {
+    await ensureUserHasActiveSubscription(session.userId);
+    return session;
+  } catch (error) {
+    if (error instanceof SubscriptionRequiredError) {
+      await reply.code(403).send({ message: error.message });
+      return null;
+    }
+
+    throw error;
+  }
+}
 
 export async function registerLiveMeetingRoutes(app: FastifyInstance) {
   app.get("/meeting-context/:meetingContextId", async (request, reply) => {
+    const session = await getRequestSession(request);
+    if (!session) {
+      return reply.code(401).send({ message: "Login diperlukan." });
+    }
+
     const params = meetingContextParamsSchema.safeParse(request.params);
     if (!params.success) {
       return reply.code(400).send({ message: "Invalid meeting context id" });
     }
 
-    const rounds = await getLiveMeetingSessionsForDevUser(params.data.meetingContextId);
+    const query = listQuerySchema.safeParse(request.query);
+    if (!query.success) {
+      return reply.code(400).send({ message: "Invalid pagination parameters" });
+    }
+
+    const rounds = await getLiveMeetingSessionsForUser(
+      session.userId,
+      params.data.meetingContextId,
+      query.data
+    );
     if (!rounds) {
       return reply.code(404).send({ message: "Meeting context not found" });
     }
@@ -62,34 +108,71 @@ export async function registerLiveMeetingRoutes(app: FastifyInstance) {
   });
 
   app.post("/start", async (request, reply) => {
+    const session = await requireLiveMeetingAccess(request, reply);
+    if (!session) {
+      return;
+    }
+
     const body = startLiveMeetingRequestSchema.safeParse(request.body);
     if (!body.success) {
       return reply.code(400).send({ message: "Invalid live meeting payload" });
     }
 
     try {
-      const { session, realtimeContext } = await startLiveMeetingForDevUser(body.data);
+      const { session: liveMeetingSession, realtimeContext } = await startLiveMeetingForUser(
+        session.userId,
+        body.data
+      );
       return reply.code(201).send(liveMeetingSessionResponseSchema.parse({
-        liveMeetingSession: mapLiveMeetingSession(session),
+        liveMeetingSession: mapLiveMeetingSession(liveMeetingSession),
         realtimeContext
       }));
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to start live meeting";
+      if (error instanceof SubscriptionRequiredError) {
+        return reply.code(403).send({ message: error.message });
+      }
+
+      const message = safeClientError(error, "Live meeting tidak dapat dimulai.");
       return reply.code(400).send({ message });
     }
   });
 
   app.post("/realtime/client-secret", async (request, reply) => {
+    const session = await requireLiveMeetingAccess(request, reply);
+    if (!session) {
+      return;
+    }
+
     const body = createRealtimeClientSecretRequestSchema.safeParse(request.body);
     if (!body.success) {
       return reply.code(400).send({ message: "Invalid realtime client secret payload" });
     }
 
     try {
-      const session = await createLiveMeetingRealtimeClientSecret(body.data.realtimeContext);
-      return createRealtimeClientSecretResponseSchema.parse(session);
+      const liveMeetingSession = await assertRealtimeClientSecretAllowed(
+        session.userId,
+        body.data.liveMeetingSessionId
+      );
+      if (!liveMeetingSession) {
+        return reply.code(404).send({ message: "Live meeting session not found" });
+      }
+
+      const realtimeContext = await getRealtimeContextForLiveMeetingSessionForUser(
+        session.userId,
+        body.data.liveMeetingSessionId
+      );
+      if (!realtimeContext) {
+        return reply.code(404).send({ message: "Live meeting session not found" });
+      }
+
+      const realtimeSession = await createLiveMeetingRealtimeClientSecret({
+        userId: session.userId,
+        liveMeetingSessionId: body.data.liveMeetingSessionId,
+        realtimeContext
+      });
+      return createRealtimeClientSecretResponseSchema.parse(realtimeSession);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to create realtime client secret";
+      const message = safeClientError(error, "Realtime session tidak dapat dibuat.");
       return reply.code(400).send({ message });
     }
   });
@@ -97,58 +180,88 @@ export async function registerLiveMeetingRoutes(app: FastifyInstance) {
   if (env.NODE_ENV !== "production") {
     // Dev/fallback harness only. Live meeting runtime must use gpt-realtime-mini.
     app.post("/answer", async (request, reply) => {
+      const session = await requireLiveMeetingAccess(request, reply);
+      if (!session) {
+        return;
+      }
+
       const body = generateMeetingAnswerRequestSchema.safeParse(request.body);
       if (!body.success) {
         return reply.code(400).send({ message: "Invalid meeting answer payload" });
       }
 
-      const answer = await generateMeetingAnswer(body.data);
+      const answer = await generateMeetingAnswer({ ...body.data, userId: session.userId });
       return generateMeetingAnswerResponseSchema.parse(answer);
     });
 
     app.post("/followup", async (request, reply) => {
+      const session = await requireLiveMeetingAccess(request, reply);
+      if (!session) {
+        return;
+      }
+
       const body = generateMeetingFollowupRequestSchema.safeParse(request.body);
       if (!body.success) {
         return reply.code(400).send({ message: "Invalid meeting follow-up payload" });
       }
 
-      const followup = await generateMeetingFollowup(body.data);
+      const followup = await generateMeetingFollowup({ ...body.data, userId: session.userId });
       return generateMeetingFollowupResponseSchema.parse(followup);
     });
 
     app.post("/explain", async (request, reply) => {
+      const session = await requireLiveMeetingAccess(request, reply);
+      if (!session) {
+        return;
+      }
+
       const body = generateMeetingExplanationRequestSchema.safeParse(request.body);
       if (!body.success) {
         return reply.code(400).send({ message: "Invalid meeting explanation payload" });
       }
 
-      const explanation = await generateMeetingExplanation(body.data);
+      const explanation = await generateMeetingExplanation({ ...body.data, userId: session.userId });
       return generateMeetingExplanationResponseSchema.parse(explanation);
     });
 
     app.post("/keyword-help", async (request, reply) => {
+      const session = await requireLiveMeetingAccess(request, reply);
+      if (!session) {
+        return;
+      }
+
       const body = generateMeetingKeywordHelpRequestSchema.safeParse(request.body);
       if (!body.success) {
         return reply.code(400).send({ message: "Invalid meeting keyword help payload" });
       }
 
-      const keywordHelp = await generateMeetingKeywordHelp(body.data);
+      const keywordHelp = await generateMeetingKeywordHelp({ ...body.data, userId: session.userId });
       return generateMeetingKeywordHelpResponseSchema.parse(keywordHelp);
     });
 
     app.post("/runtime-keywords", async (request, reply) => {
+      const session = await requireLiveMeetingAccess(request, reply);
+      if (!session) {
+        return;
+      }
+
       const body = surfaceRealtimeKeywordsRequestSchema.safeParse(request.body);
       if (!body.success) {
         return reply.code(400).send({ message: "Invalid runtime keyword payload" });
       }
 
-      const keywordResult = await surfaceRealtimeKeywords(body.data);
+      const keywordResult = await surfaceRealtimeKeywords({ ...body.data, userId: session.userId });
       return surfaceRealtimeKeywordsResponseSchema.parse(keywordResult);
     });
 
   }
 
   app.post("/:id/end", async (request, reply) => {
+    const session = await getRequestSession(request);
+    if (!session) {
+      return reply.code(401).send({ message: "Login diperlukan." });
+    }
+
     const params = liveMeetingParamsSchema.safeParse(request.params);
     if (!params.success) {
       return reply.code(400).send({ message: "Invalid live meeting session id" });
@@ -159,24 +272,29 @@ export async function registerLiveMeetingRoutes(app: FastifyInstance) {
       return reply.code(400).send({ message: "Invalid end meeting payload" });
     }
 
-    const session = await endLiveMeetingForDevUser(params.data.id, body.data);
-    if (!session) {
+    const liveMeetingSession = await endLiveMeetingForUser(session.userId, params.data.id, body.data);
+    if (!liveMeetingSession) {
       return reply.code(404).send({ message: "Live meeting session not found" });
     }
 
     return liveMeetingSessionResponseSchema.parse({
-      liveMeetingSession: mapLiveMeetingSession(session)
+      liveMeetingSession: mapLiveMeetingSession(liveMeetingSession)
     });
   });
 
   app.delete("/:id", async (request, reply) => {
+    const session = await getRequestSession(request);
+    if (!session) {
+      return reply.code(401).send({ message: "Login diperlukan." });
+    }
+
     const params = liveMeetingParamsSchema.safeParse(request.params);
     if (!params.success) {
       return reply.code(400).send({ message: "Invalid live meeting session id" });
     }
 
     try {
-      const deletedRound = await deleteLiveMeetingSessionForDevUser(params.data.id);
+      const deletedRound = await deleteLiveMeetingSessionForUser(session.userId, params.data.id);
       if (!deletedRound) {
         return reply.code(404).send({ message: "Live meeting session not found" });
       }
@@ -186,7 +304,7 @@ export async function registerLiveMeetingRoutes(app: FastifyInstance) {
         deletedLiveMeetingSessionId: deletedRound.id
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to delete live meeting session";
+      const message = safeClientError(error, "Live meeting tidak dapat dihapus.");
       return reply.code(400).send({ message });
     }
   });

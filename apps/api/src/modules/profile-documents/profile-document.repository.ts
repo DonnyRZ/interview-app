@@ -13,10 +13,12 @@ export type CreateProfileDocumentInput = {
   processingError?: string | null;
 };
 
-export async function listProfileDocuments(userId: string) {
+export async function listProfileDocuments(userId: string, pagination = { limit: 50, offset: 0 }) {
   return db.query.profileDocuments.findMany({
     where: eq(profileDocuments.userId, userId),
-    orderBy: [desc(profileDocuments.createdAt)]
+    orderBy: [desc(profileDocuments.createdAt)],
+    limit: pagination.limit,
+    offset: pagination.offset
   });
 }
 

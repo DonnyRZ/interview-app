@@ -10,6 +10,7 @@ type GoogleTokenResponse = {
 export type GoogleUserInfo = {
   sub: string;
   email: string;
+  emailVerified: boolean;
   name: string;
   picture?: string;
 };
@@ -27,8 +28,6 @@ export function buildGoogleLoginUrl(state: string) {
     redirect_uri: env.GOOGLE_REDIRECT_URI || "",
     response_type: "code",
     scope: "openid email profile",
-    access_type: "offline",
-    prompt: "consent",
     state
   });
 
@@ -73,14 +72,15 @@ export async function fetchGoogleUserInfo(accessToken: string): Promise<GoogleUs
     throw new Error("Gagal mengambil profil user dari Google.");
   }
 
-  const payload = await response.json() as Partial<GoogleUserInfo>;
-  if (!payload.sub || !payload.email) {
+  const payload = await response.json() as Partial<GoogleUserInfo> & { email_verified?: boolean };
+  if (!payload.sub || !payload.email || payload.email_verified !== true) {
     throw new Error("Profil Google tidak lengkap.");
   }
 
   return {
     sub: payload.sub,
-    email: payload.email,
+    email: payload.email.trim().toLowerCase(),
+    emailVerified: true,
     name: payload.name || payload.email,
     picture: payload.picture
   };

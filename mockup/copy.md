@@ -6,7 +6,7 @@ Orviko membantu kamu memahami percakapan, menyusun respons, dan menjaga arah mee
 
 # Interactive Demo Section
 
-[disini bukan text, melainkan ada layer desktop windows lalu diatasnya ada online meeting / browser / video call, lapisan paling atasnya ada floating overlay Orviko yang interactive]
+[di sini bukan teks, melainkan visual online meeting di browser dengan floating overlay Orviko yang interaktif di lapisan atas]
 
 # Demo Supporting Copy
 
@@ -48,7 +48,7 @@ Cepat, ringkas, dan selalu siap
 
 ### Title
 
-Floating overlay desktop
+Floating overlay browser
 
 ### Description
 
@@ -82,7 +82,7 @@ Tetap low-profile saat meeting
 
 ## Body Copy
 
-Orviko tampil ringkas sebagai overlay desktop agar tetap terasa rapi saat meeting berjalan.
+Orviko tampil ringkas sebagai overlay browser agar tetap terasa rapi saat meeting berjalan.
 
 # Realtime Transcription Section
 
@@ -222,19 +222,19 @@ Review meeting
 
 Untuk menanggapi feedback dan menyusun follow-up yang jelas.
 
-# Desktop App / Download Section
+# Web App Access Section
 
 ## Section Title
 
-Siap dipakai di Windows
+Siap dipakai melalui browser
 
 ## Intro
 
-Orviko adalah aplikasi desktop untuk kebutuhan online meeting.
+Orviko adalah Web App untuk kebutuhan online meeting.
 
 ## CTA Primary
 
-Download untuk Windows
+Buka Web App
 
 ## CTA Secondary
 
@@ -242,7 +242,7 @@ Lihat paket harga
 
 ## Repeated CTA Notes
 
-[di landing page, tombol Download untuk Windows muncul beberapa kali: hero, setelah demo, setelah section fitur utama, dan dekat FAQ / closing CTA]
+[di landing page, tombol Buka Web App muncul beberapa kali: hero, setelah demo, setelah section fitur utama, dan dekat FAQ / closing CTA]
 
 # No Free Tier Framing Section
 
@@ -284,11 +284,11 @@ Ya, Orviko mendukung bahasa Indonesia dan Inggris.
 
 ### Question
 
-Apakah Orviko harus dibuka di browser?
+Apakah Orviko digunakan melalui browser?
 
 ### Answer
 
-Tidak. Orviko adalah aplikasi desktop untuk Windows.
+Ya. Orviko adalah Web App yang digunakan melalui browser yang didukung.
 
 ## FAQ 4
 
@@ -322,7 +322,7 @@ Siapkan Orviko sebelum meeting berikutnya.
 
 ## CTA Primary
 
-Download untuk Windows
+Buka Web App
 
 ## CTA Secondary
 

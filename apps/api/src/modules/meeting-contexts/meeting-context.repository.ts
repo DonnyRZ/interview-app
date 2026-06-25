@@ -13,10 +13,12 @@ export type UpdateMeetingContextInput = UpdateMeetingContextRequest & {
   meetingContextText?: string;
 };
 
-export async function listMeetingContexts(userId: string) {
+export async function listMeetingContexts(userId: string, pagination = { limit: 50, offset: 0 }) {
   return db.query.meetingContexts.findMany({
     where: eq(meetingContexts.userId, userId),
-    orderBy: [desc(meetingContexts.createdAt)]
+    orderBy: [desc(meetingContexts.createdAt)],
+    limit: pagination.limit,
+    offset: pagination.offset
   });
 }
 

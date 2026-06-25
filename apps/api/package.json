@@ -4,29 +4,40 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "npm --workspace @interview-app/shared run build",
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
+    "prebuild": "npm --workspace @interview-app/shared run build",
     "build": "tsc -p tsconfig.json",
+    "pretypecheck": "npm --workspace @interview-app/shared run build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "db:generate": "npm run build && drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed:dev": "tsx src/db/seed-dev.ts",
     "test:meeting-response-router": "tsx scripts/test-meeting-response-router.ts",
+    "pretest:realtime-mvp": "npm --workspace @interview-app/shared run build",
+    "test:realtime-mvp": "tsx scripts/test-realtime-mvp.ts",
     "test:data-integrity": "tsx scripts/test-data-integrity-contracts.ts",
     "test:data-integrity-db": "tsx scripts/test-data-integrity-db.ts",
-    "test:auth-payment": "tsx scripts/test-auth-payment-contracts.ts"
+    "test:cost-safety": "tsx scripts/test-cost-safety-contracts.ts",
+    "test:privacy": "tsx scripts/test-privacy-contracts.ts",
+    "test:auth-payment": "tsx scripts/test-auth-payment-contracts.ts",
+    "payments:reconcile": "tsx scripts/reconcile-payments.ts",
+    "privacy:cleanup": "tsx scripts/privacy-cleanup.ts",
+    "jobs:work": "tsx scripts/work-ai-processing-jobs.ts",
+    "test:phase7": "tsx scripts/test-phase7-hardening.ts"
   },
   "dependencies": {
-    "@interview-app/shared": "*",
     "@fastify/cors": "^10.0.2",
     "@fastify/multipart": "^9.0.3",
+    "@interview-app/shared": "*",
     "dotenv": "^16.4.7",
-    "drizzle-orm": "^0.38.4",
+    "drizzle-orm": "0.45.2",
     "fastify": "^5.2.1",
     "postgres": "^3.4.5",
     "zod": "^3.24.1"
   },
   "devDependencies": {
-    "drizzle-kit": "^0.30.2"
+    "drizzle-kit": "0.31.10"
   }
 }

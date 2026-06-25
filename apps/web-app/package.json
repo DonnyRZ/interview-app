@@ -1,0 +1,32 @@
+{
+  "name": "@interview-app/web-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "predev": "npm --workspace @interview-app/shared run build",
+    "dev": "vite --host 127.0.0.1 --port 5175",
+    "prebuild": "npm --workspace @interview-app/shared run build",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "pretest:workspace": "npm --workspace @interview-app/shared run build",
+    "test:workspace": "tsx scripts/test-workspace-model.ts",
+    "pretest:realtime": "npm --workspace @interview-app/shared run build",
+    "test:realtime": "tsx scripts/test-realtime-context.ts",
+    "test:app-base": "tsx scripts/test-app-base-build.ts",
+    "pretypecheck": "npm --workspace @interview-app/shared run build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "preview": "vite preview --host 127.0.0.1 --port 4175"
+  },
+  "dependencies": {
+    "@interview-app/shared": "*",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7"
+  }
+}

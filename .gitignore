@@ -10,6 +10,8 @@ coverage/
 dist/
 dist-electron/
 build/
+!apps/desktop/build/
+!apps/desktop/build/icon.ico
 release/
 out/
 apps/api/dist/
@@ -34,11 +36,15 @@ pnpm-debug.log*
 
 # Environment
 .env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
-!.env.example
 
 # IDEs and Editors
 .idea/
@@ -59,10 +65,28 @@ Thumbs.db
 desktop.ini
 
 # Project Specific
-storage/cvs/*
-!storage/cvs/.gitkeep
+storage/**
+!storage/**/
+!storage/**/.gitkeep
 storage/*.log
 outputs/
+Price-Calc/outputs/
+Price-Calc/sample-audio/
+Price-Calc/*.inspect.ndjson
 temp/
+tmp/
 Temp-Reference/
 audio-sample/
+
+# Database backups and restore drills
+backups/
+*.dump
+*.dump.enc
+*.sql.gz
+*.backup
+*.sha256
+
+# Local runtime state
+*.pid
+*.pid.lock
+.cache/

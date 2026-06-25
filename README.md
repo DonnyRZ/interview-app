@@ -1,185 +1,113 @@
 # Orviko Meeting Assistant
 
-Desktop application untuk membantu user saat online meeting dengan floating overlay AI yang muncul di atas meeting, video, atau browser.
+Orviko adalah Web App untuk membantu user memahami percakapan online meeting dan menyiapkan respons singkat melalui floating browser overlay.
 
-Fokus utama aplikasi ini:
+## Fokus MVP
 
-- menangkap konteks percakapan meeting secara near real-time
-- memberi bantuan respons dalam bentuk teks, bukan auto-speaking
-- membantu user menjawab pertanyaan, menanggapi percakapan, membuat follow-up, dan memahami maksud lawan bicara
-- menjaga bantuan tetap relevan dengan profil user, konteks meeting, dan transcript terbaru
+- menangkap system audio melalui browser;
+- membuat transcript near real-time;
+- menampilkan satu `Latest conversation focus` terbaru yang sudah lolos quality gate;
+- menghasilkan bantuan hanya ketika user menekan tombol;
+- memakai profil user dan konteks meeting sebagai referensi wajib;
+- menjaga setiap bantuan tetap stateless agar tidak membawa memori percakapan lama.
 
-Orviko tidak dirancang untuk berbicara otomatis menggantikan user. User tetap memegang kontrol kapan bantuan AI dimunculkan.
+Empat quick action utama:
 
-## Gambaran Singkat
+- `Jawab Pertanyaan`
+- `Tanggapi`
+- `Pertanyaan Follow-up`
+- `Jelaskan Maksudnya`
 
-Alur kerja aplikasi secara umum:
-
-1. User upload profil / dokumen referensi.
-2. Sistem memproses profil menjadi identity reference yang bisa dipakai lintas meeting.
-3. User membuat konteks meeting berisi nama konteks, topik, dan brief.
-4. Konteks meeting memakai profil default saat dibuat.
-5. Di halaman detail konteks, user bisa memilih profil referensi sesi dari dokumen yang sudah diupload.
-6. User memulai sesi meeting live.
-7. Floating overlay mulai listening melalui system audio.
-8. Saat percakapan berlangsung, transcript, latest conversation focus, dan keyword runtime diperbarui.
-9. User bisa meminta bantuan seperti:
-   - `Jawab Pertanyaan`
-   - `Tanggapi`
-   - `Pertanyaan Follow-up`
-   - `Jelaskan Maksudnya`
-   - keyword chip
-   - free `Ask`
+Keyword chip dan free `Ask` juga tersedia, tetapi tidak boleh menambahkan memori ke response berikutnya.
 
 ## Arsitektur
 
-Project ini memakai monorepo sederhana:
-
 - `apps/api`
-  Backend API berbasis Fastify. Menangani data profil, konteks meeting, sesi live, preprocessing AI, prompt backend, dan pembuatan realtime client secret.
+  Fastify API untuk auth, subscription, profil, konteks meeting, sesi live, preprocessing AI, dan pembuatan Realtime client secret.
 
-- `apps/desktop`
-  Desktop app berbasis Electron + React. Menyediakan dashboard, flow meeting, system audio check, dan floating overlay.
+- `apps/web-app`
+  Produk utama React/Vite. Menyediakan workspace, browser system-audio capture, Document Picture-in-Picture overlay, transcript, dan bantuan live.
 
 - `apps/web`
-  Landing page web. Saat ini belum menjadi fokus pivot terbaru.
+  Landing page, pricing, checkout handoff, dan halaman legal.
 
 - `packages/shared`
-  Shared schema dan type yang dipakai lintas backend dan desktop.
-
-Beberapa nama internal masih memakai terminology legacy untuk mengurangi blast radius migrasi. User-facing product framing saat ini adalah online meeting assistant.
-
-## Kemampuan Utama
-
-- upload dan proses profil / dokumen referensi user
-- membuat konteks meeting dari nama, topik, dan brief
-- memilih profil referensi per konteks meeting
-- memulai sesi meeting live dengan floating overlay
-- menangkap system audio pada Windows melalui WASAPI loopback helper
-- menjalankan live runtime dengan `gpt-realtime-mini`
-- memisahkan respons eksplisit:
-  - `Jawab Pertanyaan` untuk QnA-style answer
-  - `Tanggapi` untuk respons natural Convo-style
-- menyimpan transcript sesi live
-- recovery sesi lama yang stuck dengan tombol `Akhiri`
+  Schema, transcript quality gate, conversation state lokal, dan kontrak prompt Realtime yang dipakai API dan Web App.
 
 ## Model AI
 
-Saat ini pembagian peran model secara umum:
-
 - `gpt-5-mini`
-  Dipakai untuk proses non-live seperti preprocessing profil, preprocessing konteks meeting, dan workflow text backend lainnya.
+  Preprocessing profil dan konteks meeting serta workflow backend non-live.
 
 - `gpt-realtime-mini`
-  Dipakai untuk sesi meeting live yang membutuhkan audio input, transcript runtime, dan bantuan overlay near real-time.
+  Runtime live dan seluruh bantuan meeting.
 
-Prompt produksi dijaga agar general meeting-oriented dan tidak mengarah ke use case atau domain tertentu kecuali runtime data memang menyebutnya.
+- `gpt-4o-mini-transcribe`
+  Transcription audio live.
 
-## UX Meeting
+Tombol live tidak boleh fallback diam-diam ke model text non-live.
 
-Saat user klik `Mulai Meeting`:
+## Stateless Live Help
 
-- backend membuat sesi live
-- Electron membuka floating overlay
-- app menyiapkan realtime session
-- system audio dipakai untuk menangkap suara meeting
+Audio dan transcript tetap berjalan di satu Realtime session, tetapi response bantuan dibuat out-of-band:
 
-Selama meeting:
+```txt
+response.create
+  conversation: "none"
+  input:
+    action
+    latest accepted focus
+    explicit user text jika ada
+```
 
-- overlay mode mini dipakai untuk keadaan pasif
-- overlay bisa expand untuk menampilkan focus, action buttons, keyword chips, dan ask box
-- bantuan AI hanya muncul ketika user menekan tombol bantuan atau mengirim ask manual
+Profil user, konteks meeting, dan domain profile tetap tersedia dalam action-specific response instructions. Instruksi sesi audio dibuat minimal. Riwayat audio, transcript lama, keyword lama, trigger lama, dan output bantuan sebelumnya tidak menjadi input response bantuan.
 
-Saat meeting selesai:
-
-- overlay mencoba mengakhiri sesi melalui Electron main secara langsung ke API
-- renderer dashboard tetap menerima event untuk refresh UI
-- kalau ada sesi lama yang masih tercatat `Dimulai`, user bisa klik `Akhiri` lalu `Hapus`
-
-## Tech Stack
-
-- Electron
-- React
-- Vite
-- Fastify
-- Zod
-- Drizzle ORM
-- PostgreSQL
-- OpenAI API
-- WASAPI loopback helper untuk Windows system audio capture
+Riwayat transcript lokal tetap boleh disimpan untuk rekaman sesi. Penyimpanan tersebut bukan memori AI.
 
 ## Menjalankan Project
 
-### Prasyarat
+Prasyarat:
 
 - Node.js
 - npm
-- Docker Desktop
-- PostgreSQL melalui `docker-compose`
+- PostgreSQL
 - OpenAI API key
-- Windows untuk flow system audio loopback saat meeting live
+- Chrome terbaru di Windows untuk system audio capture dan Document Picture-in-Picture
 
-### Setup
-
-1. Copy `.env.example` menjadi `.env`.
-2. Isi `OPENAI_API_KEY`.
-3. Jalankan database:
+Setup:
 
 ```bash
-docker compose up -d
-```
-
-4. Jalankan migration:
-
-```bash
+npm install
 npm run db:migrate
-```
-
-5. Jalankan backend:
-
-```bash
 npm run dev:api
+npm run dev:worker
+npm run dev:web-app
 ```
 
-6. Jalankan desktop app:
+Landing page:
 
 ```bash
-npm run dev:desktop
-```
-
-## Script Penting
-
-```bash
-npm run dev:api
-npm run dev:desktop
 npm run dev:web
-npm run build
-npm run typecheck
-npm run db:migrate
-npm run db:seed:dev
 ```
 
-Test dan simulasi penting:
+## Verifikasi
 
 ```bash
+npm run typecheck
+npm.cmd --workspace @interview-app/api run test:auth-payment
+npm.cmd --workspace @interview-app/api run test:privacy
+npm.cmd --workspace @interview-app/api run test:phase7
 npm.cmd --workspace @interview-app/api run test:data-integrity
-npm.cmd --workspace @interview-app/api run test:data-integrity-db
-npm.cmd --workspace @interview-app/api run test:meeting-response-router
-npm.cmd --workspace @interview-app/desktop run test:overlay-runtime
-npm.cmd --workspace @interview-app/desktop run test:keywords
-npm.cmd --workspace @interview-app/desktop run test:transcript-focus
+npm.cmd --workspace @interview-app/api run test:realtime-mvp
+npm.cmd --workspace @interview-app/web-app run test:realtime
+npm.cmd --workspace @interview-app/web-app run test:workspace
+npm.cmd --workspace @interview-app/web-app run test:app-base
+npm run build
 ```
 
-## Catatan
+## Source of Truth
 
-- Flow live meeting saat ini ditujukan untuk desktop Windows karena audio capture memakai WASAPI loopback helper.
-- Dashboard dan overlay sudah dipivot ke framing meeting assistant; landing page `apps/web` masih perlu follow-up.
-- Prompt stabil dan logic AI utama dijaga di backend / modul AI. Realtime live tetap memakai trigger pendek dari desktop dan stable rules dari backend.
-- Nama database, route, schema, dan beberapa file/component masih menyimpan legacy naming untuk compatibility.
-
-## Referensi Internal
-
-- [docs/audio-capture-windows.md](./docs/audio-capture-windows.md)
-- [apps/api/src/modules/ai/PROMPTING_RULES.md](./apps/api/src/modules/ai/PROMPTING_RULES.md)
-- [apps/desktop/src/features/overlay/OVERLAY_UX_RULES.md](./apps/desktop/src/features/overlay/OVERLAY_UX_RULES.md)
-- [apps/desktop/src/features/overlay/CONTEXT_INTEGRITY.md](./apps/desktop/src/features/overlay/CONTEXT_INTEGRITY.md)
+- [Web App runtime rules](./apps/web-app/RUNTIME_RULES.md)
+- [AI prompting rules](./apps/api/src/modules/ai/PROMPTING_RULES.md)
+- [Model responsibilities](./models.md)
+- [Phase 7 operational hardening](./docs/operational-hardening-phase-7.md)

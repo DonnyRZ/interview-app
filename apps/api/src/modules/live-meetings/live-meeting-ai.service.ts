@@ -21,20 +21,21 @@ import {
 } from "../ai/action-specs.js";
 
 export type GenerateMeetingAnswerServiceInput = {
+  userId?: string;
   meetingPrompt: string;
-  recentTranscript?: string;
   realtimeContext: RealtimeContext;
 };
 
 export type GenerateMeetingFollowupServiceInput = GenerateMeetingAnswerServiceInput;
 export type GenerateMeetingExplanationServiceInput = GenerateMeetingAnswerServiceInput;
 export type GenerateMeetingKeywordHelpServiceInput = {
+  userId?: string;
   keyword: string;
   meetingPrompt?: string;
-  recentTranscript?: string;
   realtimeContext: RealtimeContext;
 };
 export type SurfaceRealtimeKeywordsServiceInput = {
+  userId?: string;
   transcriptSegment: string;
   realtimeContext: RealtimeContext;
 };
@@ -57,7 +58,9 @@ export async function surfaceRealtimeKeywords(
         transcriptSegment,
         realtimeContext: input.realtimeContext
       },
-      outputSchema: surfaceRealtimeKeywordsResultSchema
+      outputSchema: surfaceRealtimeKeywordsResultSchema,
+      userId: input.userId,
+      usageCapability: "meeting_help"
     }), realtimeKeywordTimeoutMs);
 
     return normalizeRealtimeKeywords({
@@ -90,7 +93,9 @@ export async function generateMeetingAnswer(
         ...input,
         meetingPrompt: normalizedQuestion
       },
-      outputSchema: generateMeetingAnswerResultSchema
+      outputSchema: generateMeetingAnswerResultSchema,
+      userId: input.userId,
+      usageCapability: "meeting_help"
     });
 
     return normalizeMeetingAnswer({
@@ -123,7 +128,9 @@ export async function generateMeetingExplanation(
         ...input,
         meetingPrompt: normalizedQuestion
       },
-      outputSchema: generateMeetingExplanationResultSchema
+      outputSchema: generateMeetingExplanationResultSchema,
+      userId: input.userId,
+      usageCapability: "meeting_help"
     });
 
     return normalizeMeetingExplanation({
@@ -156,7 +163,9 @@ export async function generateMeetingFollowup(
         ...input,
         meetingPrompt: normalizedQuestion
       },
-      outputSchema: generateMeetingFollowupResultSchema
+      outputSchema: generateMeetingFollowupResultSchema,
+      userId: input.userId,
+      usageCapability: "meeting_help"
     });
 
     return normalizeMeetingFollowup({
@@ -189,7 +198,9 @@ export async function generateMeetingKeywordHelp(
         ...input,
         keyword: normalizedKeyword
       },
-      outputSchema: generateMeetingKeywordHelpResultSchema
+      outputSchema: generateMeetingKeywordHelpResultSchema,
+      userId: input.userId,
+      usageCapability: "meeting_help"
     });
 
     return normalizeMeetingKeywordHelp({

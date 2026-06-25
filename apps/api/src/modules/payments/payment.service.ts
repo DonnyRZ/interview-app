@@ -1,28 +1,43 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { and, eq } from "drizzle-orm";
+import { db } from "../../db/client.js";
+import {
+  paymentEvents,
+  paymentIntents,
+  subscriptionPeriods,
+  subscriptions,
+  users
+} from "../../db/schema/index.js";
+import { env } from "../../env.js";
 import { findUserById } from "../auth/auth.service.js";
+import { parseLynkWebhook } from "./lynk.client.js";
 import {
-  createMidtransSnapTransaction,
-  mapMidtransStatus,
-  type MidtransNotification,
-  verifyMidtransSignature
-} from "./midtrans.client.js";
-import {
-  createPayment,
-  findPaymentByOrderId,
-  findPaymentForUser,
-  updatePaymentSnapDetails,
-  updatePaymentStatus
+  createPaymentIntent,
+  expirePendingPaymentIntents,
+  findPaymentIntentForUser
 } from "./payment.repository.js";
-import { planCatalog, planSlugSchema, type PlanSlug } from "./plan-catalog.js";
+import {
+  planCatalog,
+  planSlugSchema,
+  requireCheckoutReadyPlan,
+  type PlanSlug
+} from "./plan-catalog.js";
 
 function buildOrderId(plan: PlanSlug) {
-  return `ORVIKO-${plan.toUpperCase()}-${randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase()}`;
+  return `ORVIKO-${plan.toUpperCase()}-${randomUUID().replaceAll("-", "").slice(0, 20).toUpperCase()}`;
 }
 
-export async function createMidtransPaymentForUser(input: {
-  userId: string;
-  plan: string;
-}) {
+function buildPublicId() {
+  return `pay_${randomBytes(18).toString("base64url")}`;
+}
+
+function addDays(value: Date, days: number) {
+  const result = new Date(value);
+  result.setUTCDate(result.getUTCDate() + days);
+  return result;
+}
+
+export async function createLynkCheckoutForUser(input: { userId: string; plan: string }) {
   const parsedPlan = planSlugSchema.safeParse(input.plan);
   if (!parsedPlan.success) {
     throw new Error("Paket yang dipilih tidak valid.");
@@ -33,74 +48,241 @@ export async function createMidtransPaymentForUser(input: {
     throw new Error("User tidak ditemukan.");
   }
 
+  await expirePendingPaymentIntents();
   const plan = parsedPlan.data;
-  const catalogItem = planCatalog[plan];
-  const payment = await createPayment({
+  const catalogItem = requireCheckoutReadyPlan(plan);
+  const now = new Date();
+
+  return createPaymentIntent({
+    publicId: buildPublicId(),
     userId: input.userId,
-    orderId: buildOrderId(plan),
+    providerOrderId: buildOrderId(plan),
+    providerProductId: catalogItem.providerProductId,
     plan,
-    grossAmount: catalogItem.grossAmount
+    amount: catalogItem.grossAmount,
+    currency: catalogItem.currency,
+    customerEmail: user.email,
+    checkoutUrl: catalogItem.checkoutUrl,
+    expiresAt: new Date(now.getTime() + env.PAYMENT_INTENT_TTL_MINUTES * 60_000)
   });
+}
 
-  const midtransPayload = {
-    transaction_details: {
-      order_id: payment.orderId,
-      gross_amount: catalogItem.grossAmount
-    },
-    item_details: [
-      {
-        id: plan,
-        price: catalogItem.grossAmount,
-        quantity: 1,
-        name: `Orviko ${catalogItem.name}`
-      }
-    ],
-    customer_details: {
-      first_name: user.name || "User Orviko",
-      email: user.email
-    }
+export async function getPaymentForUser(userId: string, publicId: string) {
+  await expirePendingPaymentIntents();
+  return findPaymentIntentForUser(userId, publicId);
+}
+
+function payloadDigest(payload: Record<string, unknown>) {
+  return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
+}
+
+function safeEventPayload(parsed: ReturnType<typeof parseLynkWebhook>) {
+  return {
+    eventName: parsed.eventName,
+    status: parsed.status,
+    eventType: parsed.eventType,
+    providerOrderId: parsed.providerOrderId,
+    productId: parsed.productId,
+    transactionIdPresent: Boolean(parsed.transactionId),
+    amount: parsed.amount,
+    currency: parsed.currency
   };
-
-  const snap = await createMidtransSnapTransaction(midtransPayload);
-  const updatedPayment = await updatePaymentSnapDetails({
-    paymentId: payment.id,
-    snapToken: snap.snapToken,
-    snapRedirectUrl: snap.redirectUrl
-  });
-
-  if (!updatedPayment) {
-    throw new Error("Gagal menyimpan transaksi payment.");
-  }
-
-  return updatedPayment;
 }
 
-export async function getPaymentForUser(userId: string, paymentId: string) {
-  return findPaymentForUser(userId, paymentId);
+function invalid(reason: string) {
+  return { processed: false as const, reason };
 }
 
-export async function handleMidtransNotification(payload: MidtransNotification) {
-  if (!verifyMidtransSignature(payload)) {
-    throw new Error("Signature Midtrans tidak valid.");
+export async function handleLynkWebhook(payload: Record<string, unknown>) {
+  const parsed = parseLynkWebhook(payload);
+  if (parsed.eventType === "unknown") {
+    return invalid("Event payment tidak dikenali.");
+  }
+  if (
+    !parsed.providerEventId
+    || !parsed.transactionId
+    || !parsed.providerOrderId
+    || !parsed.productId
+    || !parsed.customerEmail
+  ) {
+    return invalid("Webhook tidak memiliki identifier provider yang lengkap.");
+  }
+  if (!parsed.hasAmount || !parsed.currency) {
+    return invalid("Webhook tidak memiliki amount dan currency yang lengkap.");
   }
 
-  const orderId = String(payload.order_id || "");
-  const payment = await findPaymentByOrderId(orderId);
-  if (!payment) {
-    throw new Error("Order payment tidak ditemukan.");
-  }
+  return db.transaction(async (tx) => {
+    const [intent] = await tx.select()
+      .from(paymentIntents)
+      .where(and(
+        eq(paymentIntents.provider, "lynk"),
+        eq(paymentIntents.providerOrderId, parsed.providerOrderId)
+      ))
+      .limit(1)
+      .for("update");
 
-  const updatedPayment = await updatePaymentStatus({
-    paymentId: payment.id,
-    status: mapMidtransStatus(payload),
-    midtransTransactionId: String(payload.transaction_id || ""),
-    midtransOrderId: orderId,
-    rawNotification: payload
+    const [event] = await tx.insert(paymentEvents).values({
+      paymentIntentId: intent?.id || null,
+      provider: "lynk",
+      providerEventId: parsed.providerEventId,
+      providerTransactionId: parsed.transactionId,
+      eventType: parsed.eventType,
+      verificationStatus: "verified",
+      processingStatus: "received",
+      payloadDigest: payloadDigest(payload),
+      sanitizedPayload: safeEventPayload(parsed)
+    }).onConflictDoNothing().returning();
+
+    if (!event) {
+      return {
+        processed: true as const,
+        duplicate: true,
+        reason: "Webhook sudah pernah diproses."
+      };
+    }
+
+    const rejectEvent = async (reason: string) => {
+      await tx.update(paymentEvents).set({
+        processingStatus: "rejected",
+        failureReason: reason,
+        processedAt: new Date()
+      }).where(eq(paymentEvents.id, event.id));
+      return invalid(reason);
+    };
+
+    if (!intent) {
+      return rejectEvent("Payment intent untuk provider order tidak ditemukan.");
+    }
+    if (
+      intent.providerProductId !== parsed.productId
+      || intent.amount !== parsed.amount
+      || intent.currency !== parsed.currency
+      || intent.customerEmail.toLowerCase() !== parsed.customerEmail
+    ) {
+      return rejectEvent("Product, amount, atau currency tidak cocok dengan payment intent.");
+    }
+
+    const now = new Date();
+    if (intent.expiresAt <= now && intent.status === "pending") {
+      await tx.update(paymentIntents).set({
+        status: "expired",
+        failedAt: now,
+        updatedAt: now
+      }).where(eq(paymentIntents.id, intent.id));
+      return rejectEvent("Payment intent sudah kedaluwarsa.");
+    }
+
+    if (parsed.eventType === "paid") {
+      if (intent.status === "paid") {
+        await tx.update(paymentEvents).set({
+          processingStatus: "processed",
+          processedAt: now
+        }).where(eq(paymentEvents.id, event.id));
+        return { processed: true as const, duplicate: true, reason: "Payment sudah aktif." };
+      }
+      if (intent.status !== "pending") {
+        return rejectEvent(`Payment intent berstatus ${intent.status} dan tidak dapat dibayar.`);
+      }
+
+      const plan = planSlugSchema.parse(intent.plan);
+      const catalogItem = planCatalog[plan];
+      const [activeSubscription] = await tx.select()
+        .from(subscriptions)
+        .where(and(eq(subscriptions.userId, intent.userId), eq(subscriptions.status, "active")))
+        .limit(1)
+        .for("update");
+      const periodStart = activeSubscription?.currentPeriodEndsAt && activeSubscription.currentPeriodEndsAt > now
+        ? activeSubscription.currentPeriodEndsAt
+        : now;
+      const periodEnd = addDays(periodStart, catalogItem.billingPeriodDays);
+
+      let subscriptionId: string;
+      if (activeSubscription) {
+        const [updated] = await tx.update(subscriptions).set({
+          plan,
+          sourcePaymentIntentId: intent.id,
+          currentPeriodStartedAt: periodStart,
+          currentPeriodEndsAt: periodEnd,
+          updatedAt: now
+        }).where(eq(subscriptions.id, activeSubscription.id)).returning();
+        subscriptionId = updated!.id;
+        await tx.update(subscriptionPeriods).set({ status: "completed" })
+          .where(and(
+            eq(subscriptionPeriods.subscriptionId, activeSubscription.id),
+            eq(subscriptionPeriods.status, "active")
+          ));
+      } else {
+        const [created] = await tx.insert(subscriptions).values({
+          userId: intent.userId,
+          plan,
+          status: "active",
+          sourcePaymentIntentId: intent.id,
+          currentPeriodStartedAt: periodStart,
+          currentPeriodEndsAt: periodEnd
+        }).returning();
+        subscriptionId = created!.id;
+      }
+
+      await tx.insert(subscriptionPeriods).values({
+        subscriptionId,
+        userId: intent.userId,
+        paymentIntentId: intent.id,
+        plan,
+        periodStartedAt: periodStart,
+        periodEndsAt: periodEnd,
+        liveSessionLimit: catalogItem.liveSessionLimit,
+        status: "active"
+      });
+      await tx.update(paymentIntents).set({
+        status: "paid",
+        paidAt: now,
+        updatedAt: now
+      }).where(eq(paymentIntents.id, intent.id));
+      await tx.update(users).set({
+        subscriptionPlan: plan,
+        subscriptionPeriodStartedAt: periodStart,
+        subscriptionExpiresAt: periodEnd,
+        updatedAt: now
+      }).where(eq(users.id, intent.userId));
+    } else if (parsed.eventType === "refunded" || parsed.eventType === "chargeback") {
+      await tx.update(paymentIntents).set({
+        status: parsed.eventType,
+        failedAt: now,
+        updatedAt: now
+      }).where(eq(paymentIntents.id, intent.id));
+      await tx.update(subscriptions).set({
+        status: parsed.eventType,
+        revokedAt: now,
+        revokeReason: parsed.eventType,
+        updatedAt: now
+      }).where(and(eq(subscriptions.userId, intent.userId), eq(subscriptions.status, "active")));
+      await tx.update(subscriptionPeriods).set({ status: parsed.eventType })
+        .where(and(eq(subscriptionPeriods.userId, intent.userId), eq(subscriptionPeriods.status, "active")));
+      await tx.update(users).set({
+        subscriptionPlan: "free",
+        subscriptionPeriodStartedAt: null,
+        subscriptionExpiresAt: null,
+        updatedAt: now
+      }).where(eq(users.id, intent.userId));
+    } else {
+      await tx.update(paymentIntents).set({
+        status: parsed.eventType,
+        failedAt: now,
+        updatedAt: now
+      }).where(eq(paymentIntents.id, intent.id));
+    }
+
+    await tx.update(paymentEvents).set({
+      processingStatus: "processed",
+      processedAt: now
+    }).where(eq(paymentEvents.id, event.id));
+
+    return {
+      processed: true as const,
+      duplicate: false,
+      reason: `Payment event ${parsed.eventType} berhasil diproses.`,
+      paymentPublicId: intent.publicId,
+      eventType: parsed.eventType
+    };
   });
-
-  if (!updatedPayment) {
-    throw new Error("Gagal memperbarui status payment.");
-  }
-
-  return updatedPayment;
 }

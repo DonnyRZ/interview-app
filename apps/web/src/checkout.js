@@ -1,44 +1,27 @@
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
-const MIDTRANS_CLIENT_KEY = import.meta.env.VITE_MIDTRANS_CLIENT_KEY || "";
+import { buildApiUrl, resolveApiBaseUrl } from "./api-base.js";
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 const planCatalog = {
   mini: {
     name: "Mini",
     priceLabel: "Rp29rb",
-    description: "3 kali sesi live dalam satu bulan.",
-    features: [
-      "3 kali sesi live",
-      "Upload profil referensi",
-      "Masukkan konteks meeting",
-      "Bantuan respons saat meeting"
-    ]
+    description: "3 kali sesi live dalam satu bulan."
   },
   starter: {
     name: "Starter",
     priceLabel: "Rp98rb",
-    description: "12 kali sesi live dalam satu bulan.",
-    features: [
-      "Semua di Mini",
-      "12 kali sesi live",
-      "Overlay privat",
-      "Mode screen share"
-    ]
+    description: "12 kali sesi live dalam satu bulan."
   },
   pro: {
     name: "Pro",
     priceLabel: "Rp359rb",
-    description: "Sesi live tak terbatas untuk penggunaan intensif.",
-    features: [
-      "Semua fitur di Starter",
-      "Sesi live tak terbatas",
-      "Lebih lega untuk jadwal padat",
-      "Cocok untuk penggunaan intensif"
-    ]
+    description: "Sesi live tak terbatas untuk penggunaan intensif."
   }
 };
 
 function apiUrl(path) {
-  return `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
+  return buildApiUrl(path);
 }
 
 function selectedPlanSlug() {
@@ -50,6 +33,39 @@ function selectedPlanSlug() {
 function setText(id, value) {
   const node = document.getElementById(id);
   if (node) node.textContent = value;
+}
+
+function fitCheckoutEmail() {
+  const emailNode = document.getElementById("checkoutEmail");
+  if (!emailNode) return;
+
+  const availableWidth = emailNode.parentElement?.clientWidth || emailNode.clientWidth;
+  const maxSize = Math.min(Math.max(window.innerWidth * 0.037, 28), 50);
+  const minSize = 12;
+  let size = maxSize;
+
+  emailNode.style.setProperty("--checkout-email-font-size", `${size}px`);
+  while (emailNode.scrollWidth > availableWidth && size > minSize) {
+    size -= 1;
+    emailNode.style.setProperty("--checkout-email-font-size", `${size}px`);
+  }
+}
+
+async function copyText(value) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+
+  const input = document.createElement("textarea");
+  input.value = value;
+  input.setAttribute("readonly", "readonly");
+  input.style.position = "fixed";
+  input.style.opacity = "0";
+  document.body.appendChild(input);
+  input.select();
+  document.execCommand("copy");
+  input.remove();
 }
 
 async function fetchJson(path, options = {}) {
@@ -69,50 +85,14 @@ async function fetchJson(path, options = {}) {
   return payload;
 }
 
-function loadSnapScript() {
-  if (!MIDTRANS_CLIENT_KEY) {
-    return Promise.reject(new Error("Midtrans client key belum tersedia."));
-  }
-
-  if (window.snap) {
-    return Promise.resolve();
-  }
-
-  const existing = document.getElementById("midtrans-snap-script");
-  if (existing) {
-    return new Promise((resolve, reject) => {
-      existing.addEventListener("load", resolve, { once: true });
-      existing.addEventListener("error", () => reject(new Error("Gagal memuat Midtrans Snap.")), { once: true });
-    });
-  }
-
-  return new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    script.id = "midtrans-snap-script";
-    script.src = "https://app.sandbox.midtrans.com/snap/snap.js";
-    script.setAttribute("data-client-key", MIDTRANS_CLIENT_KEY);
-    script.async = true;
-    script.addEventListener("load", resolve, { once: true });
-    script.addEventListener("error", () => reject(new Error("Gagal memuat Midtrans Snap.")), { once: true });
-    document.body.appendChild(script);
-  });
-}
-
 function renderPlan(planSlug) {
   const plan = planCatalog[planSlug];
   setText("planName", plan.name);
-  setText("planDescription", plan.description);
-  setText("planPrice", plan.priceLabel);
   setText("totalPrice", plan.priceLabel);
-
-  const features = document.getElementById("planFeatures");
-  if (features) {
-    features.innerHTML = plan.features.map((feature) => `<div class="feature-item">${feature}</div>`).join("");
-  }
 
   const loginButton = document.getElementById("loginButton");
   if (loginButton) {
-    loginButton.setAttribute("href", `/auth/google/login?plan=${encodeURIComponent(planSlug)}`);
+    loginButton.setAttribute("href", buildApiUrl(`/auth/google/login?plan=${encodeURIComponent(planSlug)}`));
   }
 }
 
@@ -122,18 +102,59 @@ async function initCheckout() {
 
   const payButton = document.getElementById("payButton");
   const loginButton = document.getElementById("loginButton");
+  const copyEmailButton = document.getElementById("copyEmailButton");
+  const modalCopyEmailButton = document.getElementById("modalCopyEmailButton");
+  const copyEmailModal = document.getElementById("copyEmailModal");
   const statusText = document.getElementById("statusText");
+  let checkoutEmail = "";
+  let hasCopiedEmail = false;
+
+  function openCopyEmailModal() {
+    if (!copyEmailModal) return;
+    copyEmailModal.hidden = false;
+    modalCopyEmailButton?.focus();
+  }
+
+  function closeCopyEmailModal() {
+    if (!copyEmailModal) return;
+    copyEmailModal.hidden = true;
+  }
+
+  async function copyCheckoutEmail() {
+    if (!checkoutEmail) return;
+
+    await copyText(checkoutEmail);
+    hasCopiedEmail = true;
+    if (copyEmailButton) {
+      copyEmailButton.textContent = "Email tersalin";
+      copyEmailButton.classList.add("copied");
+      window.setTimeout(() => {
+        copyEmailButton.textContent = "Copy email";
+        copyEmailButton.classList.remove("copied");
+      }, 2400);
+    }
+    if (statusText) {
+      statusText.textContent = "Email sudah dicopy. Paste email yang sama di checkout Lynk.id.";
+      statusText.classList.remove("error");
+    }
+  }
 
   try {
     const payload = await fetchJson("/auth/me");
+    checkoutEmail = payload.user.email || "";
     setText("accountName", payload.user.name || "User Orviko");
-    setText("accountEmail", payload.user.email || "");
+    setText("accountEmail", checkoutEmail);
+    setText("checkoutEmail", checkoutEmail);
+    fitCheckoutEmail();
     if (payButton) payButton.disabled = false;
-    if (statusText) statusText.textContent = "Checkout siap. Pembayaran akan dibuka melalui Midtrans sandbox.";
+    if (copyEmailButton) copyEmailButton.disabled = !checkoutEmail;
+    if (statusText) statusText.textContent = "Copy email di kiri, lalu lanjutkan pembayaran di Lynk.id.";
   } catch (error) {
     setText("accountName", "Login Google diperlukan");
     setText("accountEmail", "Silakan login ulang untuk melanjutkan checkout.");
+    setText("checkoutEmail", "Login dulu untuk melihat email.");
     if (payButton) payButton.hidden = true;
+    if (copyEmailButton) copyEmailButton.disabled = true;
     if (loginButton) loginButton.hidden = false;
     if (statusText) {
       statusText.textContent = error instanceof Error ? error.message : "Login diperlukan.";
@@ -142,36 +163,63 @@ async function initCheckout() {
     return;
   }
 
+  window.addEventListener("resize", fitCheckoutEmail);
+
+  copyEmailButton?.addEventListener("click", async () => {
+    try {
+      await copyCheckoutEmail();
+    } catch {
+      if (statusText) {
+        statusText.textContent = "Gagal copy otomatis. Blok email di kiri lalu copy manual.";
+        statusText.classList.add("error");
+      }
+    }
+  });
+
+  modalCopyEmailButton?.addEventListener("click", async () => {
+    try {
+      await copyCheckoutEmail();
+      closeCopyEmailModal();
+    } catch {
+      if (statusText) {
+        statusText.textContent = "Gagal copy otomatis. Blok email di kiri lalu copy manual.";
+        statusText.classList.add("error");
+      }
+    }
+  });
+
+  document.querySelectorAll("[data-close-copy-modal]").forEach((node) => {
+    node.addEventListener("click", closeCopyEmailModal);
+  });
+
   payButton?.addEventListener("click", async () => {
+    if (!hasCopiedEmail) {
+      openCopyEmailModal();
+      if (statusText) {
+        statusText.textContent = "Copy email dulu sebelum lanjut ke checkout Lynk.id.";
+        statusText.classList.add("error");
+      }
+      return;
+    }
+
     try {
       payButton.disabled = true;
       if (statusText) {
-        statusText.textContent = "Membuat transaksi Midtrans...";
+        statusText.textContent = "Menyiapkan checkout Lynk.id...";
         statusText.classList.remove("error");
       }
 
-      const payment = await fetchJson("/payments/midtrans/create", {
+      const payment = await fetchJson("/payments/lynk/create", {
         method: "POST",
         body: JSON.stringify({ plan: planSlug })
       });
 
-      if (statusText) statusText.textContent = "Membuka Midtrans Snap...";
-      await loadSnapScript();
-      window.snap.pay(payment.snapToken, {
-        onSuccess: () => {
-          window.location.href = `/payment-success.html?payment_id=${encodeURIComponent(payment.paymentId)}`;
-        },
-        onPending: () => {
-          window.location.href = `/payment-pending.html?payment_id=${encodeURIComponent(payment.paymentId)}`;
-        },
-        onError: () => {
-          window.location.href = `/payment-failed.html?payment_id=${encodeURIComponent(payment.paymentId)}`;
-        },
-        onClose: () => {
-          if (statusText) statusText.textContent = "Pembayaran belum diselesaikan. Kamu bisa klik bayar lagi untuk melanjutkan.";
-          payButton.disabled = false;
-        }
-      });
+      if (!payment.redirectUrl) {
+        throw new Error("Link pembayaran Lynk.id belum tersedia.");
+      }
+
+      if (statusText) statusText.textContent = "Membuka halaman pembayaran Lynk.id...";
+      window.location.href = payment.redirectUrl;
     } catch (error) {
       if (statusText) {
         statusText.textContent = error instanceof Error ? error.message : "Gagal memulai pembayaran.";

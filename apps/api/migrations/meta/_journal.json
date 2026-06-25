@@ -15,6 +15,76 @@
       "when": 1780158666782,
       "tag": "0001_redundant_warpath",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780828800000,
+      "tag": "0002_lynk_subscription",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1781625600000,
+      "tag": "0003_subscription_usage_safety",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1781712000000,
+      "tag": "0004_cleanup_legacy_payments",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1782309600000,
+      "tag": "0005_revocable_auth_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1782349200000,
+      "tag": "0006_payment_integrity",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1782351000000,
+      "tag": "0007_drop_legacy_payments",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1782385200000,
+      "tag": "0008_usage_cost_safety",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1782471600000,
+      "tag": "0009_privacy_data_lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1782558000000,
+      "tag": "0010_operational_hardening",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1782559800000,
+      "tag": "0011_preserve_usage_ledger",
+      "breakpoints": true
     }
   ]
 }

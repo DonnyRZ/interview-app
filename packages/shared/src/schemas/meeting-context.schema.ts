@@ -16,9 +16,9 @@ export const meetingContextSchema = z.object({
 });
 
 export const createMeetingContextRequestSchema = z.object({
-  contextName: z.string().min(1),
-  meetingTopic: z.string().min(1),
-  meetingBrief: z.string().optional()
+  contextName: z.string().trim().min(1).max(120),
+  meetingTopic: z.string().trim().min(1).max(240),
+  meetingBrief: z.string().trim().max(12_000).optional()
 });
 
 export const updateMeetingContextRequestSchema = createMeetingContextRequestSchema.partial().extend({

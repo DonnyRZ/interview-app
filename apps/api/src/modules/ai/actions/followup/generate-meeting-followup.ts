@@ -8,7 +8,6 @@ import { formatMeetingContextForPrompt, meetingContextUsagePolicy } from "../sha
 
 export type GenerateMeetingFollowupInput = {
   meetingPrompt: string;
-  recentTranscript?: string;
   realtimeContext: RealtimeContext;
 };
 
@@ -18,7 +17,7 @@ export const generateMeetingFollowupSpec: ActionSpec<GenerateMeetingFollowupInpu
   goal: "Membuat pertanyaan follow-up singkat yang relevan untuk membantu user melanjutkan online meeting.",
   role: "Kamu adalah assistant follow-up meeting untuk user saat online meeting.",
   task: [
-    "Baca latest meeting focus dan recentTranscript.",
+    "Baca latest meeting focus.",
     "Buat 1-3 follow-up question singkat yang bisa ditanyakan user ke lawan bicara.",
     "Pilih sumber konteks yang paling tepat: latest conversation, general knowledge, user profile, meeting context, atau gabungan yang aman.",
     "Pastikan follow-up membantu memperjelas konteks, kriteria, constraint, prioritas, ownership, timeline, data, atau next step.",
@@ -49,9 +48,6 @@ export const generateMeetingFollowupSpec: ActionSpec<GenerateMeetingFollowupInpu
   buildContext: (input) => `Runtime payload:
 - latestMeetingFocus:
 ${input.meetingPrompt.trim() || "unknown"}
-
-- recentTranscript:
-${input.recentTranscript?.trim() || "unknown"}
 
 ${formatMeetingContextForPrompt(input.realtimeContext)}`
 };

@@ -51,8 +51,43 @@ ${formatInternships(context.userProfileContext.internships)}
   - focusHints: ${joinList(context.sessionContext.focus)}`;
 }
 
+export function formatRealtimeMeetingContextForPrompt(context: RealtimeContext) {
+  return [
+    `profile: ${compactParts([
+      context.userProfileContext.summary,
+      context.userProfileContext.readyContext,
+      joinList(context.userProfileContext.skills),
+      joinList(context.userProfileContext.relevantExperience),
+      joinList(context.userProfileContext.usefulStrengths)
+    ], 900)}`,
+    `meeting: ${compactParts([
+      context.meetingContext.contextName,
+      context.meetingContext.meetingTopic,
+      context.meetingContext.meetingSummary,
+      joinList(context.meetingContext.keyCriteria),
+      joinList(context.meetingContext.responsibilities),
+      context.meetingContext.contextText
+    ], 760)}`,
+    `domain: ${compactParts([
+      context.domainProfile.primaryDomain,
+      context.domainProfile.nicheDescription,
+      joinList(context.domainProfile.inScopeConcepts),
+      context.domainProfile.relevanceGuidance
+    ], 420)}`,
+    `session: ${context.sessionContext.sessionType}; focus=${joinList(context.sessionContext.focus)}`
+  ].join("\n");
+}
+
 function joinList(items: string[]) {
   return items.map((item) => item.trim()).filter(Boolean).join(", ") || "none";
+}
+
+function compactParts(parts: Array<string | undefined>, maxCharacters: number) {
+  const compacted = parts
+    .map((part) => (part || "").replace(/\s+/g, " ").trim())
+    .filter((part) => part && part !== "none")
+    .join(" | ");
+  return compacted.length <= maxCharacters ? compacted : compacted.slice(0, maxCharacters).trim();
 }
 
 function formatExperiences(items: RealtimeContext["userProfileContext"]["experiences"]) {

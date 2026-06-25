@@ -92,12 +92,11 @@ export const startLiveMeetingRequestSchema = z.object({
 });
 
 export const endLiveMeetingRequestSchema = z.object({
-  transcriptText: z.string().optional()
+  transcriptText: z.string().max(100_000).optional()
 });
 
 export const generateMeetingAnswerRequestSchema = z.object({
-  meetingPrompt: z.string(),
-  recentTranscript: z.string().optional(),
+  meetingPrompt: z.string().trim().min(1).max(4_000),
   realtimeContext: realtimeContextSchema
 });
 
@@ -120,8 +119,7 @@ export const generateMeetingAnswerResponseSchema = z.object({
 });
 
 export const generateMeetingFollowupRequestSchema = z.object({
-  meetingPrompt: z.string(),
-  recentTranscript: z.string().optional(),
+  meetingPrompt: z.string().trim().min(1).max(4_000),
   realtimeContext: realtimeContextSchema
 });
 
@@ -143,8 +141,7 @@ export const generateMeetingFollowupResponseSchema = z.object({
 });
 
 export const generateMeetingExplanationRequestSchema = z.object({
-  meetingPrompt: z.string(),
-  recentTranscript: z.string().optional(),
+  meetingPrompt: z.string().trim().min(1).max(4_000),
   realtimeContext: realtimeContextSchema
 });
 
@@ -166,9 +163,8 @@ export const generateMeetingExplanationResponseSchema = z.object({
 });
 
 export const generateMeetingKeywordHelpRequestSchema = z.object({
-  keyword: z.string(),
-  meetingPrompt: z.string().optional(),
-  recentTranscript: z.string().optional(),
+  keyword: z.string().trim().min(1).max(120),
+  meetingPrompt: z.string().trim().max(4_000).optional(),
   realtimeContext: realtimeContextSchema
 });
 
@@ -190,7 +186,7 @@ export const generateMeetingKeywordHelpResponseSchema = z.object({
 });
 
 export const surfaceRealtimeKeywordsRequestSchema = z.object({
-  transcriptSegment: z.string(),
+  transcriptSegment: z.string().trim().min(1).max(4_000),
   realtimeContext: realtimeContextSchema
 });
 
@@ -215,13 +211,23 @@ export const surfaceRealtimeKeywordsResponseSchema = z.object({
 });
 
 export const createRealtimeClientSecretRequestSchema = z.object({
-  realtimeContext: realtimeContextSchema
+  liveMeetingSessionId: z.string().uuid()
 });
 
 export const createRealtimeClientSecretResponseSchema = z.object({
   model: z.literal("gpt-realtime-mini"),
   clientSecret: z.string(),
   expiresAt: z.number().int().positive(),
+  responseInstructions: z.object({
+    answer_qna: z.string().min(1),
+    answer_convo: z.string().min(1),
+    answer: z.string().min(1),
+    followup: z.string().min(1),
+    explain: z.string().min(1),
+    explain_text: z.string().min(1),
+    keyword: z.string().min(1),
+    surface_keywords: z.string().min(1)
+  }),
   session: z.unknown().optional()
 });
 

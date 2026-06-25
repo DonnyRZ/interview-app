@@ -1,60 +1,39 @@
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
+import { and, eq, gt, isNull, lt } from "drizzle-orm";
 import type { FastifyReply, FastifyRequest } from "fastify";
+import { db } from "../../db/client.js";
+import { authSessions, oauthStates, users } from "../../db/schema/index.js";
 import { env } from "../../env.js";
 
-const SESSION_COOKIE = "orviko_session";
+export const SESSION_COOKIE = "orviko_session";
+export const OAUTH_BROWSER_COOKIE = "orviko_oauth_browser";
 const STATE_MAX_AGE_SECONDS = 10 * 60;
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 14;
 
-type SessionPayload = {
+export type AuthSession = {
+  sessionId: string;
   userId: string;
   email: string;
-  exp: number;
+  expiresAt: Date;
 };
 
-type OAuthStatePayload = {
+export type OAuthState = {
   plan: string;
-  nonce: string;
-  exp: number;
+  flow: "web" | "web-app";
 };
 
-function base64url(input: string | Buffer) {
-  return Buffer.from(input).toString("base64url");
+function createOpaqueToken() {
+  return randomBytes(32).toString("base64url");
 }
 
-function sign(value: string) {
-  return createHmac("sha256", env.SESSION_SECRET).update(value).digest("base64url");
+function hashToken(value: string) {
+  return createHmac("sha256", env.SESSION_SECRET).update(value).digest("hex");
 }
 
-function safeEqual(a: string, b: string) {
-  const left = Buffer.from(a);
-  const right = Buffer.from(b);
-  return left.length === right.length && timingSafeEqual(left, right);
-}
-
-function encodeSignedPayload(payload: unknown) {
-  const body = base64url(JSON.stringify(payload));
-  return `${body}.${sign(body)}`;
-}
-
-function decodeSignedPayload<T>(token: string | undefined): T | null {
-  if (!token) return null;
-  const [body, signature] = token.split(".");
-  if (!body || !signature || !safeEqual(signature, sign(body))) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as T;
-  } catch {
-    return null;
-  }
-}
-
-function cookieOptions(maxAgeSeconds: number) {
+function cookieOptions(maxAgeSeconds: number, path = "/") {
   const secure = env.NODE_ENV === "production";
   return [
-    "Path=/",
+    `Path=${path}`,
     "HttpOnly",
     "SameSite=Lax",
     `Max-Age=${maxAgeSeconds}`,
@@ -71,40 +50,163 @@ function readCookie(request: FastifyRequest, name: string) {
     ?.slice(name.length + 1);
 }
 
-export function createOAuthState(plan: string) {
-  return encodeSignedPayload({
-    plan,
-    nonce: randomBytes(16).toString("base64url"),
-    exp: Math.floor(Date.now() / 1000) + STATE_MAX_AGE_SECONDS
-  } satisfies OAuthStatePayload);
+function appendSetCookie(reply: FastifyReply, cookie: string) {
+  const existing = reply.getHeader("Set-Cookie");
+  if (!existing) {
+    reply.header("Set-Cookie", cookie);
+    return;
+  }
+  reply.header("Set-Cookie", Array.isArray(existing) ? [...existing, cookie] : [String(existing), cookie]);
 }
 
-export function parseOAuthState(state: string | undefined) {
-  const payload = decodeSignedPayload<OAuthStatePayload>(state);
-  if (!payload || payload.exp < Math.floor(Date.now() / 1000)) {
+export async function createOAuthState(
+  reply: FastifyReply,
+  plan: string,
+  flow: "web" | "web-app" = "web"
+) {
+  const state = createOpaqueToken();
+  const browserBinding = createOpaqueToken();
+  const expiresAt = new Date(Date.now() + STATE_MAX_AGE_SECONDS * 1000);
+
+  await db.insert(oauthStates).values({
+    stateHash: hashToken(state),
+    browserBindingHash: hashToken(browserBinding),
+    plan,
+    flow,
+    expiresAt
+  });
+
+  appendSetCookie(
+    reply,
+    `${OAUTH_BROWSER_COOKIE}=${browserBinding}; ${cookieOptions(STATE_MAX_AGE_SECONDS, "/auth/google")}`
+  );
+  return state;
+}
+
+export async function consumeOAuthState(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  state: string | undefined
+): Promise<OAuthState | null> {
+  const browserBinding = readCookie(request, OAUTH_BROWSER_COOKIE);
+  clearOAuthBrowserCookie(reply);
+  if (!state || !browserBinding) {
     return null;
   }
-  return payload;
+
+  const now = new Date();
+  const [consumed] = await db.update(oauthStates)
+    .set({ consumedAt: now })
+    .where(and(
+      eq(oauthStates.stateHash, hashToken(state)),
+      eq(oauthStates.browserBindingHash, hashToken(browserBinding)),
+      isNull(oauthStates.consumedAt),
+      gt(oauthStates.expiresAt, now)
+    ))
+    .returning({
+      plan: oauthStates.plan,
+      flow: oauthStates.flow
+    });
+
+  if (!consumed || (consumed.flow !== "web" && consumed.flow !== "web-app")) {
+    return null;
+  }
+
+  return {
+    plan: consumed.plan,
+    flow: consumed.flow
+  };
 }
 
-export function setSessionCookie(reply: FastifyReply, input: { userId: string; email: string }) {
-  const token = encodeSignedPayload({
-    userId: input.userId,
-    email: input.email,
-    exp: Math.floor(Date.now() / 1000) + SESSION_MAX_AGE_SECONDS
-  } satisfies SessionPayload);
+export async function setSessionCookie(
+  reply: FastifyReply,
+  input: { userId: string }
+) {
+  const { token } = await createSessionForUser(input.userId);
+  appendSetCookie(reply, `${SESSION_COOKIE}=${token}; ${cookieOptions(SESSION_MAX_AGE_SECONDS)}`);
+}
 
-  reply.header("Set-Cookie", `${SESSION_COOKIE}=${token}; ${cookieOptions(SESSION_MAX_AGE_SECONDS)}`);
+export async function createSessionForUser(userId: string) {
+  const token = createOpaqueToken();
+  const expiresAt = new Date(Date.now() + SESSION_MAX_AGE_SECONDS * 1000);
+  await db.insert(authSessions).values({
+    userId,
+    tokenHash: hashToken(token),
+    expiresAt
+  });
+  return { token, expiresAt };
 }
 
 export function clearSessionCookie(reply: FastifyReply) {
-  reply.header("Set-Cookie", `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+  appendSetCookie(reply, `${SESSION_COOKIE}=; ${cookieOptions(0)}`);
 }
 
-export function getSession(request: FastifyRequest) {
-  const payload = decodeSignedPayload<SessionPayload>(readCookie(request, SESSION_COOKIE));
-  if (!payload || payload.exp < Math.floor(Date.now() / 1000)) {
+export function clearOAuthBrowserCookie(reply: FastifyReply) {
+  appendSetCookie(reply, `${OAUTH_BROWSER_COOKIE}=; ${cookieOptions(0, "/auth/google")}`);
+}
+
+export async function getSession(request: FastifyRequest): Promise<AuthSession | null> {
+  const token = readCookie(request, SESSION_COOKIE);
+  if (!token) {
     return null;
   }
-  return payload;
+
+  const now = new Date();
+  const [session] = await db.select({
+    sessionId: authSessions.id,
+    userId: authSessions.userId,
+    email: users.email,
+    expiresAt: authSessions.expiresAt
+  })
+    .from(authSessions)
+    .innerJoin(users, eq(users.id, authSessions.userId))
+    .where(and(
+      eq(authSessions.tokenHash, hashToken(token)),
+      isNull(authSessions.revokedAt),
+      gt(authSessions.expiresAt, now)
+    ))
+    .limit(1);
+
+  return session || null;
+}
+
+export async function revokeCurrentSession(request: FastifyRequest) {
+  const token = readCookie(request, SESSION_COOKIE);
+  if (!token) {
+    return false;
+  }
+
+  const revoked = await db.update(authSessions)
+    .set({ revokedAt: new Date() })
+    .where(and(
+      eq(authSessions.tokenHash, hashToken(token)),
+      isNull(authSessions.revokedAt)
+    ))
+    .returning({ id: authSessions.id });
+
+  return revoked.length > 0;
+}
+
+export async function revokeAllSessionsForUser(userId: string) {
+  const revoked = await db.update(authSessions)
+    .set({ revokedAt: new Date() })
+    .where(and(
+      eq(authSessions.userId, userId),
+      isNull(authSessions.revokedAt)
+    ))
+    .returning({ id: authSessions.id });
+  return revoked.length;
+}
+
+export async function deleteExpiredAuthArtifacts(now = new Date()) {
+  const deletedSessions = await db.delete(authSessions)
+    .where(lt(authSessions.expiresAt, now))
+    .returning({ id: authSessions.id });
+  const deletedStates = await db.delete(oauthStates)
+    .where(lt(oauthStates.expiresAt, now))
+    .returning({ id: oauthStates.id });
+  return {
+    sessions: deletedSessions.length,
+    states: deletedStates.length
+  };
 }

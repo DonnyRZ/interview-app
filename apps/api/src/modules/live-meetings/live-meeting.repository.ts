@@ -3,10 +3,16 @@ import { and, desc, eq, isNull } from "drizzle-orm";
 import { db } from "../../db/client.js";
 import { liveMeetingSessions } from "../../db/schema/index.js";
 
-export async function listLiveMeetingSessions(userId: string, meetingContextId: string) {
+export async function listLiveMeetingSessions(
+  userId: string,
+  meetingContextId: string,
+  pagination = { limit: 50, offset: 0 }
+) {
   return db.query.liveMeetingSessions.findMany({
     where: and(eq(liveMeetingSessions.userId, userId), eq(liveMeetingSessions.meetingContextId, meetingContextId)),
-    orderBy: [desc(liveMeetingSessions.createdAt)]
+    orderBy: [desc(liveMeetingSessions.createdAt)],
+    limit: pagination.limit,
+    offset: pagination.offset
   });
 }
 

@@ -2,8 +2,6 @@ import type { CreateMeetingContextRequest, UpdateMeetingContextRequest } from "@
 import { preprocessMeetingContextResultSchema, type PreprocessMeetingContextResult } from "../ai/action-schemas.js";
 import { preprocessMeetingContextSpec } from "../ai/action-specs.js";
 import { runOpenAiJsonAction } from "../ai/action-runner.js";
-import { DEV_USER_ID } from "../dev/dev-user.js";
-import { ensureDevUser } from "../dev/dev-user.repository.js";
 import { findActiveProfileDocument, findProfileDocumentById } from "../profile-documents/profile-document.repository.js";
 import {
   createMeetingContext,
@@ -13,20 +11,16 @@ import {
   updateMeetingContext
 } from "./meeting-context.repository.js";
 
-export async function getMeetingContextsForDevUser() {
-  await ensureDevUser();
-  return listMeetingContexts(DEV_USER_ID);
+export async function getMeetingContextsForUser(userId: string, pagination?: { limit: number; offset: number }) {
+  return listMeetingContexts(userId, pagination);
 }
 
-export async function getMeetingContextForDevUser(meetingContextId: string) {
-  await ensureDevUser();
-  return findMeetingContextById(DEV_USER_ID, meetingContextId);
+export async function getMeetingContextForUser(userId: string, meetingContextId: string) {
+  return findMeetingContextById(userId, meetingContextId);
 }
 
-export async function createMeetingContextForDevUser(input: CreateMeetingContextRequest) {
-  await ensureDevUser();
-
-  const activeProfileDocument = await findActiveProfileDocument(DEV_USER_ID);
+export async function createMeetingContextForUser(userId: string, input: CreateMeetingContextRequest) {
+  const activeProfileDocument = await findActiveProfileDocument(userId);
   if (!activeProfileDocument) {
     throw new Error("Upload an active profile document before creating a meeting context.");
   }
@@ -35,20 +29,20 @@ export async function createMeetingContextForDevUser(input: CreateMeetingContext
   }
 
   const processedMeetingContext = await preprocessMeetingContext({
+    userId,
     ...input,
     profileDocumentReadyContext: activeProfileDocument.readyContext
   });
 
-  return createMeetingContext(DEV_USER_ID, activeProfileDocument.id, {
+  return createMeetingContext(userId, activeProfileDocument.id, {
     ...input,
     meetingSummaryJson: processedMeetingContext,
     meetingContextText: processedMeetingContext.result.contextText
   });
 }
 
-export async function updateMeetingContextForDevUser(meetingContextId: string, input: UpdateMeetingContextRequest) {
-  await ensureDevUser();
-  const existingMeetingContext = await findMeetingContextById(DEV_USER_ID, meetingContextId);
+export async function updateMeetingContextForUser(userId: string, meetingContextId: string, input: UpdateMeetingContextRequest) {
+  const existingMeetingContext = await findMeetingContextById(userId, meetingContextId);
   if (!existingMeetingContext) {
     return null;
   }
@@ -59,11 +53,11 @@ export async function updateMeetingContextForDevUser(meetingContextId: string, i
   const profileDocumentChanged = Object.prototype.hasOwnProperty.call(input, "profileDocumentId");
 
   if (!contentChanged && !profileDocumentChanged) {
-    return updateMeetingContext(DEV_USER_ID, meetingContextId, input);
+    return updateMeetingContext(userId, meetingContextId, input);
   }
 
   const nextProfileDocumentId = input.profileDocumentId ?? existingMeetingContext.profileDocumentId;
-  const linkedProfileDocument = await findProfileDocumentById(DEV_USER_ID, nextProfileDocumentId);
+  const linkedProfileDocument = await findProfileDocumentById(userId, nextProfileDocumentId);
   if (!linkedProfileDocument) {
     throw new Error("Meeting context profile document not found.");
   }
@@ -72,7 +66,7 @@ export async function updateMeetingContextForDevUser(meetingContextId: string, i
   }
 
   if (!contentChanged) {
-    return updateMeetingContext(DEV_USER_ID, meetingContextId, {
+    return updateMeetingContext(userId, meetingContextId, {
       ...input,
       profileDocumentId: linkedProfileDocument.id
     });
@@ -84,11 +78,12 @@ export async function updateMeetingContextForDevUser(meetingContextId: string, i
     meetingBrief: input.meetingBrief ?? existingMeetingContext.meetingBrief ?? undefined
   };
   const processedMeetingContext = await preprocessMeetingContext({
+    userId,
     ...nextMeetingContextInput,
     profileDocumentReadyContext: linkedProfileDocument.readyContext
   });
 
-  return updateMeetingContext(DEV_USER_ID, meetingContextId, {
+  return updateMeetingContext(userId, meetingContextId, {
     ...input,
     profileDocumentId: linkedProfileDocument.id,
     meetingSummaryJson: processedMeetingContext,
@@ -96,19 +91,20 @@ export async function updateMeetingContextForDevUser(meetingContextId: string, i
   });
 }
 
-export async function deleteMeetingContextForDevUser(meetingContextId: string) {
-  await ensureDevUser();
-  return deleteMeetingContext(DEV_USER_ID, meetingContextId);
+export async function deleteMeetingContextForUser(userId: string, meetingContextId: string) {
+  return deleteMeetingContext(userId, meetingContextId);
 }
 
 async function preprocessMeetingContext(
-  input: CreateMeetingContextRequest & { profileDocumentReadyContext?: string | null }
+  input: CreateMeetingContextRequest & { userId: string; profileDocumentReadyContext?: string | null }
 ): Promise<PreprocessMeetingContextResult> {
   try {
     const result = await runOpenAiJsonAction({
       spec: preprocessMeetingContextSpec,
       input,
-      outputSchema: preprocessMeetingContextResultSchema
+      outputSchema: preprocessMeetingContextResultSchema,
+      userId: input.userId,
+      usageCapability: "meeting_context_preprocessing"
     });
 
     return normalizeMeetingContextResult({
@@ -120,9 +116,44 @@ async function preprocessMeetingContext(
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown OpenAI meeting context preprocessing error";
-    console.warn(`[ai:fallback] preprocess_meeting_context failed: ${message}`);
-    return normalizeMeetingContextResult(buildFallbackMeetingContextResult(input, message));
+    console.warn(`[ai:evidence-fallback] preprocess_meeting_context failed: ${message}`);
+    return buildEvidenceOnlyMeetingContextFallback(input, message);
   }
+}
+
+function buildEvidenceOnlyMeetingContextFallback(
+  input: CreateMeetingContextRequest & { profileDocumentReadyContext?: string | null },
+  warning: string
+): PreprocessMeetingContextResult {
+  const providedBrief = input.meetingBrief?.replace(/\s+/g, " ").trim() || "";
+  const providedSummary = [input.contextName, input.meetingTopic, providedBrief].filter(Boolean).join(" — ");
+  return normalizeMeetingContextResult({
+    status: "partial",
+    result: {
+      meetingSummary: providedSummary,
+      keyCriteria: [],
+      responsibilities: [],
+      niceToHave: [],
+      domainProfile: {
+        primaryDomain: input.meetingTopic,
+        nicheDescription: providedBrief,
+        inScopeConcepts: [],
+        outOfScopeConcepts: [],
+        seedConcepts: [],
+        relevanceGuidance: ""
+      },
+      preparationThemes: [],
+      contextText: providedSummary
+    },
+    warnings: [`AI processing gagal; konteks ini hanya memakai input user: ${warning}`],
+    missingInputs: providedBrief ? [] : ["meetingBrief"],
+    confidence: "low",
+    evidence: [
+      { field: "contextName", source: "user_input", quote: input.contextName },
+      { field: "meetingTopic", source: "user_input", quote: input.meetingTopic },
+      ...(providedBrief ? [{ field: "meetingBrief", source: "user_input", quote: providedBrief }] : [])
+    ]
+  });
 }
 
 function normalizeMeetingContextResult(result: PreprocessMeetingContextResult): PreprocessMeetingContextResult {
@@ -147,71 +178,6 @@ function normalizeMeetingContextResult(result: PreprocessMeetingContextResult): 
       contextText: truncateText(result.result.contextText, 1400)
     }
   };
-}
-
-function buildFallbackMeetingContextResult(
-  input: CreateMeetingContextRequest & { profileDocumentReadyContext?: string | null },
-  warning: string
-): PreprocessMeetingContextResult {
-  const briefPreview = input.meetingBrief?.slice(0, 220) || "Belum ada brief meeting.";
-  const seedConcepts = extractFallbackConcepts(input.meetingBrief || input.meetingTopic);
-  return {
-    status: "partial",
-    result: {
-      meetingSummary: `${input.meetingTopic} - ${input.contextName}. Ringkasan brief: ${briefPreview}`,
-      keyCriteria: [],
-      responsibilities: input.meetingBrief ? extractFallbackConcepts(input.meetingBrief) : [],
-      niceToHave: [],
-      domainProfile: {
-        primaryDomain: input.meetingTopic,
-        nicheDescription: input.meetingBrief
-          ? `Profil konteks sementara dibuat dari brief singkat: ${briefPreview}`
-          : "Profil konteks belum kuat karena brief meeting belum tersedia.",
-        inScopeConcepts: seedConcepts,
-        outOfScopeConcepts: [],
-        seedConcepts,
-        relevanceGuidance: "Boundary relevansi runtime: topik sesi, brief meeting, dan konsep in-scope konteks ini."
-      },
-      preparationThemes: input.meetingBrief ? ["Klarifikasi tujuan utama sesi", "Hubungkan profil dengan kebutuhan meeting"] : [],
-      contextText: `Konteks sementara untuk ${input.meetingTopic} - ${input.contextName}. Domain/niche masih partial. ${briefPreview}`
-    },
-    warnings: [`OpenAI meeting context preprocessing fallback: ${warning}`],
-    missingInputs: input.meetingBrief ? [] : ["meetingBrief"],
-    confidence: "low",
-    evidence: []
-  };
-}
-
-function extractFallbackConcepts(sourceText?: string) {
-  const stopWords = new Set([
-    "dan",
-    "atau",
-    "yang",
-    "untuk",
-    "dengan",
-    "dalam",
-    "pada",
-    "sebagai",
-    "akan",
-    "the",
-    "and",
-    "for",
-    "with",
-    "from",
-    "role",
-    "job"
-  ]);
-  const source = sourceText || "";
-  const phraseCandidates = source
-    .split(/[.,;:\n\r()[\]{}]+/)
-    .map((item) => item.trim())
-    .filter((item) => item.length >= 4 && item.length <= 48);
-  const wordCandidates = source
-    .split(/[^A-Za-z0-9+#.-]+/)
-    .map((item) => item.trim())
-    .filter((item) => item.length >= 4 && !stopWords.has(item.toLowerCase()));
-
-  return compactList(Array.from(new Set([...phraseCandidates, ...wordCandidates])), 5, 42);
 }
 
 function compactList(items: string[], maxItems: number, maxCharacters: number) {
