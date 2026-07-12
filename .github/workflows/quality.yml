@@ -30,6 +30,7 @@ jobs:
       CORS_ALLOWED_ORIGINS: http://127.0.0.1:5174
       OPENAI_API_KEY: ci-not-a-real-key
       OPERATIONS_TOKEN: ci-operations-token-longer-than-twenty-four
+      LYNK_CHECKOUT_ORDER_REFERENCE_PARAM: merchant_order_id
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -39,8 +40,17 @@ jobs:
       - run: npm ci
       - run: npm run db:migrate
       - run: npm run typecheck
+      - run: npm run test:deployment
       - run: npm --workspace @interview-app/api run test:phase7
+      - run: npm --workspace @interview-app/api run test:data-integrity
+      - run: npm --workspace @interview-app/api run test:data-integrity-db
       - run: npm --workspace @interview-app/api run test:auth-payment
       - run: npm --workspace @interview-app/api run test:cost-safety
       - run: npm --workspace @interview-app/api run test:privacy
+      - run: npm --workspace @interview-app/api run test:meeting-response-router
+      - run: npm --workspace @interview-app/api run test:realtime-mvp
+      - run: npm --workspace @interview-app/web-app run test:realtime
+      - run: npm --workspace @interview-app/web-app run test:workspace
       - run: npm run build
+      - run: npm --workspace @interview-app/web-app run test:app-base
+      - run: npm audit --audit-level=high

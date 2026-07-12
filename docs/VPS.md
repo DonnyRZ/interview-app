@@ -93,12 +93,16 @@ Contoh perbedaan penting:
 ```env
 # Prod
 API_PORT=4000
-DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/orviko_prod
+DATABASE_URL=postgres://orviko_app:password-kuat@127.0.0.1:5432/orviko_prod
 FRONTEND_BASE_URL=https://orviko.net
+CORS_ALLOWED_ORIGINS=https://orviko.net,https://www.orviko.net
 GOOGLE_REDIRECT_URI=https://orviko.net/auth/google/callback
 PROFILE_DOCUMENT_STORAGE_DIR=/srv/orviko/prod/storage/profile-documents
 LYNK_PROFILE_URL=https://lynk.id/rizki-09
 LYNK_WEBHOOK_SECRET=isi_secret_webhook_production
+LYNK_CHECKOUT_ORDER_REFERENCE_PARAM=merchant_order_id
+LYNK_CHECKOUT_ORDER_REFERENCE_CONFIRMED=true
+LYNK_WEBHOOK_PROVIDER_AUTH_CONFIRMED=true
 ```
 
 ```env
@@ -111,6 +115,8 @@ GOOGLE_REDIRECT_URI=https://dev.orviko.net/auth/google/callback
 PROFILE_DOCUMENT_STORAGE_DIR=/srv/orviko/dev/storage/profile-documents
 LYNK_PROFILE_URL=https://lynk.id/rizki-09
 LYNK_WEBHOOK_SECRET=isi_secret_webhook_dev
+LYNK_CHECKOUT_ORDER_REFERENCE_PARAM=merchant_order_id
+LYNK_CHECKOUT_ORDER_REFERENCE_CONFIRMED=false
 ```
 
 Jika produk Lynk.id per paket sudah dibuat, tambahkan URL produk langsung:
@@ -122,6 +128,10 @@ LYNK_PRO_URL=https://lynk.id/rizki-09/...
 ```
 
 Jika URL paket belum diisi, checkout Orviko akan fallback ke `LYNK_PROFILE_URL`.
+
+Nama `LYNK_CHECKOUT_ORDER_REFERENCE_PARAM` harus mengikuti parameter yang Lynk benar-benar
+simpan dan kembalikan sebagai merchant/order reference pada webhook. Jangan set flag
+confirmation ke `true` hanya karena redirect berhasil; buktikan melalui transaksi dev nyata.
 
 Zero-price override tidak didukung. Environment development wajib memakai nominal
 catalog yang sama dengan production.
@@ -173,8 +183,20 @@ Service files:
 
 Nginx config:
 
-- Prod: `/etc/nginx/sites-available/orviko.net`
-- Dev: `/etc/nginx/sites-available/dev.orviko.net`
+- Source prod: `ops/nginx/orviko.net.conf`
+- Source dev: `ops/nginx/dev.orviko.net.conf`
+- Active prod: `/etc/nginx/sites-available/orviko.net`
+- Active dev: `/etc/nginx/sites-available/dev.orviko.net`
+
+Konfigurasi versioned sudah memuat redirect HTTP, listener TLS, dan certificate path
+Certbot untuk domain masing-masing. Certificate harus sudah tersedia sebelum file diaktifkan.
+
+```bash
+sudo install -m 0644 ops/nginx/orviko.net.conf /etc/nginx/sites-available/orviko.net
+sudo install -m 0644 ops/nginx/dev.orviko.net.conf /etc/nginx/sites-available/dev.orviko.net
+sudo nginx -t
+sudo systemctl reload nginx
+```
 
 Enabled symlinks:
 
@@ -220,15 +242,13 @@ index index.html;
 location ^~ /app/assets/ {
   alias /srv/orviko/prod/app/apps/web-app/dist/assets/;
   access_log off;
-  add_header Cache-Control "public, max-age=31536000, immutable";
-  try_files $uri =404;
+  expires 1y;
 }
 
 location ^~ /app/audio/ {
   alias /srv/orviko/prod/app/apps/web-app/dist/audio/;
   access_log off;
-  add_header Cache-Control "public, max-age=86400";
-  try_files $uri =404;
+  expires 1d;
 }
 
 location ^~ /app/ {

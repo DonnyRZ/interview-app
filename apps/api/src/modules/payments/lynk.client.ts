@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { env } from "../../env.js";
 import type { PlanSlug } from "./plan-catalog.js";
+import type { PaymentEventType } from "./payment-provider.js";
 
 type LynkWebhookPayload = Record<string, unknown>;
 
@@ -173,6 +174,17 @@ export function getLynkCheckoutUrl(plan: PlanSlug) {
   return planUrls[plan] || env.LYNK_PROFILE_URL;
 }
 
+export function buildLynkCheckoutUrl(baseUrl: string, providerOrderId: string) {
+  const referenceParam = env.LYNK_CHECKOUT_ORDER_REFERENCE_PARAM?.trim();
+  if (!referenceParam) {
+    throw new Error("Konfigurasi reference checkout Lynk belum lengkap.");
+  }
+
+  const checkoutUrl = new URL(baseUrl);
+  checkoutUrl.searchParams.set(referenceParam, providerOrderId);
+  return checkoutUrl.toString();
+}
+
 export function verifyLynkWebhookSecret(headerSecret: unknown) {
   if (!env.LYNK_WEBHOOK_SECRET) {
     return false;
@@ -274,7 +286,7 @@ export function parseLynkWebhook(payload: LynkWebhookPayload) {
   ]));
   const isSuccess = isSuccessfulWebhookStatus(eventName, status);
   const statusTokens = tokenizeStatusText(eventName, status);
-  const eventType = statusTokens.includes("chargeback")
+  const eventType: PaymentEventType | "unknown" = statusTokens.includes("chargeback")
     ? "chargeback"
     : statusTokens.some((token) => token === "refund" || token === "refunded")
       ? "refunded"

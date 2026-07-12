@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { buildApp } from "../src/app.js";
 import { env, parseBooleanEnv } from "../src/env.js";
-import { parseLynkWebhook } from "../src/modules/payments/lynk.client.js";
+import { buildLynkCheckoutUrl, parseLynkWebhook } from "../src/modules/payments/lynk.client.js";
 import { planCatalog } from "../src/modules/payments/plan-catalog.js";
 
 async function run() {
@@ -13,6 +13,16 @@ async function run() {
   assert.equal(parseBooleanEnv(undefined), false);
   assert.equal(parseBooleanEnv("true"), true);
   assert.equal(parseBooleanEnv(true), true);
+
+  const originalReferenceParam = env.LYNK_CHECKOUT_ORDER_REFERENCE_PARAM;
+  env.LYNK_CHECKOUT_ORDER_REFERENCE_PARAM = "merchant_order_id";
+  const checkoutUrl = new URL(buildLynkCheckoutUrl(
+    "https://lynk.id/orviko/starter?affiliate=partner",
+    "ORVIKO-STARTER-TEST"
+  ));
+  assert.equal(checkoutUrl.searchParams.get("affiliate"), "partner");
+  assert.equal(checkoutUrl.searchParams.get("merchant_order_id"), "ORVIKO-STARTER-TEST");
+  env.LYNK_CHECKOUT_ORDER_REFERENCE_PARAM = originalReferenceParam;
 
   const lynkPayload = parseLynkWebhook({
     event_id: "EVENT-TEST-1",
@@ -266,6 +276,13 @@ async function run() {
       url: "/auth/me"
     });
     assert.equal(meResponse.statusCode, 401);
+
+    const genericCheckoutWithoutSession = await app.inject({
+      method: "POST",
+      url: "/payments/create",
+      payload: { plan: "starter" }
+    });
+    assert.equal(genericCheckoutWithoutSession.statusCode, 401);
 
     const removedDevelopmentBypassResponse = await app.inject({
       method: "GET",

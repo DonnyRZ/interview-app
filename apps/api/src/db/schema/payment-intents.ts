@@ -8,6 +8,7 @@ export const paymentIntents = pgTable("payment_intents", {
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   provider: text("provider").notNull().default("lynk"),
   providerOrderId: text("provider_order_id").notNull(),
+  providerPaymentId: text("provider_payment_id"),
   providerProductId: text("provider_product_id").notNull(),
   plan: text("plan").notNull(),
   amount: integer("amount").notNull(),
@@ -24,7 +25,13 @@ export const paymentIntents = pgTable("payment_intents", {
   publicIdUnique: uniqueIndex("payment_intents_public_id_unique_idx").on(table.publicId),
   providerOrderUnique: uniqueIndex("payment_intents_provider_order_unique_idx")
     .on(table.provider, table.providerOrderId),
+  providerPaymentUnique: uniqueIndex("payment_intents_provider_payment_unique_idx")
+    .on(table.provider, table.providerPaymentId)
+    .where(sql`${table.providerPaymentId} is not null`),
   userCreatedIndex: index("payment_intents_user_created_idx").on(table.userId, table.createdAt),
+  pendingExpiryIndex: index("payment_intents_pending_expiry_idx")
+    .on(table.expiresAt)
+    .where(sql`${table.status} = 'pending'`),
   planCheck: check("payment_intents_plan_check", sql`${table.plan} in ('mini', 'starter', 'pro')`),
   amountCheck: check("payment_intents_amount_check", sql`${table.amount} >= 0`),
   currencyCheck: check("payment_intents_currency_check", sql`${table.currency} = upper(${table.currency}) and char_length(${table.currency}) = 3`),
