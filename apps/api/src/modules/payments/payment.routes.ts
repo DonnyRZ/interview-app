@@ -1,9 +1,10 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { getSession } from "../auth/session.js";
 import { verifyLynkWebhookSecret } from "./lynk.client.js";
 import {
   createLynkCheckoutForUser,
+  createPaymentCheckoutForUser,
   getPaymentForUser,
   handleLynkWebhook
 } from "./payment.service.js";
@@ -74,7 +75,10 @@ function mapLynkWebhookLog(result: Awaited<ReturnType<typeof handleLynkWebhook>>
 }
 
 export async function registerPaymentRoutes(app: FastifyInstance) {
-  app.post("/lynk/create", async (request, reply) => {
+  const createCheckout = (create: typeof createPaymentCheckoutForUser) => async (
+    request: FastifyRequest,
+    reply: FastifyReply
+  ) => {
     const session = await getSession(request);
     if (!session) {
       return reply.code(401).send({ message: "Login diperlukan." });
@@ -86,16 +90,19 @@ export async function registerPaymentRoutes(app: FastifyInstance) {
     }
 
     try {
-      const payment = await createLynkCheckoutForUser({
+      const payment = await create({
         userId: session.userId,
         plan: body.data.plan
       });
       return reply.code(201).send(mapPayment(payment));
     } catch (error) {
-      const message = safeClientError(error, "Gagal membuat checkout Lynk.");
+      const message = safeClientError(error, "Gagal membuat checkout payment.");
       return reply.code(400).send({ message });
     }
-  });
+  };
+
+  app.post("/create", createCheckout(createPaymentCheckoutForUser));
+  app.post("/lynk/create", createCheckout(createLynkCheckoutForUser));
 
   app.post("/lynk/webhook", async (request, reply) => {
     if (!verifyLynkWebhookSecret(request.headers["x-orviko-lynk-webhook-secret"])) {

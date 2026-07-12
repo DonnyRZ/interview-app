@@ -16,3 +16,11 @@ Uji end-to-end harus memakai produk dengan nominal catalog yang sebenarnya.
 
 Production tetap NO-GO sampai Lynk mengonfirmasi mekanisme autentikasi webhook dan
 checkout nyata terbukti mengembalikan provider order reference yang dibuat Orviko.
+
+Setelah bukti tersebut ada, konfigurasi environment menggunakan:
+
+- `LYNK_CHECKOUT_ORDER_REFERENCE_PARAM=<nama parameter Lynk>`;
+- `LYNK_CHECKOUT_ORDER_REFERENCE_CONFIRMED=true`;
+- `LYNK_WEBHOOK_PROVIDER_AUTH_CONFIRMED=true`.
+
+Kedua flag confirmation merupakan release gate operator, bukan pengganti transaksi uji nyata.

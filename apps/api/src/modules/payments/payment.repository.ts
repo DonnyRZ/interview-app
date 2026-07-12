@@ -2,10 +2,12 @@ import { and, eq, lt } from "drizzle-orm";
 import { db } from "../../db/client.js";
 import { paymentIntents } from "../../db/schema/index.js";
 import type { PlanSlug } from "./plan-catalog.js";
+import { assertPaymentProviderId } from "./payment-provider.js";
 
 export async function createPaymentIntent(input: {
   publicId: string;
   userId: string;
+  provider: string;
   providerOrderId: string;
   providerProductId: string;
   plan: PlanSlug;
@@ -15,9 +17,9 @@ export async function createPaymentIntent(input: {
   checkoutUrl: string;
   expiresAt: Date;
 }) {
+  assertPaymentProviderId(input.provider);
   const [intent] = await db.insert(paymentIntents).values({
     ...input,
-    provider: "lynk",
     status: "pending"
   }).returning();
 

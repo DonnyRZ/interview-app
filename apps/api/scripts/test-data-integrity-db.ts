@@ -57,7 +57,7 @@ const { createPaymentIntent, createPayment } = await import("../src/modules/paym
   createPaymentIntent: typeof import("../src/modules/payments/payment.repository.js").createPaymentIntent;
   createPayment?: (...args: never[]) => Promise<never>;
 };
-const { handleLynkWebhook } = await import("../src/modules/payments/payment.service.js");
+const { handleLynkWebhook, handleVerifiedPaymentEvent } = await import("../src/modules/payments/payment.service.js");
 const {
   createMeetingContextForUser,
   deleteMeetingContextForUser,
@@ -94,6 +94,8 @@ try {
     await simulateDevServiceGuards();
   }
   await simulateSubscriptionQuotaLimits();
+  await simulateOldRefundDoesNotRevokeRenewal();
+  await simulateProviderNeutralPayment();
   await simulateAuthLifecycle();
   await simulateGoogleAccountLinking();
   console.log(`Data integrity DB simulations passed (${simulationIterations} iterations).`);
@@ -478,6 +480,7 @@ async function simulateLynkWebhookReusesPendingPayment() {
   const intent = await createPaymentIntent({
     publicId: `pay_${randomUUID().replaceAll("-", "")}`,
     userId,
+    provider: "lynk",
     providerOrderId: orderId,
     providerProductId: productId,
     plan: "starter",
@@ -533,6 +536,11 @@ async function simulateLynkWebhookReusesPendingPayment() {
     event_id: `EVENT-${randomUUID()}`,
     customer: { email: "attacker@example.com", name: "Attacker" }
   })).processed, false);
+  assert.equal((await handleLynkWebhook({
+    ...paidPayload,
+    event_id: `EVENT-${randomUUID()}`,
+    trx_id: `LYNK-DIFFERENT-${randomUUID()}`
+  })).processed, false);
 
   const refund = await handleLynkWebhook({
     ...paidPayload,
@@ -562,8 +570,118 @@ async function simulateLynkWebhookReusesPendingPayment() {
   const events = await db.query.paymentEvents.findMany({
     where: eq(paymentEvents.paymentIntentId, intent.id)
   });
-  assert.equal(events.length, 7);
+  assert.equal(events.length, 8);
   assert.ok(events.every((event) => !JSON.stringify(event.sanitizedPayload).includes(userEmail)));
+}
+
+async function simulateOldRefundDoesNotRevokeRenewal() {
+  const userId = await createTempUser("refund-renewal");
+  const userEmail = buildTempUserEmail("refund-renewal", userId);
+
+  const pay = async (plan: "mini" | "pro", amount: number, productId: string) => {
+    const orderId = `ORVIKO-${plan.toUpperCase()}-${randomUUID()}`;
+    const intent = await createPaymentIntent({
+      publicId: `pay_${randomUUID().replaceAll("-", "")}`,
+      userId,
+      provider: "lynk",
+      providerOrderId: orderId,
+      providerProductId: productId,
+      plan,
+      amount,
+      currency: "IDR",
+      customerEmail: userEmail,
+      checkoutUrl: `https://lynk.id/test-${plan}`,
+      expiresAt: new Date(Date.now() + 60_000)
+    });
+    const payload = {
+      event_id: `EVENT-${randomUUID()}`,
+      event_name: "payment.paid",
+      status: "paid",
+      trx_id: `LYNK-${randomUUID()}`,
+      merchant_order_id: orderId,
+      customer: { email: userEmail, name: "Renewal Test" },
+      product: { id: productId, name: `Orviko ${plan}` },
+      total_amount: amount,
+      currency: "IDR"
+    };
+    assert.equal((await handleLynkWebhook(payload)).processed, true);
+    return { intent, payload };
+  };
+
+  const first = await pay("mini", 29_000, "lynk-mini-production");
+  const renewal = await pay("pro", 359_000, "lynk-pro-production");
+  const renewalRefund = await handleLynkWebhook({
+    ...renewal.payload,
+    event_id: `EVENT-${randomUUID()}`,
+    event_name: "payment.refunded",
+    status: "refunded"
+  });
+  assert.equal(renewalRefund.processed, true);
+
+  const restoredSubscription = await db.query.subscriptions.findFirst({
+    where: and(eq(subscriptions.userId, userId), eq(subscriptions.status, "active"))
+  });
+  assert.equal(restoredSubscription?.sourcePaymentIntentId, first.intent.id);
+  assert.equal(restoredSubscription?.plan, "mini");
+
+  const replacement = await pay("pro", 359_000, "lynk-pro-production");
+  const oldRefund = await handleLynkWebhook({
+    ...first.payload,
+    event_id: `EVENT-${randomUUID()}`,
+    event_name: "payment.refunded",
+    status: "refunded"
+  });
+  assert.equal(oldRefund.processed, true);
+
+  const activeSubscription = await db.query.subscriptions.findFirst({
+    where: and(eq(subscriptions.userId, userId), eq(subscriptions.status, "active"))
+  });
+  assert.equal(activeSubscription?.sourcePaymentIntentId, replacement.intent.id);
+  assert.equal(activeSubscription?.plan, "pro");
+  assert.equal((await db.query.users.findFirst({
+    where: eq(users.id, userId)
+  }))?.subscriptionPlan, "pro");
+}
+
+async function simulateProviderNeutralPayment() {
+  const userId = await createTempUser("provider-neutral");
+  const userEmail = buildTempUserEmail("provider-neutral", userId);
+  const providerOrderId = `GATEWAY-${randomUUID()}`;
+  const providerPaymentId = `GATEWAY-PAY-${randomUUID()}`;
+  const intent = await createPaymentIntent({
+    publicId: `pay_${randomUUID().replaceAll("-", "")}`,
+    userId,
+    provider: "gateway_test",
+    providerOrderId,
+    providerProductId: "gateway-starter",
+    plan: "starter",
+    amount: 98_000,
+    currency: "IDR",
+    customerEmail: userEmail,
+    checkoutUrl: "https://gateway.example/checkout/test",
+    expiresAt: new Date(Date.now() + 60_000)
+  });
+
+  const result = await handleVerifiedPaymentEvent({
+    provider: "gateway_test",
+    providerEventId: `GATEWAY-EVENT-${randomUUID()}`,
+    providerPaymentId,
+    providerOrderId,
+    eventType: "paid",
+    amount: 98_000,
+    currency: "IDR",
+    sanitizedPayload: { status: "paid" }
+  }, { event: "payment.paid" });
+
+  assert.equal(result.processed, true);
+  const storedIntent = await db.query.paymentIntents.findFirst({
+    where: eq(paymentIntents.id, intent.id)
+  });
+  assert.equal(storedIntent?.status, "paid");
+  assert.equal(storedIntent?.providerPaymentId, providerPaymentId);
+  assert.equal((await db.query.users.findFirst({
+    where: eq(users.id, userId)
+  }))?.subscriptionPlan, "starter");
 }
 
 async function legacySimulateLynkWebhookReusesPendingPayment() {

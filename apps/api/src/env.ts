@@ -41,6 +41,8 @@ const envSchema = z.object({
   LYNK_MINI_PRODUCT_ID: z.string().min(1).optional(),
   LYNK_STARTER_PRODUCT_ID: z.string().min(1).optional(),
   LYNK_PRO_PRODUCT_ID: z.string().min(1).optional(),
+  LYNK_CHECKOUT_ORDER_REFERENCE_PARAM: z.string().regex(/^[A-Za-z][A-Za-z0-9_.-]{0,63}$/).optional(),
+  LYNK_CHECKOUT_ORDER_REFERENCE_CONFIRMED: z.preprocess(parseBooleanEnv, z.boolean()).default(false),
   LYNK_WEBHOOK_SECRET: z.string().optional(),
   LYNK_WEBHOOK_PROVIDER_AUTH_CONFIRMED: z.preprocess(parseBooleanEnv, z.boolean()).default(false),
   PAYMENT_INTENT_TTL_MINUTES: z.coerce.number().int().min(5).max(1440).default(60),
@@ -87,18 +89,37 @@ const requiredProductionKeys = [
   "LYNK_MINI_PRODUCT_ID",
   "LYNK_STARTER_PRODUCT_ID",
   "LYNK_PRO_PRODUCT_ID",
+  "LYNK_CHECKOUT_ORDER_REFERENCE_PARAM",
   "OPENAI_API_KEY",
   "OPERATIONS_TOKEN"
 ] as const;
 
 if (parsedEnv.NODE_ENV === "production") {
+  const frontendUrl = new URL(parsedEnv.FRONTEND_BASE_URL);
+  const googleRedirectUrl = parsedEnv.GOOGLE_REDIRECT_URI
+    ? new URL(parsedEnv.GOOGLE_REDIRECT_URI)
+    : null;
+  const configuredCorsOrigins = new Set(parsedEnv.CORS_ALLOWED_ORIGINS
+    .split(",")
+    .map((origin) => origin.trim().replace(/\/$/, ""))
+    .filter(Boolean));
   const missingKeys = requiredProductionKeys.filter((key) => !process.env[key]);
   const unsafeDefaults = [
     parsedEnv.DATABASE_URL.includes("/orviko_dev") ? "DATABASE_URL" : "",
     parsedEnv.FRONTEND_BASE_URL.includes("127.0.0.1") || parsedEnv.FRONTEND_BASE_URL.includes("localhost") ? "FRONTEND_BASE_URL" : "",
     parsedEnv.SESSION_SECRET === "orviko-dev-session-secret-change-me" ? "SESSION_SECRET" : "",
     !parsedEnv.LYNK_WEBHOOK_PROVIDER_AUTH_CONFIRMED ? "LYNK_WEBHOOK_PROVIDER_AUTH_CONFIRMED" : "",
-    /^postgres(?:ql)?:\/\/postgres:/i.test(parsedEnv.DATABASE_URL) ? "DATABASE_URL_APP_ROLE" : ""
+    !parsedEnv.LYNK_CHECKOUT_ORDER_REFERENCE_CONFIRMED ? "LYNK_CHECKOUT_ORDER_REFERENCE_CONFIRMED" : "",
+    /^postgres(?:ql)?:\/\/postgres:/i.test(parsedEnv.DATABASE_URL) ? "DATABASE_URL_APP_ROLE" : "",
+    frontendUrl.protocol !== "https:" || !["orviko.net", "www.orviko.net"].includes(frontendUrl.hostname)
+      ? "FRONTEND_BASE_URL_PRODUCTION_DOMAIN"
+      : "",
+    !configuredCorsOrigins.has(frontendUrl.origin) ? "CORS_FRONTEND_ORIGIN" : "",
+    !googleRedirectUrl
+      || googleRedirectUrl.origin !== frontendUrl.origin
+      || googleRedirectUrl.pathname !== "/auth/google/callback"
+      ? "GOOGLE_REDIRECT_URI_ORIGIN"
+      : ""
   ].filter(Boolean);
 
   const invalidKeys = Array.from(new Set([...missingKeys, ...unsafeDefaults]));

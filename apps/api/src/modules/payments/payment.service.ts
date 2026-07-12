@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, ne } from "drizzle-orm";
 import { db } from "../../db/client.js";
 import {
   paymentEvents,
@@ -10,7 +10,7 @@ import {
 } from "../../db/schema/index.js";
 import { env } from "../../env.js";
 import { findUserById } from "../auth/auth.service.js";
-import { parseLynkWebhook } from "./lynk.client.js";
+import { buildLynkCheckoutUrl, parseLynkWebhook } from "./lynk.client.js";
 import {
   createPaymentIntent,
   expirePendingPaymentIntents,
@@ -22,6 +22,10 @@ import {
   requireCheckoutReadyPlan,
   type PlanSlug
 } from "./plan-catalog.js";
+import {
+  assertPaymentProviderId,
+  type VerifiedPaymentProviderEvent
+} from "./payment-provider.js";
 
 function buildOrderId(plan: PlanSlug) {
   return `ORVIKO-${plan.toUpperCase()}-${randomUUID().replaceAll("-", "").slice(0, 20).toUpperCase()}`;
@@ -52,17 +56,19 @@ export async function createLynkCheckoutForUser(input: { userId: string; plan: s
   const plan = parsedPlan.data;
   const catalogItem = requireCheckoutReadyPlan(plan);
   const now = new Date();
+  const providerOrderId = buildOrderId(plan);
 
   return createPaymentIntent({
     publicId: buildPublicId(),
     userId: input.userId,
-    providerOrderId: buildOrderId(plan),
+    provider: "lynk",
+    providerOrderId,
     providerProductId: catalogItem.providerProductId,
     plan,
     amount: catalogItem.grossAmount,
     currency: catalogItem.currency,
     customerEmail: user.email,
-    checkoutUrl: catalogItem.checkoutUrl,
+    checkoutUrl: buildLynkCheckoutUrl(catalogItem.checkoutUrl, providerOrderId),
     expiresAt: new Date(now.getTime() + env.PAYMENT_INTENT_TTL_MINUTES * 60_000)
   });
 }
@@ -76,7 +82,7 @@ function payloadDigest(payload: Record<string, unknown>) {
   return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
 }
 
-function safeEventPayload(parsed: ReturnType<typeof parseLynkWebhook>) {
+function safeLynkEventPayload(parsed: ReturnType<typeof parseLynkWebhook>) {
   return {
     eventName: parsed.eventName,
     status: parsed.status,
@@ -111,26 +117,64 @@ export async function handleLynkWebhook(payload: Record<string, unknown>) {
     return invalid("Webhook tidak memiliki amount dan currency yang lengkap.");
   }
 
+  return handleVerifiedPaymentEvent({
+    provider: "lynk",
+    providerEventId: parsed.providerEventId,
+    providerPaymentId: parsed.transactionId,
+    providerOrderId: parsed.providerOrderId,
+    providerProductId: parsed.productId,
+    customerEmail: parsed.customerEmail,
+    eventType: parsed.eventType,
+    amount: parsed.amount,
+    currency: parsed.currency,
+    sanitizedPayload: safeLynkEventPayload(parsed)
+  }, payload);
+}
+
+/** Canonical checkout entry point. The active provider adapter is Lynk during the MVP. */
+export async function createPaymentCheckoutForUser(input: { userId: string; plan: string }) {
+  return createLynkCheckoutForUser(input);
+}
+
+export async function handleVerifiedPaymentEvent(
+  providerEvent: VerifiedPaymentProviderEvent,
+  rawPayload: Record<string, unknown>
+) {
+  assertPaymentProviderId(providerEvent.provider);
+  if (
+    !providerEvent.providerEventId
+    || !providerEvent.providerPaymentId
+    || !providerEvent.providerOrderId
+  ) {
+    return invalid("Event payment tidak memiliki identifier provider yang lengkap.");
+  }
+  if (!Number.isSafeInteger(providerEvent.amount) || providerEvent.amount < 0) {
+    return invalid("Event payment memiliki amount yang tidak valid.");
+  }
+  if (!/^[A-Z]{3}$/.test(providerEvent.currency)) {
+    return invalid("Event payment memiliki currency yang tidak valid.");
+  }
+
   return db.transaction(async (tx) => {
     const [intent] = await tx.select()
       .from(paymentIntents)
       .where(and(
-        eq(paymentIntents.provider, "lynk"),
-        eq(paymentIntents.providerOrderId, parsed.providerOrderId)
+        eq(paymentIntents.provider, providerEvent.provider),
+        eq(paymentIntents.providerOrderId, providerEvent.providerOrderId)
       ))
       .limit(1)
       .for("update");
 
     const [event] = await tx.insert(paymentEvents).values({
       paymentIntentId: intent?.id || null,
-      provider: "lynk",
-      providerEventId: parsed.providerEventId,
-      providerTransactionId: parsed.transactionId,
-      eventType: parsed.eventType,
+      provider: providerEvent.provider,
+      providerEventId: providerEvent.providerEventId,
+      providerTransactionId: providerEvent.providerPaymentId,
+      eventType: providerEvent.eventType,
       verificationStatus: "verified",
       processingStatus: "received",
-      payloadDigest: payloadDigest(payload),
-      sanitizedPayload: safeEventPayload(parsed)
+      payloadDigest: payloadDigest(rawPayload),
+      sanitizedPayload: providerEvent.sanitizedPayload
     }).onConflictDoNothing().returning();
 
     if (!event) {
@@ -154,13 +198,30 @@ export async function handleLynkWebhook(payload: Record<string, unknown>) {
       return rejectEvent("Payment intent untuk provider order tidak ditemukan.");
     }
     if (
-      intent.providerProductId !== parsed.productId
-      || intent.amount !== parsed.amount
-      || intent.currency !== parsed.currency
-      || intent.customerEmail.toLowerCase() !== parsed.customerEmail
+      (providerEvent.providerProductId !== undefined && intent.providerProductId !== providerEvent.providerProductId)
+      || intent.amount !== providerEvent.amount
+      || intent.currency !== providerEvent.currency
+      || (providerEvent.customerEmail !== undefined
+        && intent.customerEmail.toLowerCase() !== providerEvent.customerEmail.toLowerCase())
     ) {
       return rejectEvent("Product, amount, atau currency tidak cocok dengan payment intent.");
     }
+    if (intent.providerPaymentId && intent.providerPaymentId !== providerEvent.providerPaymentId) {
+      return rejectEvent("Provider payment id tidak cocok dengan payment intent.");
+    }
+    if (!intent.providerPaymentId) {
+      await tx.update(paymentIntents).set({
+        providerPaymentId: providerEvent.providerPaymentId,
+        updatedAt: new Date()
+      }).where(eq(paymentIntents.id, intent.id));
+    }
+
+    // Serialize all entitlement changes for one user, including different payment intents.
+    await tx.select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, intent.userId))
+      .limit(1)
+      .for("update");
 
     const now = new Date();
     if (intent.expiresAt <= now && intent.status === "pending") {
@@ -172,7 +233,7 @@ export async function handleLynkWebhook(payload: Record<string, unknown>) {
       return rejectEvent("Payment intent sudah kedaluwarsa.");
     }
 
-    if (parsed.eventType === "paid") {
+    if (providerEvent.eventType === "paid") {
       if (intent.status === "paid") {
         await tx.update(paymentEvents).set({
           processingStatus: "processed",
@@ -244,29 +305,79 @@ export async function handleLynkWebhook(payload: Record<string, unknown>) {
         subscriptionExpiresAt: periodEnd,
         updatedAt: now
       }).where(eq(users.id, intent.userId));
-    } else if (parsed.eventType === "refunded" || parsed.eventType === "chargeback") {
+    } else if (providerEvent.eventType === "refunded" || providerEvent.eventType === "chargeback") {
+      const canReverse = intent.status === "paid"
+        || (providerEvent.eventType === "chargeback" && intent.status === "refunded");
+      if (!canReverse) {
+        return rejectEvent(`Payment intent berstatus ${intent.status} dan tidak dapat ${providerEvent.eventType}.`);
+      }
       await tx.update(paymentIntents).set({
-        status: parsed.eventType,
+        status: providerEvent.eventType,
         failedAt: now,
         updatedAt: now
       }).where(eq(paymentIntents.id, intent.id));
-      await tx.update(subscriptions).set({
-        status: parsed.eventType,
-        revokedAt: now,
-        revokeReason: parsed.eventType,
-        updatedAt: now
-      }).where(and(eq(subscriptions.userId, intent.userId), eq(subscriptions.status, "active")));
-      await tx.update(subscriptionPeriods).set({ status: parsed.eventType })
-        .where(and(eq(subscriptionPeriods.userId, intent.userId), eq(subscriptionPeriods.status, "active")));
-      await tx.update(users).set({
-        subscriptionPlan: "free",
-        subscriptionPeriodStartedAt: null,
-        subscriptionExpiresAt: null,
-        updatedAt: now
-      }).where(eq(users.id, intent.userId));
+      const [currentSubscription] = await tx.select()
+        .from(subscriptions)
+        .where(and(
+          eq(subscriptions.userId, intent.userId),
+          eq(subscriptions.sourcePaymentIntentId, intent.id),
+          eq(subscriptions.status, "active")
+        )).limit(1);
+      await tx.update(subscriptionPeriods).set({ status: providerEvent.eventType })
+        .where(eq(subscriptionPeriods.paymentIntentId, intent.id));
+
+      if (currentSubscription) {
+        const [fallbackPeriod] = await tx.select()
+          .from(subscriptionPeriods)
+          .where(and(
+            eq(subscriptionPeriods.userId, intent.userId),
+            inArray(subscriptionPeriods.status, ["active", "completed"]),
+            gt(subscriptionPeriods.periodEndsAt, now),
+            ne(subscriptionPeriods.paymentIntentId, intent.id)
+          ))
+          .orderBy(desc(subscriptionPeriods.periodEndsAt))
+          .limit(1);
+
+        if (fallbackPeriod) {
+          await tx.update(subscriptionPeriods).set({ status: "active" })
+            .where(eq(subscriptionPeriods.id, fallbackPeriod.id));
+          await tx.update(subscriptions).set({
+            plan: fallbackPeriod.plan,
+            status: "active",
+            sourcePaymentIntentId: fallbackPeriod.paymentIntentId,
+            currentPeriodStartedAt: fallbackPeriod.periodStartedAt,
+            currentPeriodEndsAt: fallbackPeriod.periodEndsAt,
+            revokedAt: null,
+            revokeReason: "",
+            updatedAt: now
+          }).where(eq(subscriptions.id, currentSubscription.id));
+          await tx.update(users).set({
+            subscriptionPlan: fallbackPeriod.plan,
+            subscriptionPeriodStartedAt: fallbackPeriod.periodStartedAt,
+            subscriptionExpiresAt: fallbackPeriod.periodEndsAt,
+            updatedAt: now
+          }).where(eq(users.id, intent.userId));
+        } else {
+          await tx.update(subscriptions).set({
+            status: providerEvent.eventType,
+            revokedAt: now,
+            revokeReason: providerEvent.eventType,
+            updatedAt: now
+          }).where(eq(subscriptions.id, currentSubscription.id));
+          await tx.update(users).set({
+            subscriptionPlan: "free",
+            subscriptionPeriodStartedAt: null,
+            subscriptionExpiresAt: null,
+            updatedAt: now
+          }).where(eq(users.id, intent.userId));
+        }
+      }
     } else {
+      if (intent.status !== "pending") {
+        return rejectEvent(`Payment intent berstatus ${intent.status} tidak menerima event ${providerEvent.eventType}.`);
+      }
       await tx.update(paymentIntents).set({
-        status: parsed.eventType,
+        status: providerEvent.eventType,
         failedAt: now,
         updatedAt: now
       }).where(eq(paymentIntents.id, intent.id));
@@ -280,9 +391,9 @@ export async function handleLynkWebhook(payload: Record<string, unknown>) {
     return {
       processed: true as const,
       duplicate: false,
-      reason: `Payment event ${parsed.eventType} berhasil diproses.`,
+      reason: `Payment event ${providerEvent.eventType} berhasil diproses.`,
       paymentPublicId: intent.publicId,
-      eventType: parsed.eventType
+      eventType: providerEvent.eventType
     };
   });
 }

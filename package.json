@@ -17,7 +17,8 @@
     "build": "npm --workspace @interview-app/shared run build && npm --workspace @interview-app/api run build && npm --workspace @interview-app/web run build && npm --workspace @interview-app/web-app run build",
     "typecheck": "npm --workspace @interview-app/shared run build && npm --workspace @interview-app/api run typecheck && npm --workspace @interview-app/web-app run typecheck",
     "db:migrate": "npm --workspace @interview-app/api run db:migrate",
-    "db:seed:dev": "npm --workspace @interview-app/api run db:seed:dev"
+    "db:seed:dev": "npm --workspace @interview-app/api run db:seed:dev",
+    "test:deployment": "tsx ops/test-deployment-contracts.ts"
   },
   "packageManager": "npm@11.11.0",
   "devDependencies": {

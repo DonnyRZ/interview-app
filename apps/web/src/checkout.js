@@ -16,7 +16,7 @@ const planCatalog = {
   pro: {
     name: "Pro",
     priceLabel: "Rp359rb",
-    description: "Sesi live tak terbatas untuk penggunaan intensif."
+    description: "Fair-use hingga 60 sesi live dalam satu periode."
   }
 };
 
@@ -209,7 +209,7 @@ async function initCheckout() {
         statusText.classList.remove("error");
       }
 
-      const payment = await fetchJson("/payments/lynk/create", {
+      const payment = await fetchJson("/payments/create", {
         method: "POST",
         body: JSON.stringify({ plan: planSlug })
       });
@@ -241,21 +241,36 @@ async function initPaymentStatus() {
   if (!details) return;
 
   if (!paymentId) {
-    details.innerHTML = "<div><dt>Status</dt><dd>Payment ID tidak ditemukan</dd></div>";
+    renderPaymentDetails(details, [["Status", "Payment ID tidak ditemukan"]]);
     return;
   }
 
   try {
     const payment = await fetchJson(`/payments/${encodeURIComponent(paymentId)}`);
-    details.innerHTML = [
-      ["Order ID", payment.orderId || "-"],
+    renderPaymentDetails(details, [
+      ["Payment ID", payment.paymentId || paymentId],
       ["Paket", planCatalog[payment.plan]?.name || payment.plan || "-"],
       ["Tagihan", formatAmount(payment.grossAmount)],
       ["Status terakhir", payment.status || "-"]
-    ].map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`).join("");
+    ]);
   } catch (error) {
-    details.innerHTML = `<div><dt>Status</dt><dd>${error instanceof Error ? error.message : "Gagal memuat payment"}</dd></div>`;
+    renderPaymentDetails(details, [[
+      "Status",
+      error instanceof Error ? error.message : "Gagal memuat payment"
+    ]]);
   }
+}
+
+function renderPaymentDetails(container, rows) {
+  container.replaceChildren(...rows.map(([label, value]) => {
+    const row = document.createElement("div");
+    const term = document.createElement("dt");
+    const description = document.createElement("dd");
+    term.textContent = String(label);
+    description.textContent = String(value);
+    row.append(term, description);
+    return row;
+  }));
 }
 
 if (document.body.dataset.page === "checkout") {

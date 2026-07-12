@@ -24,6 +24,13 @@ const usageLedgerMigrationSql = await readFile(
   "utf8"
 );
 assert.match(usageLedgerMigrationSql, /ON DELETE set null/i);
+const paymentProviderMigrationSql = await readFile(
+  new URL("../migrations/0012_payment_provider_abstraction.sql", import.meta.url),
+  "utf8"
+);
+assert.match(paymentProviderMigrationSql, /provider_payment_id/i);
+assert.match(paymentProviderMigrationSql, /payment_intents_provider_payment_unique_idx/i);
+assert.match(paymentProviderMigrationSql, /payment_intents_pending_expiry_idx/i);
 
 const userId = randomUUID();
 const app = buildApp();
