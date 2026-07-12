@@ -582,10 +582,6 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
 
-      .pricing-card.featured {
-        order: -1;
-      }
-
       .trust-band {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
